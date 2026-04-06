@@ -88,11 +88,20 @@ echo ""
 echo "--- Test: --set single property ---"
 run_moosh activity:mod -p "$MOODLE_PATH" --run -S type=single $FORUM_CMID -o csv
 assert_output_contains "Shows updated forum" "Final Forum" "$OUT"
+
+echo "--- Test: Verify --set type=single via activity:info ---"
+run_moosh activity:info -p "$MOODLE_PATH" $FORUM_CMID -o json
+assert_output_contains "Forum type is single" '"single"' "$OUT"
 echo ""
 
 echo "--- Test: --set multiple properties ---"
 run_moosh activity:mod -p "$MOODLE_PATH" --run --set type=general --set assessed=1 $FORUM_CMID -o csv
 assert_output_contains "Shows forum after multi-set" "Final Forum" "$OUT"
+
+echo "--- Test: Verify --set type=general and assessed=1 via activity:info ---"
+run_moosh activity:info -p "$MOODLE_PATH" $FORUM_CMID -o json
+assert_output_contains "Forum type is general" '"general"' "$OUT"
+assert_output_contains "Forum assessed is 1" '"1"' "$OUT"
 echo ""
 
 echo "--- Test: --set dry run ---"
@@ -111,6 +120,11 @@ echo ""
 echo "--- Test: --set combined with --name ---"
 run_moosh activity:mod -p "$MOODLE_PATH" --run --name "Set And Name Forum" -S type=single $FORUM_CMID -o csv
 assert_output_contains "Shows new name with --set" "Set And Name Forum" "$OUT"
+
+echo "--- Test: Verify --name and --set type=single via activity:info ---"
+run_moosh activity:info -p "$MOODLE_PATH" $FORUM_CMID -o json
+assert_output_contains "Name is Set And Name Forum" '"Set And Name Forum"' "$OUT"
+assert_output_contains "Forum type is single after combined" '"single"' "$OUT"
 echo ""
 
 # -- No modification specified ---

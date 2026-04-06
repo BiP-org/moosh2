@@ -187,6 +187,10 @@ run_moosh activity:create -p "$MOODLE_PATH" --run --name "Individual Wiki" --set
 assert_output_contains "Module is wiki (--set)" ",wiki," "$OUT"
 WIKI2_CMID=$(echo "$OUT" | tail -1 | cut -d, -f1)
 echo "  Created wiki cmid=$WIKI2_CMID"
+
+echo "--- Test: Verify --set wikimode via activity:info ---"
+run_moosh activity:info -p "$MOODLE_PATH" $WIKI2_CMID -o json
+assert_output_contains "Wiki wikimode is individual" '"individual"' "$OUT"
 echo ""
 
 echo "--- Test: --set multiple values ---"
@@ -194,6 +198,11 @@ run_moosh activity:create -p "$MOODLE_PATH" --run --name "Custom Forum" -S type=
 assert_output_contains "Module is forum (--set multi)" ",forum," "$OUT"
 FORUM2_CMID=$(echo "$OUT" | tail -1 | cut -d, -f1)
 echo "  Created forum cmid=$FORUM2_CMID"
+
+echo "--- Test: Verify --set type and assessed via activity:info ---"
+run_moosh activity:info -p "$MOODLE_PATH" $FORUM2_CMID -o json
+assert_output_contains "Forum type is single" '"single"' "$OUT"
+assert_output_contains "Forum assessed is 1" '"1"' "$OUT"
 echo ""
 
 echo "--- Test: --set invalid format ---"
