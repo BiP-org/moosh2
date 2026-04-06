@@ -136,7 +136,12 @@ export function CommandDetailPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Examples</h2>
           {cmd.examples.map((ex, i) => (
-            <CodeBlock key={i}>{ex}</CodeBlock>
+            <div key={i} className="space-y-1">
+              {typeof ex === 'object' && ex.description && (
+                <p className="text-sm text-muted-foreground">{ex.description}</p>
+              )}
+              <CodeBlock>{typeof ex === 'string' ? ex : ex.command}</CodeBlock>
+            </div>
           ))}
         </section>
       )}

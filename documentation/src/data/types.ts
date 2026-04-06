@@ -21,7 +21,7 @@ export interface Command {
   bootstrapLevel: string;
   arguments: CommandArgument[];
   options: CommandOption[];
-  examples?: string[];
+  examples?: (string | { description: string; command: string })[];
   sinceVersion?: string;
 }
 
