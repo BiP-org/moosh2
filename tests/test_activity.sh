@@ -316,6 +316,40 @@ assert_output_contains "JSON name changed" '"Final Forum"' "$OUT"
 assert_output_contains "JSON idnumber set" '"FIN001"' "$OUT"
 echo ""
 
+# ── --set option: modify module properties ───────────────────────
+
+echo "--- Test: --set single property ---"
+OUT=$($PHP $MOOSH activity:mod -p "$MOODLE_PATH" --run -S type=single $FORUM_CMID -o csv)
+echo "$OUT"
+assert_output_contains "Shows updated forum" "Final Forum" "$OUT"
+echo ""
+
+echo "--- Test: --set multiple properties ---"
+OUT=$($PHP $MOOSH activity:mod -p "$MOODLE_PATH" --run --set type=general --set assessed=1 $FORUM_CMID -o csv)
+echo "$OUT"
+assert_output_contains "Shows forum after multi-set" "Final Forum" "$OUT"
+echo ""
+
+echo "--- Test: --set dry run ---"
+OUT=$($PHP $MOOSH activity:mod -p "$MOODLE_PATH" -S type=blog $FORUM_CMID)
+echo "$OUT"
+assert_output_contains "Shows dry run for --set" "Dry run" "$OUT"
+assert_output_contains "Shows --set change" "type:" "$OUT"
+echo ""
+
+echo "--- Test: --set invalid format ---"
+OUT=$($PHP $MOOSH activity:mod -p "$MOODLE_PATH" --run -S badformat $FORUM_CMID 2>&1)
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for bad --set" 1 "$EXIT_CODE"
+assert_output_contains "Error for bad --set" "Invalid --set format" "$OUT"
+echo ""
+
+echo "--- Test: --set combined with --name ---"
+OUT=$($PHP $MOOSH activity:mod -p "$MOODLE_PATH" --run --name "Set And Name Forum" -S type=single $FORUM_CMID -o csv)
+echo "$OUT"
+assert_output_contains "Shows new name with --set" "Set And Name Forum" "$OUT"
+echo ""
+
 # ── No modification specified ─────────────────────────────────────
 
 echo "--- Test: No modification specified ---"
@@ -343,6 +377,7 @@ assert_output_contains "Help shows --name" "--name" "$OUT"
 assert_output_contains "Help shows --visible" "--visible" "$OUT"
 assert_output_contains "Help shows --section" "--section" "$OUT"
 assert_output_contains "Help shows --before" "--before" "$OUT"
+assert_output_contains "Help shows --set" "--set" "$OUT"
 echo ""
 
 # ── Alias ─────────────────────────────────────────────────────────

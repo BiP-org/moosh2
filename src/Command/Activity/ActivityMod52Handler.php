@@ -33,7 +33,8 @@ class ActivityMod52Handler extends BaseHandler
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Set visibility (1 or 0)')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Set ID number')
             ->addOption('section', 's', InputOption::VALUE_REQUIRED, 'Move to section number')
-            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Move before this course module ID (use with --section)');
+            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Move before this course module ID (use with --section)')
+            ->addOption('set', 'S', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Set module property: key=value (repeatable)');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -50,6 +51,7 @@ class ActivityMod52Handler extends BaseHandler
         $newIdnumber = $input->getOption('idnumber');
         $newSection = $input->getOption('section');
         $beforeCmid = $input->getOption('before');
+        $setOptions = $input->getOption('set');
 
         $verbose->step('Loading Moodle libraries');
         require_once $CFG->dirroot . '/course/lib.php';
@@ -68,9 +70,24 @@ class ActivityMod52Handler extends BaseHandler
         $currentSectionRecord = $DB->get_record('course_sections', ['id' => $cm->section]);
         $currentSectionNum = $currentSectionRecord ? (int) $currentSectionRecord->section : 0;
 
+        // Parse --set options.
+        $setFields = [];
+        foreach ($setOptions as $spec) {
+            $parts = explode('=', $spec, 2);
+            if (count($parts) !== 2) {
+                $output->writeln("<error>Invalid --set format: '$spec'. Expected: key=value</error>");
+                return Command::FAILURE;
+            }
+            [$key, $value] = $parts;
+            if (is_numeric($value)) {
+                $value = str_contains($value, '.') ? (float) $value : (int) $value;
+            }
+            $setFields[$key] = $value;
+        }
+
         // Check something was requested.
-        if ($newName === null && $newVisible === null && $newIdnumber === null && $newSection === null) {
-            $output->writeln('<error>No modifications specified. Use --name, --visible, --idnumber, or --section.</error>');
+        if ($newName === null && $newVisible === null && $newIdnumber === null && $newSection === null && $setFields === []) {
+            $output->writeln('<error>No modifications specified. Use --name, --visible, --idnumber, --section, or --set.</error>');
             return Command::FAILURE;
         }
 
@@ -90,6 +107,11 @@ class ActivityMod52Handler extends BaseHandler
             if ($beforeCmid !== null) {
                 $changes[] = "before cmid: $beforeCmid";
             }
+        }
+        foreach ($setFields as $key => $value) {
+            $instance = $DB->get_record($module->name, ['id' => $cm->instance]);
+            $oldValue = $instance->$key ?? '(unset)';
+            $changes[] = "$key: \"$oldValue\" -> \"$value\"";
         }
 
         if (!$runMode) {
@@ -141,6 +163,17 @@ class ActivityMod52Handler extends BaseHandler
             } else {
                 $action->move_end_section($cm->id, $sectionRecord->id);
             }
+        }
+
+        // Apply --set fields to the module instance.
+        if ($setFields !== []) {
+            $instance = $DB->get_record($module->name, ['id' => $cm->instance], '*', MUST_EXIST);
+            foreach ($setFields as $key => $value) {
+                $verbose->info("Setting $key: $value");
+                $instance->$key = $value;
+            }
+            $DB->update_record($module->name, $instance);
+            rebuild_course_cache($cm->course, true);
         }
 
         $verbose->done('Modifications applied');
