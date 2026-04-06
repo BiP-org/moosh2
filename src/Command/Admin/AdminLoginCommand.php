@@ -14,6 +14,7 @@ use Moosh2\Command\BaseCommand;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Output\VerboseLogger;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
@@ -39,7 +40,8 @@ class AdminLoginCommand extends BaseCommand
         $this
             ->setName('admin:login')
             ->setDescription('Create an admin login session')
-            ->setHelp('Creates a valid Moodle session for the admin user and returns the session cookie name and value. Useful for scripting authenticated HTTP requests.');
+            ->setHelp('Creates a valid Moodle session for the admin user and returns the session cookie name and value. Useful for scripting authenticated HTTP requests.')
+            ->addOption('web-login', null, InputOption::VALUE_NONE, 'Create the session via the web server (needed when the CLI user differs from the web server user)');
 
         $this->handler->configureCommand($this);
     }

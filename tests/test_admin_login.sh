@@ -68,6 +68,56 @@ run_moosh admin:login -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Create an admin login session" "$OUT"
 echo ""
 
+# ── Verify session works in browser via curl ──────────────────────
+
+echo "--- Test: Session works via curl (--web-login) ---"
+run_moosh admin:login -p "$MOODLE_PATH" --web-login
+SESSION_COOKIE=$(echo "$OUT" | grep MoodleSession | head -1)
+COOKIE_VALUE=$(echo "$SESSION_COOKIE" | cut -d: -f2)
+WWWROOT=$($PHP -r "define('CLI_SCRIPT', true); require('$MOODLE_PATH/config.php'); echo \$CFG->wwwroot;" 2>/dev/null)
+CURL_OUT=$(curl -s -L -b "MoodleSession=$COOKIE_VALUE" "$WWWROOT/user/profile.php" 2>&1)
+ADMIN_CHECK=$(echo "$CURL_OUT" | grep -c 'Admin User')
+if [ "$ADMIN_CHECK" -gt 0 ]; then
+    echo "  PASS: Logged in as admin via curl"
+    ((PASS++))
+else
+    echo "  FAIL: Session not valid in browser"
+    echo "    Expected: 'Admin User' in page (found $ADMIN_CHECK times)"
+    ((FAIL++))
+fi
+echo ""
+
+# ── uid mismatch error ───────────────────────────────────────────
+
+echo "--- Test: uid mismatch error ---"
+# Temporarily change dataroot owner to trigger the check
+DATAROOT=$($PHP -r "define('CLI_SCRIPT', true); require('$MOODLE_PATH/config.php'); echo \$CFG->dataroot;" 2>/dev/null)
+ORIG_OWNER=$(stat -c '%u' "$DATAROOT")
+sudo chown www-data "$DATAROOT"
+run_moosh admin:login -p "$MOODLE_PATH"
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for uid mismatch" 1 "$EXIT_CODE"
+assert_output_contains "Shows owner mismatch" "owned by" "$OUT"
+assert_output_contains "Shows --web-login hint" "--web-login" "$OUT"
+sudo chown "$ORIG_OWNER" "$DATAROOT"
+echo ""
+
+echo "--- Test: --web-login bypasses uid mismatch ---"
+sudo chown www-data "$DATAROOT"
+run_moosh admin:login -p "$MOODLE_PATH" --web-login
+EXIT_CODE=$?
+assert_exit_code "Exit code 0 with --web-login" 0 "$EXIT_CODE"
+assert_output_contains "Returns MoodleSession" "MoodleSession" "$OUT"
+sudo chown "$ORIG_OWNER" "$DATAROOT"
+echo ""
+
+# ── Help shows --web-login ────────────────────────────────────────
+
+echo "--- Test: Help shows --web-login ---"
+run_moosh admin:login -p "$MOODLE_PATH" --help
+assert_output_contains "Help shows --web-login" "--web-login" "$OUT"
+echo ""
+
 # ── admin-login alias ─────────────────────────────────────────────
 
 
