@@ -121,8 +121,8 @@ assert_output_contains "Shows component" "Component" "$OUT"
 echo ""
 
 # Get the hash for hash lookup test
-run_moosh file:info $FILE_ID -p "$MOODLE_PATH" -o csv 2>&1 | grep "Content hash" | cut -d, -f2
-HASH="$OUT"
+run_moosh file:info $FILE_ID -p "$MOODLE_PATH" -o csv
+HASH=$(echo "$OUT" | grep "Content hash" | cut -d, -f2)
 echo "  File hash: $HASH"
 
 echo "--- Test: Info by hash ---"
@@ -198,8 +198,8 @@ echo ""
 echo "Hello from moosh2 test" > "$TMPDIR/testfile.txt"
 
 # Get context ID for course 2
-run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_context WHERE contextlevel=50 AND instanceid=2" -o csv 2>&1 | tail -1
-CTX_ID="$OUT"
+run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_context WHERE contextlevel=50 AND instanceid=2" -o csv
+CTX_ID=$(echo "$OUT" | tail -1)
 echo "  Course 2 context ID: $CTX_ID"
 
 echo "--- Test: Dry run ---"

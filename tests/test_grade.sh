@@ -127,8 +127,8 @@ echo "========== gradecategory:mod =========="
 echo ""
 
 # Get the Assignments category ID
-run_moosh gradecategory:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep Assignments | head -1 | cut -d, -f1
-ASSIGN_CAT_ID="$OUT"
+run_moosh gradecategory:list 2 -p "$MOODLE_PATH" -o csv
+ASSIGN_CAT_ID=$(echo "$OUT" | grep Assignments | head -1 | cut -d, -f1)
 echo "  Assignments category ID: $ASSIGN_CAT_ID"
 
 echo "--- Test: Mod dry run ---"
@@ -314,8 +314,8 @@ echo "========== gradeitem:mod =========="
 echo ""
 
 # Get the Homework 1 grade item ID
-run_moosh gradeitem:list 2 --itemtype manual -p "$MOODLE_PATH" -o csv 2>&1 | grep "Homework 1" | head -1 | cut -d, -f1
-HW_ITEM_ID="$OUT"
+run_moosh gradeitem:list 2 --itemtype manual -p "$MOODLE_PATH" -o csv
+HW_ITEM_ID=$(echo "$OUT" | grep "Homework 1" | head -1 | cut -d, -f1)
 echo "  Homework 1 item ID: $HW_ITEM_ID"
 
 echo "--- Test: Mod dry run ---"

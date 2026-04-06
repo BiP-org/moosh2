@@ -150,8 +150,8 @@ echo ""
 
 echo "--- Test: Add member by user ID ---"
 # Get a student user ID
-run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_user WHERE username='student01'" -o csv 2>&1 | tail -1
-STUDENT_ID="$OUT"
+run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_user WHERE username='student01'" -o csv
+STUDENT_ID=$(echo "$OUT" | tail -1)
 run_moosh cohort:mod $COHORT_ID --add-member $STUDENT_ID -p "$MOODLE_PATH" --run
 EC=$?
 assert_exit_code "Add by ID exit code 0" 0 $EC

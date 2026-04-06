@@ -313,8 +313,8 @@ echo "========== question:delete =========="
 echo ""
 
 # Get a question ID to delete
-run_moosh question:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep "Water formula" | head -1 | cut -d, -f1
-Q_ID="$OUT"
+run_moosh question:list 2 -p "$MOODLE_PATH" -o csv
+Q_ID=$(echo "$OUT" | grep "Water formula" | head -1 | cut -d, -f1)
 echo "  Water formula question ID: $Q_ID"
 
 echo "--- Test: Delete dry run ---"

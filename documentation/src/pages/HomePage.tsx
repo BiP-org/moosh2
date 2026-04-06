@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/CodeBlock';
-import { Terminal, Eye, BookOpen } from 'lucide-react';
+import { Terminal, Eye, BookOpen, FlaskConical } from 'lucide-react';
 import { commands } from '@/data/commands';
 import { categories } from '@/data/categories';
 
@@ -22,7 +22,11 @@ const features = [
     title: 'Open Source forever',
     description: 'Licensed under GNU GPL v3+. Community-driven development.',
   },
-];
+  {
+    icon: FlaskConical,
+    title: 'Well tested',
+    description: 'Covered by nearly 3000 tests!',
+  },];
 
 export function HomePage() {
   return (

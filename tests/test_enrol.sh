@@ -80,13 +80,11 @@ echo ""
 echo "========== enrol:mod =========="
 echo ""
 
-# Get the guest enrolment instance ID
-run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep guest | head -1 | cut -d, -f1
-GUEST_ID="$OUT"
-run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep self | head -1 | cut -d, -f1
-SELF_ID="$OUT"
-run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep manual | head -1 | cut -d, -f1
-MANUAL_ID="$OUT"
+# Get the enrolment instance IDs
+run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv
+GUEST_ID=$(echo "$OUT" | grep guest | head -1 | cut -d, -f1)
+SELF_ID=$(echo "$OUT" | grep self | head -1 | cut -d, -f1)
+MANUAL_ID=$(echo "$OUT" | grep manual | head -1 | cut -d, -f1)
 echo "  Guest ID: $GUEST_ID, Self ID: $SELF_ID, Manual ID: $MANUAL_ID"
 
 echo "--- Test: Mod dry run ---"
@@ -146,8 +144,8 @@ echo "--- Test: Delete instance ---"
 # Enable self first, then create a new self instance to delete
 $PHP $MOOSH course:mod 2 --selfenrol 1 -p "$MOODLE_PATH" --run > /dev/null 2>&1
 # Get the newly created self ID (there might be two now)
-run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv 2>&1 | grep self | tail -1 | cut -d, -f1
-NEW_SELF_ID="$OUT"
+run_moosh enrol:list 2 -p "$MOODLE_PATH" -o csv
+NEW_SELF_ID=$(echo "$OUT" | grep self | tail -1 | cut -d, -f1)
 if [ "$NEW_SELF_ID" != "$SELF_ID" ]; then
     run_moosh enrol:delete $NEW_SELF_ID -p "$MOODLE_PATH" --run
     OUT="$OUT"

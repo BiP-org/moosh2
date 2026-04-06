@@ -34,7 +34,7 @@ assert_output_contains "Shows reset_gradebook" "reset_gradebook_grades" "$OUT"
 echo ""
 
 echo "--- Test: Reset with --run ---"
-run_moosh course:reset -p "$MOODLE_PATH" --run 2 2>&1 | tail -3
+run_moosh course:reset -p "$MOODLE_PATH" --run 2
 assert_output_contains "Shows reset complete" "has been reset" "$OUT"
 echo ""
 

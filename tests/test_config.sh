@@ -31,7 +31,7 @@ assert_output_contains "Theme is boost" "boost" "$OUT"
 echo ""
 
 echo "--- Test: Get all core settings (CSV) ---"
-run_moosh config:get -p "$MOODLE_PATH" -o csv 2>&1 | head -3
+run_moosh config:get -p "$MOODLE_PATH" -o csv
 assert_output_contains "Header row" "name,value" "$OUT"
 echo ""
 
@@ -153,7 +153,7 @@ assert_output_contains "Plugin exported" "Exported to" "$OUT"
 echo ""
 
 echo "--- Test: Export all ---"
-run_moosh config:export --plugin all -p "$MOODLE_PATH" 2>&1 | head -5
+run_moosh config:export --plugin all -p "$MOODLE_PATH"
 assert_output_contains "Has all type" '"_type": "all"' "$OUT"
 assert_output_contains "Has core key" '"core"' "$OUT"
 echo ""

@@ -158,7 +158,7 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════
 
 echo "--- Test: sql:dump to stdout ---"
-run_moosh sql:dump -p "$MOODLE_PATH" --tables=config 2>&1 | head -20
+run_moosh sql:dump -p "$MOODLE_PATH" --tables=config
 assert_output_not_empty "Dump output not empty" "$OUT"
 # Should contain SQL dump markers
 assert_output_contains "Dump contains SQL" "dump" "$OUT"

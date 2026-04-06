@@ -59,7 +59,7 @@ assert_output_not_contains "No brands in solid" "brands" "$OUT"
 echo ""
 
 echo "--- Test: Style filter brands ---"
-run_moosh fontawesome:list -p "$MOODLE_PATH" --style brands -o csv 2>&1 | head -5
+run_moosh fontawesome:list -p "$MOODLE_PATH" --style brands -o csv
 assert_output_contains "Has brand icons" "brands" "$OUT"
 assert_output_not_contains "No solid in brands" ",solid," "$OUT"
 echo ""

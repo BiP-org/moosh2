@@ -153,7 +153,9 @@ echo ""
 # ── Pipe --sql -i into user:list --stdin ──────────────────────────
 
 echo "--- Test: Pipe user:list --sql -i into user:list --stdin ---"
-run_moosh user:list -p "$MOODLE_PATH" --sql "u.username = 'admin'" -i | $PHP $MOOSH user:list -p "$MOODLE_PATH" --stdin -o csv
+run_moosh user:list -p "$MOODLE_PATH" --sql "u.username = 'admin'" -i
+OUT=$(echo "$OUT" | $PHP $MOOSH user:list -p "$MOODLE_PATH" --stdin -o csv 2>&1)
+echo "$OUT"
 assert_output_contains "Piped output has header" "id,username,email" "$OUT"
 assert_output_contains "Piped output contains admin" "admin" "$OUT"
 assert_output_not_contains "Piped output excludes students" "student01" "$OUT"
@@ -162,7 +164,9 @@ echo ""
 # ── Pipe user:list -i into user:list --stdin ──────────────────────
 
 echo "--- Test: Pipe user:list -i into user:list --stdin ---"
-run_moosh user:list -p "$MOODLE_PATH" --limit 3 -i | $PHP $MOOSH user:list -p "$MOODLE_PATH" --stdin -o csv
+run_moosh user:list -p "$MOODLE_PATH" --limit 3 -i
+OUT=$(echo "$OUT" | $PHP $MOOSH user:list -p "$MOODLE_PATH" --stdin -o csv 2>&1)
+echo "$OUT"
 assert_output_contains "Piped output has header" "id,username,email" "$OUT"
 LINE_COUNT=$(echo "$OUT" | wc -l)
 assert_output_contains "Piped output has 4 lines" "4" "$LINE_COUNT"

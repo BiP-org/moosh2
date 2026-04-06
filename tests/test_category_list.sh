@@ -141,7 +141,9 @@ echo ""
 # ── Pipe -i into --stdin ──────────────────────────────────────────
 
 echo "--- Test: Pipe category:list -i into category:list --stdin ---"
-run_moosh category:list -p "$MOODLE_PATH" --sql "cc.name = 'Mathematics'" -i | $PHP $MOOSH category:list -p "$MOODLE_PATH" --stdin -o csv
+run_moosh category:list -p "$MOODLE_PATH" --sql "cc.name = 'Mathematics'" -i
+OUT=$(echo "$OUT" | $PHP $MOOSH category:list -p "$MOODLE_PATH" --stdin -o csv 2>&1)
+echo "$OUT"
 assert_output_contains "Piped output has header" "id,name" "$OUT"
 assert_output_contains "Piped output contains Mathematics" "Mathematics" "$OUT"
 assert_output_not_contains "Piped output excludes Sciences" "Sciences" "$OUT"
