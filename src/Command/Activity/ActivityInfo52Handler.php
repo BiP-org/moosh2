@@ -97,34 +97,6 @@ class ActivityInfo52Handler extends BaseHandler
         // Dates
         $data['Added'] = $cm->added ? userdate($cm->added) : 'unknown';
 
-        // --- Module-specific instance data ---
-        $verbose->step('Loading module instance');
-        $instance = $DB->get_record($moduleRecord->name, ['id' => $cm->instance]);
-        if ($instance) {
-            if (isset($instance->intro) && !empty($instance->intro)) {
-                $introLen = mb_strlen(strip_tags($instance->intro));
-                $data['Introduction length'] = "$introLen chars";
-            }
-            if (isset($instance->timemodified) && $instance->timemodified) {
-                $data['Last modified'] = userdate($instance->timemodified);
-            }
-            if (isset($instance->duedate) && $instance->duedate) {
-                $data['Due date'] = userdate($instance->duedate);
-            }
-            if (isset($instance->cutoffdate) && $instance->cutoffdate) {
-                $data['Cut-off date'] = userdate($instance->cutoffdate);
-            }
-            if (isset($instance->allowsubmissionsfromdate) && $instance->allowsubmissionsfromdate) {
-                $data['Submissions open'] = userdate($instance->allowsubmissionsfromdate);
-            }
-            if (isset($instance->timeopen) && $instance->timeopen) {
-                $data['Open time'] = userdate($instance->timeopen);
-            }
-            if (isset($instance->timeclose) && $instance->timeclose) {
-                $data['Close time'] = userdate($instance->timeclose);
-            }
-        }
-
         // --- Completion ---
         $verbose->step('Checking completion');
         $data['Completion tracking'] = match ((int) $cm->completion) {
@@ -242,6 +214,18 @@ class ActivityInfo52Handler extends BaseHandler
         // Role overrides in this context
         $overrides = $DB->count_records('role_capabilities', ['contextid' => $modContext->id]);
         $data['Role capability overrides'] = $overrides;
+
+        // --- Module-specific instance data ---
+        $verbose->step('Loading module instance');
+        $instance = $DB->get_record($moduleRecord->name, ['id' => $cm->instance]);
+        if ($instance) {
+            foreach ((array) $instance as $field => $value) {
+                if ($field === 'id') {
+                    continue;
+                }
+                $data["[$moduleRecord->name] $field"] = $value ?? '';
+            }
+        }
 
         // --- Render ---
         $verbose->step('Rendering output');
