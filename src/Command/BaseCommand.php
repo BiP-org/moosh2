@@ -103,6 +103,15 @@ abstract class BaseCommand extends Command
                 $input->getOption('no-login'),
             );
             $verbose->done('Moodle bootstrap complete');
+
+            if (!$input->getOption('no-user-check')) {
+                $result = $this->checkDataOwnership($output, $verbose);
+                if ($result !== null) {
+                    return $result;
+                }
+            } else {
+                $verbose->skip('Skipping data ownership check — --no-user-check flag');
+            }
         } else {
             $verbose->skip('No bootstrapper — running without Moodle context');
         }
@@ -142,6 +151,65 @@ abstract class BaseCommand extends Command
         }
 
         return $attrs[0]->newInstance();
+    }
+
+    /**
+     * Check that directories under Moodle dataroot are owned by the current user.
+     *
+     * Returns Command::FAILURE if a mismatch is found, null if everything is fine.
+     */
+    private function checkDataOwnership(OutputInterface $output, VerboseLogger $verbose): ?int
+    {
+        global $CFG;
+
+        if (!isset($CFG->dataroot) || !is_dir($CFG->dataroot)) {
+            $verbose->skip('Skipping data ownership check — dataroot not available');
+            return null;
+        }
+
+        $verbose->step('Checking data directory ownership');
+
+        $currentUid = posix_getuid();
+        $datarootOwner = fileowner($CFG->dataroot);
+
+        if ($datarootOwner !== false && $datarootOwner !== $currentUid) {
+            $currentUser = posix_getpwuid($currentUid)['name'] ?? (string) $currentUid;
+            $ownerUser = posix_getpwuid($datarootOwner)['name'] ?? (string) $datarootOwner;
+            $output->writeln(sprintf(
+                '<error>Moodle data directory "%s" is owned by "%s", but you are running as "%s".</error>',
+                $CFG->dataroot,
+                $ownerUser,
+                $currentUser,
+            ));
+            $output->writeln('<error>This may cause file permission problems. Use --no-user-check to skip this check.</error>');
+            return Command::FAILURE;
+        }
+
+        $dir = new \DirectoryIterator($CFG->dataroot);
+        foreach ($dir as $item) {
+            if ($item->isDot()) {
+                continue;
+            }
+            if (!$item->isDir()) {
+                continue;
+            }
+            $owner = $item->getOwner();
+            if ($owner !== $currentUid) {
+                $currentUser = posix_getpwuid($currentUid)['name'] ?? (string) $currentUid;
+                $ownerUser = posix_getpwuid($owner)['name'] ?? (string) $owner;
+                $output->writeln(sprintf(
+                    '<error>Directory "%s" under Moodle dataroot is owned by "%s", but you are running as "%s".</error>',
+                    $item->getPathname(),
+                    $ownerUser,
+                    $currentUser,
+                ));
+                $output->writeln('<error>This may cause file permission problems. Use --no-user-check to skip this check.</error>');
+                return Command::FAILURE;
+            }
+        }
+
+        $verbose->done('Data directory ownership OK');
+        return null;
     }
 
     /**

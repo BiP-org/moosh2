@@ -43,8 +43,8 @@ composer install
 # Run the tool against a Moodle installation
 php moosh.php course:list --moodle-path=/path/to/moodle
 
-# Run integration tests (requires MOODLE_PATH pointing to a working Moodle)
-MOODLE_PATH=/path/to/moodle bash tests/test_course_list.sh
+# Run integration tests (requires MOODLE_DIR pointing to a working Moodle)
+MOODLE_DIR=/path/to/moodle bash tests/test_course_list.sh
 ```
 
 There is no unit test suite or linter configured yet. No Makefile.
@@ -71,10 +71,10 @@ Every command follows this structure:
 Commands declare a `BootstrapLevel` enum value controlling how deeply Moodle is initialized:
 - `None` — no Moodle includes
 - `Config` — config.php only (ABORT_AFTER_CONFIG)
-- `Full` — standard full bootstrap
-- `FullNoCli` — browser context
+- `Full` — standard full CLI bootstrap (defines CLI_SCRIPT; sessions are NOT started)
+- `FullNoCli` — browser context (no CLI_SCRIPT; Moodle starts a session). Used by `admin:login` and `user:login`
 - `DbOnly` — database only
-- `FullNoAdminCheck` — full without admin check
+- `FullNoAdminCheck` — full without admin check (default for most read-only commands)
 
 Handlers can override the command's bootstrap level by implementing `getBootstrapLevel()` on `BaseHandler` (returns `?BootstrapLevel`, default `null`). When a handler returns a non-null value, it takes precedence over the command's `$bootstrapLevel` property. Commands must override `getActiveHandler()` on `BaseCommand` for this to work.
 
@@ -91,8 +91,8 @@ Handlers can override the command's bootstrap level by implementing `getBootstra
 - `--user` / `-u` — Moodle user (default: admin)
 - `--no-login` / `-l` — skip login
 - `--no-user-check` — skip data ownership check
-- `--performance` / `-t` — show timing info
-- `--output` / `-o` — output format
+- `--output` / `-o` — output format (table, csv, json)
+- `--run` — execute write operations (without it, write commands show a dry-run preview)
 
 ## Coding Style
 
@@ -115,11 +115,25 @@ Handlers can override the command's bootstrap level by implementing `getBootstra
 
 ## Testing
 
-Integration tests can be run using local Moodle instance and running test_course_list.sh script.
-Always run test_course_list.sh after doing a change, to make sure there are no regressions.
+Integration tests use a local Moodle instance. Set `MOODLE_DIR` to the Moodle installation parent directory (the one containing `public/`).
 
+```bash
+MOODLE_DIR=/var/www/html/moodle52 bash tests/test_course_list.sh
+```
+
+Test scripts source `tests/common.sh` which provides `run_moosh`, `assert_output_contains`, and other helpers. The `run_moosh` function captures output in `$OUT` — never pipe `run_moosh` through other commands (it runs in a subshell and `$OUT` won't propagate). Instead, call `run_moosh` first, then extract from `$OUT`:
+
+```bash
+# WRONG — $OUT won't be updated:
+run_moosh some:command -o csv | grep foo | cut -d, -f1
+
+# RIGHT:
+run_moosh some:command -o csv
+VALUE=$(echo "$OUT" | grep foo | cut -d, -f1)
+```
+
+Always run the relevant test script after making changes to verify no regressions.
 
 ## Bash Command Style
 
 Never chain commands with && or ; operators. Run them as separate bash calls instead.
-
