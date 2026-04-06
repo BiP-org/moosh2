@@ -241,12 +241,6 @@ final class Application extends SymfonyApplication {
                         'Do not check if Moodle data is owned by the current user',
                 ),
                 new InputOption(
-                        'performance',
-                        't',
-                        InputOption::VALUE_NONE,
-                        'Show performance information including timings',
-                ),
-                new InputOption(
                         'output',
                         'o',
                         InputOption::VALUE_REQUIRED,
