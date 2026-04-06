@@ -44,8 +44,7 @@ ZIP_BACKUP="$MOODLE_PATH/admin/tool/uploadcourse/tests/fixtures/backup.mbz"
 # ── Basic table output (gzip) ────────────────────────────────────
 
 echo "--- Test: Basic table output (gzip backup) ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz)
-echo "$OUT"
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz
 assert_output_contains "Shows File" "test_backup_algebra.mbz" "$OUT"
 assert_output_contains "Shows Archive type gzip" "gzip" "$OUT"
 assert_output_contains "Shows Moodle version" "Moodle version" "$OUT"
@@ -67,7 +66,7 @@ echo ""
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "JSON has File key" '"File"' "$OUT"
 assert_output_contains "JSON has Moodle release" '"Moodle release"' "$OUT"
 assert_output_contains "JSON has Course fullname" '"Algebra Fundamentals"' "$OUT"
@@ -77,7 +76,7 @@ echo ""
 # ── CSV output ────────────────────────────────────────────────────
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o csv)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o csv
 echo "$OUT" | head -2
 assert_output_contains "CSV has File header" "File" "$OUT"
 assert_output_contains "CSV has backup name" "test_backup_algebra.mbz" "$OUT"
@@ -86,7 +85,7 @@ echo ""
 # ── Course details ────────────────────────────────────────────────
 
 echo "--- Test: Course details ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "Original course ID is 2" '"Original course ID": "2"' "$OUT"
 assert_output_contains "Has Course start date" '"Course start date"' "$OUT"
 assert_output_contains "Course end date none" '"Course end date": "none"' "$OUT"
@@ -95,7 +94,7 @@ echo ""
 # ── Activities and sections ───────────────────────────────────────
 
 echo "--- Test: Activities and sections ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "1 activity" '"Activities": 1' "$OUT"
 assert_output_contains "1 resource activity" '"Activities: resource": 1' "$OUT"
 assert_output_contains "4 sections" '"Sections": 4' "$OUT"
@@ -104,7 +103,7 @@ echo ""
 # ── Users and enrolments ──────────────────────────────────────────
 
 echo "--- Test: Users and enrolments ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "60 users" '"Users": 60' "$OUT"
 assert_output_contains "60 total enrolments" '"Total enrolments": 60' "$OUT"
 assert_output_contains "60 manual enrolments" '"Enrolments: manual": 60' "$OUT"
@@ -115,7 +114,7 @@ echo ""
 # ── Backup settings ───────────────────────────────────────────────
 
 echo "--- Test: Backup settings ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "Includes users 1" '"Includes users": "1"' "$OUT"
 assert_output_contains "Includes activities 1" '"Includes activities": "1"' "$OUT"
 assert_output_contains "Includes blocks 1" '"Includes blocks": "1"' "$OUT"
@@ -125,7 +124,7 @@ echo ""
 # ── Files ─────────────────────────────────────────────────────────
 
 echo "--- Test: Files ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "1 file in backup" '"Files in backup": 1' "$OUT"
 assert_output_contains "33 bytes total" '"Files total size (bytes)": 33' "$OUT"
 echo ""
@@ -133,8 +132,7 @@ echo ""
 # ── Zip-format backup ────────────────────────────────────────────
 
 echo "--- Test: Zip-format backup ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" "$ZIP_BACKUP")
-echo "$OUT"
+run_moosh backup:info -p "$MOODLE_PATH" "$ZIP_BACKUP"
 assert_output_contains "Zip archive type" "zip" "$OUT"
 assert_output_contains "Course Import name" "Course Import" "$OUT"
 assert_output_contains "Glossary activity" "glossary" "$OUT"
@@ -144,7 +142,7 @@ echo ""
 # ── File size ─────────────────────────────────────────────────────
 
 echo "--- Test: File size ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/test_backup_algebra.mbz -o json
 assert_output_contains "File size present" '"File size (bytes)"' "$OUT"
 assert_output_not_contains "File size not zero" '"File size (bytes)": 0' "$OUT"
 echo ""
@@ -152,7 +150,7 @@ echo ""
 # ── Invalid file ──────────────────────────────────────────────────
 
 echo "--- Test: Invalid file ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" /tmp/nonexistent.mbz 2>&1)
+run_moosh backup:info -p "$MOODLE_PATH" /tmp/nonexistent.mbz
 EXIT_CODE=$?
 assert_exit_code "Exit code is 1 for missing file" 1 "$EXIT_CODE"
 assert_output_contains "Error message" "not found" "$OUT"
@@ -161,14 +159,14 @@ echo ""
 # ── Missing file argument ─────────────────────────────────────────
 
 echo "--- Test: Missing file argument ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" 2>&1)
+run_moosh backup:info -p "$MOODLE_PATH"
 assert_output_contains "Error mentions missing argument" "file" "$OUT"
 echo ""
 
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH backup:info -p "$MOODLE_PATH" --help)
+run_moosh backup:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Show detailed information about a Moodle backup file" "$OUT"
 assert_output_contains "Help shows file argument" "file" "$OUT"
 echo ""

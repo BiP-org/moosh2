@@ -63,8 +63,7 @@ echo ""
 # ── System context ────────────────────────────────────────────────
 
 echo "--- Test: System context (table) ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $SYSTEM_CTX)
-echo "$OUT"
+run_moosh context:info -p "$MOODLE_PATH" $SYSTEM_CTX
 assert_output_contains "Shows Context ID" "Context ID" "$OUT"
 assert_output_contains "Shows System level name" "System" "$OUT"
 assert_output_contains "Shows context level 10" "10" "$OUT"
@@ -77,7 +76,7 @@ assert_output_contains "Shows Log entries" "Log entries" "$OUT"
 echo ""
 
 echo "--- Test: System context (JSON) ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $SYSTEM_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $SYSTEM_CTX -o json
 assert_output_contains "JSON Context level" '"Context level": 10' "$OUT"
 assert_output_contains "JSON Context level name" '"Context level name": "System"' "$OUT"
 assert_output_contains "JSON Total users 62" '"Total users": 62' "$OUT"
@@ -88,7 +87,7 @@ echo ""
 # ── User context ──────────────────────────────────────────────────
 
 echo "--- Test: User context (admin) ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $USER_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $USER_CTX -o json
 echo "$OUT" | head -15
 assert_output_contains "User level 30" '"Context level": 30' "$OUT"
 assert_output_contains "User level name" '"Context level name": "User"' "$OUT"
@@ -101,7 +100,7 @@ echo ""
 # ── Category context ──────────────────────────────────────────────
 
 echo "--- Test: Category context (Mathematics) ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $CAT_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $CAT_CTX -o json
 echo "$OUT" | head -15
 assert_output_contains "Category level 40" '"Context level": 40' "$OUT"
 assert_output_contains "Category level name" '"Course category"' "$OUT"
@@ -114,7 +113,7 @@ echo ""
 # ── Course context ────────────────────────────────────────────────
 
 echo "--- Test: Course context (Algebra Fundamentals) ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $COURSE_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $COURSE_CTX -o json
 echo "$OUT" | head -20
 assert_output_contains "Course level 50" '"Context level": 50' "$OUT"
 assert_output_contains "Course shortname" '"Course shortname": "algebrafundamentals_2"' "$OUT"
@@ -131,7 +130,7 @@ echo ""
 # ── Module context ────────────────────────────────────────────────
 
 echo "--- Test: Module context ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $MODULE_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $MODULE_CTX -o json
 echo "$OUT" | head -20
 assert_output_contains "Module level 70" '"Context level": 70' "$OUT"
 assert_output_contains "Module level name" '"Module"' "$OUT"
@@ -148,7 +147,7 @@ echo ""
 # ── Block context ─────────────────────────────────────────────────
 
 echo "--- Test: Block context ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $BLOCK_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $BLOCK_CTX -o json
 echo "$OUT" | head -20
 assert_output_contains "Block level 80" '"Context level": 80' "$OUT"
 assert_output_contains "Block level name" '"Block"' "$OUT"
@@ -161,7 +160,7 @@ echo ""
 # ── Path names ────────────────────────────────────────────────────
 
 echo "--- Test: Path names resolution ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $MODULE_CTX -o json)
+run_moosh context:info -p "$MOODLE_PATH" $MODULE_CTX -o json
 assert_output_contains "Path names has System" "System" "$OUT"
 assert_output_contains "Path names has Mathematics" "Mathematics" "$OUT"
 assert_output_contains "Path names has Algebra" "Algebra" "$OUT"
@@ -170,7 +169,7 @@ echo ""
 # ── CSV output ────────────────────────────────────────────────────
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" $SYSTEM_CTX -o csv)
+run_moosh context:info -p "$MOODLE_PATH" $SYSTEM_CTX -o csv
 echo "$OUT" | head -2
 assert_output_contains "CSV has Context ID header" '"Context ID"' "$OUT"
 assert_output_contains "CSV has Context level header" '"Context level"' "$OUT"
@@ -179,7 +178,7 @@ echo ""
 # ── Invalid context ID ───────────────────────────────────────────
 
 echo "--- Test: Invalid context ID ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" 999 2>&1)
+run_moosh context:info -p "$MOODLE_PATH" 999
 EXIT_CODE=$?
 assert_exit_code "Exit code is 1 for invalid context" 1 "$EXIT_CODE"
 assert_output_contains "Error message" "not found" "$OUT"
@@ -188,14 +187,14 @@ echo ""
 # ── Missing contextid argument ───────────────────────────────────
 
 echo "--- Test: Missing contextid argument ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" 2>&1)
+run_moosh context:info -p "$MOODLE_PATH"
 assert_output_contains "Error mentions missing argument" "contextid" "$OUT"
 echo ""
 
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH context:info -p "$MOODLE_PATH" --help)
+run_moosh context:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Show detailed information about a context" "$OUT"
 assert_output_contains "Help shows contextid argument" "contextid" "$OUT"
 echo ""

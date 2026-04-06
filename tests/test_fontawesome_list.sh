@@ -33,39 +33,39 @@ fi
 echo ""
 
 echo "--- Test: CSV header ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" house -o csv 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" house -o csv
 FIRST_LINE=$(echo "$OUT" | head -1)
 assert_output_contains "Header row" "name,codepoint,style,html" "$FIRST_LINE"
 echo ""
 
 echo "--- Test: Search for 'house' ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" house -o csv 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" house -o csv
 assert_output_contains "Finds house icon" "house,f015,solid" "$OUT"
 assert_output_contains "Has HTML" "fa-solid fa-house" "$OUT"
 assert_output_not_contains "No unrelated icons" "github" "$OUT"
 echo ""
 
 echo "--- Test: Search for 'github' ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" github -o csv 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" github -o csv
 assert_output_contains "Finds github" "github" "$OUT"
 assert_output_contains "Brand style" "brands" "$OUT"
 assert_output_contains "Brand HTML class" "fa-brands" "$OUT"
 echo ""
 
 echo "--- Test: Style filter solid ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" house --style solid -o csv 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" house --style solid -o csv
 assert_output_contains "Solid house found" "house" "$OUT"
 assert_output_not_contains "No brands in solid" "brands" "$OUT"
 echo ""
 
 echo "--- Test: Style filter brands ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" --style brands -o csv 2>&1 | head -5)
+run_moosh fontawesome:list -p "$MOODLE_PATH" --style brands -o csv 2>&1 | head -5
 assert_output_contains "Has brand icons" "brands" "$OUT"
 assert_output_not_contains "No solid in brands" ",solid," "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" house -o json 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" house -o json
 assert_output_contains "JSON has name" '"name"' "$OUT"
 assert_output_contains "JSON has codepoint" '"codepoint"' "$OUT"
 assert_output_contains "JSON has style" '"style"' "$OUT"
@@ -73,13 +73,13 @@ assert_output_contains "JSON has html" '"html"' "$OUT"
 echo ""
 
 echo "--- Test: Table output ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" house 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" house
 assert_output_contains "Table has house" "house" "$OUT"
 assert_output_contains "Table has solid" "solid" "$OUT"
 echo ""
 
 echo "--- Test: No results ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" xyznonexistent123 -o csv 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" xyznonexistent123 -o csv
 LINE_COUNT=$(echo "$OUT" | wc -l)
 if [ "$LINE_COUNT" -le 1 ]; then
     echo "  PASS: Only header for no results ($LINE_COUNT lines)"
@@ -91,7 +91,7 @@ fi
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH fontawesome:list -p "$MOODLE_PATH" --help 2>&1)
+run_moosh fontawesome:list -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "List all Font Awesome icons" "$OUT"
 assert_output_contains "Help shows --style" "--style" "$OUT"
 echo ""

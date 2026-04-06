@@ -26,8 +26,7 @@ echo ""
 # ── Basic rebuild ────────────────────────────────────────────────
 
 echo "--- Test: Basic rebuild ---"
-OUT=$($PHP $MOOSH context:rebuild -p "$MOODLE_PATH" 2>&1)
-echo "$OUT"
+run_moosh context:rebuild -p "$MOODLE_PATH"
 assert_output_contains "Shows Before rebuild" "Before rebuild" "$OUT"
 assert_output_contains "Shows Total contexts" "Total contexts" "$OUT"
 assert_output_contains "Shows empty paths before" "Contexts with empty paths" "$OUT"
@@ -67,8 +66,7 @@ global \$DB;
 \$DB->set_field('context', 'depth', 0, ['id' => \$ctx->id]);
 " 2>/dev/null
 
-OUT=$($PHP $MOOSH context:rebuild -p "$MOODLE_PATH" 2>&1)
-echo "$OUT"
+run_moosh context:rebuild -p "$MOODLE_PATH"
 assert_output_contains "Shows empty paths before fix" "Contexts with empty paths: 1" "$OUT"
 assert_output_contains "Shows empty paths fixed after" "Empty paths fixed: 1" "$OUT"
 echo ""
@@ -76,7 +74,7 @@ echo ""
 # ── Help output ──────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH context:rebuild -p "$MOODLE_PATH" --help 2>&1)
+run_moosh context:rebuild -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Rebuild all context paths" "$OUT"
 assert_output_contains "Help shows description keyword" "context" "$OUT"
 echo ""

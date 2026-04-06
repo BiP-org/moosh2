@@ -26,7 +26,7 @@ echo "========== user:online =========="
 echo ""
 
 echo "--- Test: Default output ---"
-OUT=$($PHP $MOOSH user:online -p "$MOODLE_PATH" 2>&1)
+run_moosh user:online -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 0" 0 $EC
 # May show users or "No users online" depending on test timing
@@ -34,23 +34,23 @@ assert_output_not_empty "Output not empty" "$OUT"
 echo ""
 
 echo "--- Test: With time window ---"
-OUT=$($PHP $MOOSH user:online --time 86400 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:online --time 86400 -p "$MOODLE_PATH"
 # 24 hour window should catch recent admin activity
 assert_output_contains "Shows username" "username" "$OUT"
 echo ""
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH user:online --time 86400 -p "$MOODLE_PATH" -o csv 2>&1)
+run_moosh user:online --time 86400 -p "$MOODLE_PATH" -o csv
 assert_output_contains "CSV header" "id,username" "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH user:online --time 86400 -p "$MOODLE_PATH" -o json 2>&1)
+run_moosh user:online --time 86400 -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has username" '"username"' "$OUT"
 echo ""
 
 echo "--- Test: With limit ---"
-OUT=$($PHP $MOOSH user:online --time 86400 --limit 1 -p "$MOODLE_PATH" -o csv 2>&1)
+run_moosh user:online --time 86400 --limit 1 -p "$MOODLE_PATH" -o csv
 # Header + at most 1 data row
 LINE_COUNT=$(echo "$OUT" | wc -l)
 if [ "$LINE_COUNT" -le 2 ]; then
@@ -63,12 +63,12 @@ fi
 echo ""
 
 echo "--- Test: No users in tiny window ---"
-OUT=$($PHP $MOOSH user:online --time 0 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:online --time 0 -p "$MOODLE_PATH"
 assert_output_contains "No users" "No users" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH user:online -p "$MOODLE_PATH" --help 2>&1)
+run_moosh user:online -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "currently online" "$OUT"
 assert_output_contains "Help shows --time" "--time" "$OUT"
 assert_output_contains "Help shows --limit" "--limit" "$OUT"
@@ -82,14 +82,14 @@ echo "========== user:export =========="
 echo ""
 
 echo "--- Test: Export all to stdout ---"
-OUT=$($PHP $MOOSH user:export -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export -p "$MOODLE_PATH"
 assert_output_contains "CSV header" "id,username,email" "$OUT"
 assert_output_contains "Has admin" "admin" "$OUT"
 echo ""
 
 echo "--- Test: Export to file ---"
 TMPFILE=$(mktemp /tmp/moosh_users_XXXXXX.csv)
-OUT=$($PHP $MOOSH user:export -p "$MOODLE_PATH" "$TMPFILE" 2>&1)
+run_moosh user:export -p "$MOODLE_PATH" "$TMPFILE"
 assert_output_contains "Shows exported" "Exported" "$OUT"
 CONTENT=$(head -1 "$TMPFILE")
 assert_output_contains "File has header" "id,username" "$CONTENT"
@@ -105,7 +105,7 @@ rm -f "$TMPFILE"
 echo ""
 
 echo "--- Test: Export single user by username ---"
-OUT=$($PHP $MOOSH user:export --userid admin -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export --userid admin -p "$MOODLE_PATH"
 assert_output_contains "Has admin row" "admin" "$OUT"
 LINE_COUNT=$(echo "$OUT" | wc -l)
 if [ "$LINE_COUNT" -eq 2 ]; then
@@ -118,31 +118,31 @@ fi
 echo ""
 
 echo "--- Test: Export single user by ID ---"
-OUT=$($PHP $MOOSH user:export --userid 2 --by-id -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export --userid 2 --by-id -p "$MOODLE_PATH"
 assert_output_contains "Has admin by ID" "admin" "$OUT"
 echo ""
 
 echo "--- Test: Export course users ---"
-OUT=$($PHP $MOOSH user:export --course 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export --course 2 -p "$MOODLE_PATH"
 assert_output_contains "Course export header" "id,username" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent user ---"
-OUT=$($PHP $MOOSH user:export --userid nonexistent999 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export --userid nonexistent999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for nonexistent" 1 $EC
 assert_output_contains "Not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent course ---"
-OUT=$($PHP $MOOSH user:export --course 99999 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:export --course 99999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for nonexistent course" 1 $EC
 assert_output_contains "Course not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH user:export -p "$MOODLE_PATH" --help 2>&1)
+run_moosh user:export -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Export users" "$OUT"
 assert_output_contains "Help shows --userid" "--userid" "$OUT"
 assert_output_contains "Help shows --course" "--course" "$OUT"
@@ -156,7 +156,7 @@ echo "========== user:login =========="
 echo ""
 
 echo "--- Test: Login as admin ---"
-OUT=$($PHP $MOOSH user:login admin -p "$MOODLE_PATH" 2>&1)
+run_moosh user:login admin -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Login exit code 0" 0 $EC
 # Output should contain session_name:session_id format
@@ -171,27 +171,27 @@ fi
 echo ""
 
 echo "--- Test: Login by ID ---"
-OUT=$($PHP $MOOSH user:login --id 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:login --id 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Login by ID exit code 0" 0 $EC
 assert_output_not_empty "Session not empty" "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH user:login admin -p "$MOODLE_PATH" -o json 2>&1)
+run_moosh user:login admin -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has cookie_name" '"cookie_name"' "$OUT"
 assert_output_contains "JSON has cookie_value" '"cookie_value"' "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent user ---"
-OUT=$($PHP $MOOSH user:login nonexistent999 -p "$MOODLE_PATH" 2>&1)
+run_moosh user:login nonexistent999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for nonexistent" 1 $EC
 assert_output_contains "Not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH user:login -p "$MOODLE_PATH" --help 2>&1)
+run_moosh user:login -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "login session" "$OUT"
 assert_output_contains "Help shows --id" "--id" "$OUT"
 echo ""

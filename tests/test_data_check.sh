@@ -25,8 +25,7 @@ echo ""
 # ── Checksum check (clean state) ─────────────────────────────────
 
 echo "--- Test: Checksum check (clean) ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" checksum -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" checksum -o csv
 assert_output_contains "Header row" "check,status,path,detail" "$OUT"
 assert_output_contains "Checksum OK" "checksum,OK" "$OUT"
 echo ""
@@ -34,32 +33,28 @@ echo ""
 # ── Writable check (clean state) ─────────────────────────────────
 
 echo "--- Test: Writable check (clean) ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" writable -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" writable -o csv
 assert_output_contains "Writable OK" "writable,OK" "$OUT"
 echo ""
 
 # ── DB-to-disk check (clean state) ───────────────────────────────
 
 echo "--- Test: DB-to-disk check (clean) ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" db-to-disk -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" db-to-disk -o csv
 assert_output_contains "DB-to-disk OK" "db-to-disk,OK" "$OUT"
 echo ""
 
 # ── Disk-to-DB check (clean state) ───────────────────────────────
 
 echo "--- Test: Disk-to-DB check (clean) ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" disk-to-db -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" disk-to-db -o csv
 assert_output_contains "Disk-to-DB OK" "disk-to-db,OK" "$OUT"
 echo ""
 
 # ── All checks (clean state) ─────────────────────────────────────
 
 echo "--- Test: All checks (clean) ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" all -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" all -o csv
 assert_output_contains "Has checksum OK" "checksum,OK" "$OUT"
 assert_output_contains "Has writable OK" "writable,OK" "$OUT"
 assert_output_contains "Has db-to-disk OK" "db-to-disk,OK" "$OUT"
@@ -71,7 +66,7 @@ echo ""
 # ── Default argument is 'all' ────────────────────────────────────
 
 echo "--- Test: Default is 'all' ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" -o csv)
+run_moosh data:check -p "$MOODLE_PATH" -o csv
 assert_output_contains "Default has checksum" "checksum" "$OUT"
 assert_output_contains "Default has writable" "writable" "$OUT"
 assert_output_contains "Default has db-to-disk" "db-to-disk" "$OUT"
@@ -81,8 +76,7 @@ echo ""
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" checksum -o json)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" checksum -o json
 assert_output_contains "JSON has check key" '"check"' "$OUT"
 assert_output_contains "JSON has status key" '"status"' "$OUT"
 assert_output_contains "JSON has OK" '"OK"' "$OUT"
@@ -97,7 +91,8 @@ if [ -n "$REAL_FILE" ]; then
     # Corrupt it by appending data
     ORIG_CONTENT=$(cat "$REAL_FILE")
     echo "CORRUPTED" >> "$REAL_FILE"
-    OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" checksum -o csv)
+    run_moosh data:check -p "$MOODLE_PATH" checksum -o csv
+    OUT="$OUT"
     echo "$OUT"
     assert_output_contains "Detects corrupted file" "checksum,FAIL" "$OUT"
     assert_output_contains "Shows SHA1 mismatch" "SHA1 does not match" "$OUT"
@@ -114,8 +109,7 @@ echo "--- Test: Detect orphan file on disk ---"
 ORPHAN_DIR="$DATAROOT/filedir/zz/zz"
 mkdir -p "$ORPHAN_DIR"
 echo "orphan" > "$ORPHAN_DIR/zzorphanfile1234567890abcdef12345678"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" disk-to-db -o csv)
-echo "$OUT"
+run_moosh data:check -p "$MOODLE_PATH" disk-to-db -o csv
 assert_output_contains "Detects orphan file" "disk-to-db,FAIL" "$OUT"
 assert_output_contains "Shows not in DB detail" "not in DB" "$OUT"
 # Cleanup
@@ -130,7 +124,7 @@ mkdir -p "$DATAROOT/filedir/yy/yy"
 for i in 1 2 3 4 5; do
     echo "orphan$i" > "$DATAROOT/filedir/yy/yy/yyorphan${i}abcdefabcdefabcdef1234"
 done
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" disk-to-db --limit 2 -o csv)
+run_moosh data:check -p "$MOODLE_PATH" disk-to-db --limit 2 -o csv
 FAIL_COUNT=$(echo "$OUT" | grep -c "FAIL" || true)
 if [ "$FAIL_COUNT" -le 2 ]; then
     echo "  PASS: Limit respected ($FAIL_COUNT issues reported)"
@@ -157,7 +151,7 @@ echo ""
 # ── Invalid check name ────────────────────────────────────────────
 
 echo "--- Test: Invalid check name ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" nonexistent 2>&1)
+run_moosh data:check -p "$MOODLE_PATH" nonexistent
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for invalid check" 1 "$EXIT_CODE"
 assert_output_contains "Unknown check error" "Unknown check" "$OUT"
@@ -166,7 +160,7 @@ echo ""
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH data:check -p "$MOODLE_PATH" --help)
+run_moosh data:check -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Run data integrity checks" "$OUT"
 assert_output_contains "Help shows checksum" "checksum" "$OUT"
 assert_output_contains "Help shows writable" "writable" "$OUT"

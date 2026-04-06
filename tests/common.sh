@@ -35,6 +35,22 @@ PHP="${PHP:-/usr/bin/php}"
 PASS=0
 FAIL=0
 
+run_moosh() {
+    local cmd="  > $PHP $MOOSH"
+    for arg in "$@"; do
+        if [[ "$arg" == *' '* || "$arg" == *'"'* ]]; then
+            cmd+=" \"$arg\""
+        else
+            cmd+=" $arg"
+        fi
+    done
+    echo "$cmd"
+    OUT=$($PHP $MOOSH "$@" 2>&1)
+    local rc=$?
+    echo "$OUT"
+    return $rc
+}
+
 assert_output_contains() {
     local description="$1"
     local expected="$2"

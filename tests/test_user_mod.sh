@@ -28,8 +28,7 @@ echo ""
 # ── Dry run ──────────────────────────────────────────────────────
 
 echo "--- Test: Dry run shows changes ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --email=new@example.com 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --email=new@example.com
 assert_output_contains "Dry run message" "Dry run" "$OUT"
 assert_output_contains "Shows username" "student01" "$OUT"
 assert_output_contains "Shows email change" "email: new@example.com" "$OUT"
@@ -56,8 +55,7 @@ echo ""
 # ── Email change ─────────────────────────────────────────────────
 
 echo "--- Test: Change email with --run ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --email=modified@example.com --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --email=modified@example.com --run -o csv
 assert_output_contains "Output shows student01" "student01" "$OUT"
 assert_output_contains "Output shows new email" "modified@example.com" "$OUT"
 echo ""
@@ -65,8 +63,7 @@ echo ""
 # ── Auth change ──────────────────────────────────────────────────
 
 echo "--- Test: Change auth ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --auth=ldap --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --auth=ldap --run -o csv
 assert_output_contains "Output shows ldap auth" "ldap" "$OUT"
 echo ""
 
@@ -76,8 +73,7 @@ $PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --auth=manual --run >/dev/null 
 # ── Firstname and lastname ───────────────────────────────────────
 
 echo "--- Test: Change firstname and lastname ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --firstname=John --lastname=Smith --run -o json 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --firstname=John --lastname=Smith --run -o json
 assert_output_contains "JSON has student01" '"username": "student01"' "$OUT"
 echo ""
 
@@ -101,8 +97,7 @@ echo ""
 # ── City and country ─────────────────────────────────────────────
 
 echo "--- Test: Change city and country ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --city=London --country=GB --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --city=London --country=GB --run -o csv
 assert_output_contains "Mod output has student01" "student01" "$OUT"
 echo ""
 
@@ -125,19 +120,17 @@ echo ""
 # ── Suspended ────────────────────────────────────────────────────
 
 echo "--- Test: Suspend user ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student02 --suspended=1 --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student02 --suspended=1 --run -o csv
 assert_output_contains "Suspended shows 1" ",1" "$OUT"
 echo ""
 
 echo "--- Test: Unsuspend user ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student02 --suspended=0 --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student02 --suspended=0 --run -o csv
 assert_output_contains "Unsuspended shows 0" ",0" "$OUT"
 echo ""
 
 echo "--- Test: Invalid suspended value ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --suspended=maybe --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 --suspended=maybe --run
 EXIT_CODE=$?
 assert_exit_code "Invalid suspended value returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions invalid" "Invalid" "$OUT"
@@ -146,28 +139,25 @@ echo ""
 # ── Password ─────────────────────────────────────────────────────
 
 echo "--- Test: Change password ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --password='NewPass123!' --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --password='NewPass123!' --run -o csv
 assert_output_contains "Password change output" "student01" "$OUT"
 echo ""
 
 echo "--- Test: Weak password rejected ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --password=weak --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 --password=weak --run
 EXIT_CODE=$?
 assert_exit_code "Weak password returns failure" 1 "$EXIT_CODE"
 echo ""
 
 echo "--- Test: Weak password with --ignore-policy ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --password=weak --ignore-policy --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --password=weak --ignore-policy --run -o csv
 assert_output_contains "Ignore policy worked" "student01" "$OUT"
 echo ""
 
 # ── Username change ──────────────────────────────────────────────
 
 echo "--- Test: Change username ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student03 --username=renamed_student --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student03 --username=renamed_student --run -o csv
 assert_output_contains "New username in output" "renamed_student" "$OUT"
 echo ""
 
@@ -175,7 +165,7 @@ echo ""
 $PHP $MOOSH user:mod -p "$MOODLE_PATH" renamed_student --username=student03 --run >/dev/null 2>&1
 
 echo "--- Test: Username change rejects multiple users ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 student02 --username=newname --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 student02 --username=newname --run
 EXIT_CODE=$?
 assert_exit_code "Username with multiple users returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions single user" "single user" "$OUT"
@@ -191,16 +181,14 @@ global \$DB;
 \$u = \$DB->get_record('user', ['username' => 'student04']);
 echo \$u->id;
 " 2>/dev/null)
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" "$STUDENT_ID" --city=Berlin --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" "$STUDENT_ID" --city=Berlin --run -o csv
 assert_output_contains "ID lookup shows student04" "student04" "$OUT"
 echo ""
 
 # ── Multiple users ───────────────────────────────────────────────
 
 echo "--- Test: Modify multiple users ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student05 student06 --city=Paris --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student05 student06 --city=Paris --run -o csv
 assert_output_contains "Multi-mod has student05" "student05" "$OUT"
 assert_output_contains "Multi-mod has student06" "student06" "$OUT"
 echo ""
@@ -208,8 +196,7 @@ echo ""
 # ── System role assignment ───────────────────────────────────────
 
 echo "--- Test: Assign system role ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --assign-role=manager --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --assign-role=manager --run -o csv
 assert_output_contains "Assign role output" "student01" "$OUT"
 echo ""
 
@@ -235,8 +222,7 @@ echo ""
 # ── System role unassignment ─────────────────────────────────────
 
 echo "--- Test: Unassign system role ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --unassign-role=manager --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --unassign-role=manager --run -o csv
 assert_output_contains "Unassign role output" "student01" "$OUT"
 echo ""
 
@@ -260,14 +246,14 @@ fi
 echo ""
 
 echo "--- Test: Assign non-system role fails ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --assign-role=student --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 --assign-role=student --run
 EXIT_CODE=$?
 assert_exit_code "Non-system role returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions not system role" "not a system role" "$OUT"
 echo ""
 
 echo "--- Test: Assign nonexistent role fails ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --assign-role=nonexistentrole --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 --assign-role=nonexistentrole --run
 EXIT_CODE=$?
 assert_exit_code "Nonexistent role returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions not found" "not found" "$OUT"
@@ -276,8 +262,7 @@ echo ""
 # ── Global admin ─────────────────────────────────────────────────
 
 echo "--- Test: Make user global admin ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --global-admin --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --global-admin --run -o csv
 assert_output_contains "Global admin output" "student01" "$OUT"
 echo ""
 
@@ -299,8 +284,7 @@ fi
 echo ""
 
 echo "--- Test: Remove global admin ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --remove-global-admin --run -o csv 2>&1)
-echo "$OUT"
+run_moosh user:mod -p "$MOODLE_PATH" student01 --remove-global-admin --run -o csv
 assert_output_contains "Remove admin output" "student01" "$OUT"
 echo ""
 
@@ -323,14 +307,14 @@ echo ""
 # ── Error handling ───────────────────────────────────────────────
 
 echo "--- Test: No modifications error ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" student01 --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" student01 --run
 EXIT_CODE=$?
 assert_exit_code "No mods returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions no modifications" "No modifications" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent user ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" nonexistent_user_xyz --email=x@x.com --run 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" nonexistent_user_xyz --email=x@x.com --run
 EXIT_CODE=$?
 assert_exit_code "Nonexistent user returns failure" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions not found" "not found" "$OUT"
@@ -339,7 +323,7 @@ echo ""
 # ── Help & aliases ───────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH user:mod -p "$MOODLE_PATH" --help 2>&1)
+run_moosh user:mod -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Modify" "$OUT"
 assert_output_contains "Help shows --email" "--email" "$OUT"
 assert_output_contains "Help shows --password" "--password" "$OUT"

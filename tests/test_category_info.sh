@@ -29,8 +29,7 @@ echo ""
 # ── Basic table output ────────────────────────────────────────────
 
 echo "--- Test: Basic table output (Mathematics) ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2)
-echo "$OUT"
+run_moosh category:info -p "$MOODLE_PATH" 2
 assert_output_contains "Shows Category ID" "Category ID" "$OUT"
 assert_output_contains "Shows Name" "Mathematics" "$OUT"
 assert_output_contains "Shows Visible" "Visible" "$OUT"
@@ -46,7 +45,7 @@ echo ""
 # ── CSV output ────────────────────────────────────────────────────
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2 -o csv)
+run_moosh category:info -p "$MOODLE_PATH" 2 -o csv
 echo "$OUT" | head -2
 assert_output_contains "CSV has Category ID header" '"Category ID"' "$OUT"
 assert_output_contains "CSV has Name header" "Name" "$OUT"
@@ -56,7 +55,7 @@ echo ""
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 2 -o json
 echo "$OUT" | head -10
 assert_output_contains "JSON has Category ID key" '"Category ID"' "$OUT"
 assert_output_contains "JSON has Name key" '"Name"' "$OUT"
@@ -66,7 +65,7 @@ echo ""
 # ── Mathematics category (id=2) ──────────────────────────────────
 
 echo "--- Test: Mathematics category details ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 2 -o json
 assert_output_contains "3 direct courses" '"Direct courses": 3' "$OUT"
 assert_output_contains "3 visible courses" '"Visible courses": 3' "$OUT"
 assert_output_contains "0 hidden courses" '"Hidden courses": 0' "$OUT"
@@ -82,7 +81,7 @@ echo ""
 # ── Computer Science category (id=5) ─────────────────────────────
 
 echo "--- Test: Computer Science category ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 5 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 5 -o json
 assert_output_contains "CS name" '"Computer Science"' "$OUT"
 assert_output_contains "7 direct courses" '"Direct courses": 7' "$OUT"
 assert_output_contains "7 total courses" '"Total courses (recursive)": 7' "$OUT"
@@ -92,7 +91,7 @@ echo ""
 # ── Empty category (id=1) ────────────────────────────────────────
 
 echo "--- Test: Empty category ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 1 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 1 -o json
 assert_output_contains "Category 1 name" '"Category 1"' "$OUT"
 assert_output_contains "0 direct courses" '"Direct courses": 0' "$OUT"
 assert_output_contains "0 total courses" '"Total courses (recursive)": 0' "$OUT"
@@ -106,7 +105,7 @@ echo ""
 # ── Files in category ─────────────────────────────────────────────
 
 echo "--- Test: Files in Mathematics ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 2 -o json
 assert_output_contains "3 files" '"Total files": 3' "$OUT"
 # Each course has 1 file resource with 33 bytes
 assert_output_contains "99 bytes total" '"Total file size (bytes)": 99' "$OUT"
@@ -115,14 +114,14 @@ echo ""
 # ── Role assignments ──────────────────────────────────────────────
 
 echo "--- Test: Category role assignments ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2 -o json)
+run_moosh category:info -p "$MOODLE_PATH" 2 -o json
 assert_output_contains "0 category role assignments" '"Category role assignments": 0' "$OUT"
 echo ""
 
 # ── Invalid category ID ──────────────────────────────────────────
 
 echo "--- Test: Invalid category ID ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 999 2>&1)
+run_moosh category:info -p "$MOODLE_PATH" 999
 EXIT_CODE=$?
 assert_exit_code "Exit code is 1 for invalid category" 1 "$EXIT_CODE"
 assert_output_contains "Error message for invalid category" "not found" "$OUT"
@@ -131,14 +130,14 @@ echo ""
 # ── Missing categoryid argument ──────────────────────────────────
 
 echo "--- Test: Missing categoryid argument ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" 2>&1)
+run_moosh category:info -p "$MOODLE_PATH"
 assert_output_contains "Error mentions missing argument" "categoryid" "$OUT"
 echo ""
 
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH category:info -p "$MOODLE_PATH" --help)
+run_moosh category:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Show detailed information about a course category" "$OUT"
 assert_output_contains "Help shows categoryid argument" "categoryid" "$OUT"
 echo ""

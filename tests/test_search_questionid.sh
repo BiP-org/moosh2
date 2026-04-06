@@ -70,8 +70,7 @@ echo ""
 # ── CSV output ────────────────────────────────────────────────────
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" $QID -o csv)
-echo "$OUT"
+run_moosh search:questionid -p "$MOODLE_PATH" $QID -o csv
 assert_output_contains "Header" "source,table,id,column,detail" "$OUT"
 assert_output_contains "Found question record" "question,question," "$OUT"
 assert_output_contains "Shows question name" "SearchTest Question" "$OUT"
@@ -84,7 +83,7 @@ echo ""
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" $QID -o json)
+run_moosh search:questionid -p "$MOODLE_PATH" $QID -o json
 echo "$OUT" | head -10
 assert_output_contains "JSON has source" '"source"' "$OUT"
 assert_output_contains "JSON has table" '"table"' "$OUT"
@@ -94,8 +93,7 @@ echo ""
 # ── Table output ──────────────────────────────────────────────────
 
 echo "--- Test: Table output ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" $QID)
-echo "$OUT"
+run_moosh search:questionid -p "$MOODLE_PATH" $QID
 assert_output_contains "Table has source" "source" "$OUT"
 assert_output_contains "Table has SearchTest" "SearchTest" "$OUT"
 echo ""
@@ -103,7 +101,7 @@ echo ""
 # ── Nonexistent question ──────────────────────────────────────────
 
 echo "--- Test: Nonexistent question ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" 99999 -o csv)
+run_moosh search:questionid -p "$MOODLE_PATH" 99999 -o csv
 LINE_COUNT=$(echo "$OUT" | wc -l)
 assert_output_contains "Only header for nonexistent" "1" "$LINE_COUNT"
 echo ""
@@ -111,14 +109,14 @@ echo ""
 # ── Bank entry idnumber ───────────────────────────────────────────
 
 echo "--- Test: Shows bank entry idnumber ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" $QID -o csv)
+run_moosh search:questionid -p "$MOODLE_PATH" $QID -o csv
 assert_output_contains "Shows idnumber" "TESTQ1" "$OUT"
 echo ""
 
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH search:questionid -p "$MOODLE_PATH" --help)
+run_moosh search:questionid -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Search for a question ID" "$OUT"
 assert_output_contains "Help shows questionid arg" "questionid" "$OUT"
 echo ""

@@ -24,7 +24,7 @@ TMPDIR=$(mktemp -d)
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --help)
+run_moosh log:export -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Export entries" "$OUT"
 assert_output_contains "Help shows --from" "--from" "$OUT"
 assert_output_contains "Help shows --to" "--to" "$OUT"
@@ -34,7 +34,7 @@ echo ""
 # ── Missing --from and --to ───────────────────────────────────────
 
 echo "--- Test: Missing --from and --to ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" "$TMPDIR/missing.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" "$TMPDIR/missing.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for missing options" 1 "$EXIT_CODE"
 assert_output_contains "Error about required options" "required" "$OUT"
@@ -43,7 +43,7 @@ echo ""
 # ── Invalid from date ─────────────────────────────────────────────
 
 echo "--- Test: Invalid --from date ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --from="not-a-date" --to="2025-12-31" "$TMPDIR/invalid.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --from="not-a-date" --to="2025-12-31" "$TMPDIR/invalid.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for invalid from" 1 "$EXIT_CODE"
 assert_output_contains "Invalid from error" "Invalid --from" "$OUT"
@@ -52,7 +52,7 @@ echo ""
 # ── Invalid to date ───────────────────────────────────────────────
 
 echo "--- Test: Invalid --to date ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --from="2025-01-01" --to="not-a-date" "$TMPDIR/invalid.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --from="2025-01-01" --to="not-a-date" "$TMPDIR/invalid.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for invalid to" 1 "$EXIT_CODE"
 assert_output_contains "Invalid to error" "Invalid --to" "$OUT"
@@ -61,7 +61,7 @@ echo ""
 # ── to before from ────────────────────────────────────────────────
 
 echo "--- Test: to before from ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --from="2025-12-31" --to="2025-01-01" "$TMPDIR/reversed.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --from="2025-12-31" --to="2025-01-01" "$TMPDIR/reversed.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for reversed dates" 1 "$EXIT_CODE"
 assert_output_contains "Date order error" "later" "$OUT"
@@ -70,7 +70,7 @@ echo ""
 # ── Empty result range ────────────────────────────────────────────
 
 echo "--- Test: Empty result for distant past ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --from="2000-01-01" --to="2000-01-02" "$TMPDIR/empty.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --from="2000-01-01" --to="2000-01-02" "$TMPDIR/empty.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 0 for empty result" 0 "$EXIT_CODE"
 assert_output_contains "No entries message" "No log entries" "$OUT"
@@ -79,7 +79,7 @@ echo ""
 # ── Export with wide date range ───────────────────────────────────
 
 echo "--- Test: Export log entries ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --from="2020-01-01" --to="2030-12-31" "$TMPDIR/all_logs.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --from="2020-01-01" --to="2030-12-31" "$TMPDIR/all_logs.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 0 for export" 0 "$EXIT_CODE"
 assert_output_contains "Exported message" "Exported" "$OUT"
@@ -115,7 +115,7 @@ echo ""
 
 echo "--- Test: Compact export ---"
 COMPACT_DIR=$(mktemp -d)
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --compact --from="2020-01-01" --to="2030-12-31" "$COMPACT_DIR/logs.csv" 2>&1)
+run_moosh log:export -p "$MOODLE_PATH" --compact --from="2020-01-01" --to="2030-12-31" "$COMPACT_DIR/logs.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 0 for compact export" 0 "$EXIT_CODE"
 assert_output_contains "Compact exported message" "Exported" "$OUT"
@@ -187,7 +187,7 @@ echo ""
 # ── Help shows --compact ─────────────────────────────────────────
 
 echo "--- Test: Help shows --compact ---"
-OUT=$($PHP $MOOSH log:export -p "$MOODLE_PATH" --help)
+run_moosh log:export -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows --compact" "--compact" "$OUT"
 echo ""
 

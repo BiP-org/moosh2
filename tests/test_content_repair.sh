@@ -25,7 +25,7 @@ echo "========== content:replace =========="
 echo ""
 
 echo "--- Test: Dry run ---"
-OUT=$($PHP $MOOSH content:replace 'test-search-string' 'test-replace-string' -p "$MOODLE_PATH" 2>&1)
+run_moosh content:replace 'test-search-string' 'test-replace-string' -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Dry run exit code 0" 0 $EC
 assert_output_contains "Shows dry run" "Dry run" "$OUT"
@@ -34,14 +34,14 @@ assert_output_contains "Shows replace" "test-replace-string" "$OUT"
 echo ""
 
 echo "--- Test: Replace (safe non-matching string) ---"
-OUT=$($PHP $MOOSH content:replace 'ZZZNONEXISTENT999' 'REPLACEMENT999' -p "$MOODLE_PATH" --run 2>&1)
+run_moosh content:replace 'ZZZNONEXISTENT999' 'REPLACEMENT999' -p "$MOODLE_PATH" --run
 EC=$?
 assert_exit_code "Replace exit code 0" 0 $EC
 assert_output_contains "Shows complete" "complete" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH content:replace -p "$MOODLE_PATH" --help 2>&1)
+run_moosh content:replace -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Find and replace" "$OUT"
 assert_output_contains "Help shows --skip-tables" "--skip-tables" "$OUT"
 echo ""
@@ -55,7 +55,7 @@ echo "========== content:https-replace =========="
 echo ""
 
 echo "--- Test: List mode ---"
-OUT=$($PHP $MOOSH content:https-replace --list -p "$MOODLE_PATH" 2>&1)
+run_moosh content:https-replace --list -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "List exit code 0" 0 $EC
 # May find HTTP URLs or not
@@ -63,13 +63,13 @@ assert_output_not_empty "List not empty" "$OUT"
 echo ""
 
 echo "--- Test: Dry run ---"
-OUT=$($PHP $MOOSH content:https-replace -p "$MOODLE_PATH" 2>&1)
+run_moosh content:https-replace -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Dry run exit code 0" 0 $EC
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH content:https-replace -p "$MOODLE_PATH" --help 2>&1)
+run_moosh content:https-replace -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Replace HTTP URLs" "$OUT"
 assert_output_contains "Help shows --list" "--list" "$OUT"
 echo ""
@@ -83,32 +83,32 @@ echo "========== course:repair =========="
 echo ""
 
 echo "--- Test: Check single course ---"
-OUT=$($PHP $MOOSH course:repair 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh course:repair 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Check exit code 0" 0 $EC
 assert_output_contains "Shows result" "No integrity issues" "$OUT"
 echo ""
 
 echo "--- Test: Check all courses ---"
-OUT=$($PHP $MOOSH course:repair --all -p "$MOODLE_PATH" 2>&1)
+run_moosh course:repair --all -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "All check exit code 0" 0 $EC
 echo ""
 
 echo "--- Test: No args ---"
-OUT=$($PHP $MOOSH course:repair -p "$MOODLE_PATH" 2>&1)
+run_moosh course:repair -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for no args" 1 $EC
 echo ""
 
 echo "--- Test: Invalid course ---"
-OUT=$($PHP $MOOSH course:repair 999 -p "$MOODLE_PATH" 2>&1)
+run_moosh course:repair 999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid course" 1 $EC
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH course:repair -p "$MOODLE_PATH" --help 2>&1)
+run_moosh course:repair -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Check and repair" "$OUT"
 assert_output_contains "Help shows --all" "--all" "$OUT"
 echo ""
@@ -133,7 +133,7 @@ $PHP $MOOSH sql:run "INSERT INTO {block_instances} (blockname, parentcontextid, 
 TEST_ID=$($PHP $MOOSH sql:select "SELECT MAX(id) AS maxid FROM {block_instances} WHERE blockname='html'" -p "$MOODLE_PATH" -o csv 2>&1 | tail -1)
 
 echo "--- Test: Dry run ---"
-OUT=$($PHP $MOOSH content:replace-encoded "example.com" "example.org" block_instances configdata -p "$MOODLE_PATH" 2>&1)
+run_moosh content:replace-encoded "example.com" "example.org" block_instances configdata -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Dry run exit code 0" 0 $EC
 assert_output_contains "Shows dry run" "Dry run" "$OUT"
@@ -141,7 +141,7 @@ assert_output_contains "Shows match count" "1 row" "$OUT"
 echo ""
 
 echo "--- Test: Run replacement ---"
-OUT=$($PHP $MOOSH content:replace-encoded "example.com" "example.org" block_instances configdata -p "$MOODLE_PATH" --run 2>&1)
+run_moosh content:replace-encoded "example.com" "example.org" block_instances configdata -p "$MOODLE_PATH" --run
 EC=$?
 assert_exit_code "Run exit code 0" 0 $EC
 assert_output_contains "Shows updated" "Updated" "$OUT"
@@ -159,19 +159,19 @@ fi
 echo ""
 
 echo "--- Test: No matches ---"
-OUT=$($PHP $MOOSH content:replace-encoded "zzz_nonexistent_zzz" "other" block_instances configdata -p "$MOODLE_PATH" 2>&1)
+run_moosh content:replace-encoded "zzz_nonexistent_zzz" "other" block_instances configdata -p "$MOODLE_PATH"
 assert_output_contains "No matches" "No matching" "$OUT"
 echo ""
 
 echo "--- Test: Invalid table ---"
-OUT=$($PHP $MOOSH content:replace-encoded "a" "b" nonexistent_table col -p "$MOODLE_PATH" 2>&1)
+run_moosh content:replace-encoded "a" "b" nonexistent_table col -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid table" 1 $EC
 assert_output_contains "Table not found" "does not exist" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH content:replace-encoded -p "$MOODLE_PATH" --help 2>&1)
+run_moosh content:replace-encoded -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "base64-encoded" "$OUT"
 assert_output_contains "Help shows table arg" "table" "$OUT"
 assert_output_contains "Help shows column arg" "column" "$OUT"
@@ -184,7 +184,7 @@ echo "========== recyclebin =========="
 echo ""
 
 echo "--- Test: List empty recycle bin ---"
-OUT=$($PHP $MOOSH recyclebin:list 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh recyclebin:list 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "List exit code 0" 0 $EC
 assert_output_contains "Shows empty" "empty" "$OUT"
@@ -198,7 +198,7 @@ if [ -n "$CMID" ]; then
 fi
 
 echo "--- Test: List with items ---"
-OUT=$($PHP $MOOSH recyclebin:list 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh recyclebin:list 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "List items exit code 0" 0 $EC
 # May have items or not depending on recyclebin settings
@@ -206,29 +206,29 @@ assert_output_not_empty "List not empty" "$OUT"
 echo ""
 
 echo "--- Test: Purge dry run ---"
-OUT=$($PHP $MOOSH recyclebin:purge 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh recyclebin:purge 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Purge dry run exit code 0" 0 $EC
 echo ""
 
 echo "--- Test: Invalid course ---"
-OUT=$($PHP $MOOSH recyclebin:list 999 -p "$MOODLE_PATH" 2>&1)
+run_moosh recyclebin:list 999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid course" 1 $EC
 echo ""
 
 echo "--- Test: recyclebin:list help ---"
-OUT=$($PHP $MOOSH recyclebin:list -p "$MOODLE_PATH" --help 2>&1)
+run_moosh recyclebin:list -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "List items" "$OUT"
 echo ""
 
 echo "--- Test: recyclebin:restore help ---"
-OUT=$($PHP $MOOSH recyclebin:restore -p "$MOODLE_PATH" --help 2>&1)
+run_moosh recyclebin:restore -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Restore" "$OUT"
 echo ""
 
 echo "--- Test: recyclebin:purge help ---"
-OUT=$($PHP $MOOSH recyclebin:purge -p "$MOODLE_PATH" --help 2>&1)
+run_moosh recyclebin:purge -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Empty the recycle bin" "$OUT"
 echo ""
 

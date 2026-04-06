@@ -17,7 +17,7 @@ MOODLE_SRC="$HOME/git/moodle/public"
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH event:discover --help)
+run_moosh event:discover --help
 assert_output_contains "Help description" "Discover all event" "$OUT"
 assert_output_contains "Help shows path argument" "path" "$OUT"
 echo ""
@@ -25,7 +25,7 @@ echo ""
 # ── Invalid path ──────────────────────────────────────────────────
 
 echo "--- Test: Invalid path ---"
-OUT=$($PHP $MOOSH event:discover /nonexistent/path 2>&1)
+run_moosh event:discover /nonexistent/path
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for invalid path" 1 "$EXIT_CODE"
 assert_output_contains "Directory not found" "not found" "$OUT"
@@ -34,7 +34,7 @@ echo ""
 # ── Discover events ──────────────────────────────────────────────
 
 echo "--- Test: Discover events from Moodle source ---"
-OUT=$($PHP $MOOSH event:discover "$MOODLE_SRC" 2>&1)
+run_moosh event:discover "$MOODLE_SRC"
 EXIT_CODE=$?
 assert_exit_code "Exit code 0" 0 "$EXIT_CODE"
 assert_output_contains "Discovered message" "Discovered" "$OUT"

@@ -40,8 +40,7 @@ echo ""
 # ── Detect weak password by userid ───────────────────────────────
 
 echo "--- Test: Detect weak password by userid ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid $WEAK_ID -o csv)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid $WEAK_ID -o csv
 assert_output_contains "Header row" "id,username" "$OUT"
 assert_output_contains "Weak user detected" "weakuser1" "$OUT"
 echo ""
@@ -49,8 +48,7 @@ echo ""
 # ── Reveal password ───────────────────────────────────────────────
 
 echo "--- Test: Reveal password ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid $WEAK_ID --reveal -o csv)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid $WEAK_ID --reveal -o csv
 assert_output_contains "Reveal header" "id,username,password" "$OUT"
 assert_output_contains "Password revealed" "password" "$OUT"
 echo ""
@@ -58,16 +56,14 @@ echo ""
 # ── Strong password not flagged ───────────────────────────────────
 
 echo "--- Test: Admin (strong password) not flagged ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid 2 -o csv)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid 2 -o csv
 assert_output_not_contains "Admin not in results" "admin" "$OUT"
 echo ""
 
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid $WEAK_ID -o json)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid $WEAK_ID -o json
 assert_output_contains "JSON has id" '"id"' "$OUT"
 assert_output_contains "JSON has username" '"username"' "$OUT"
 assert_output_contains "JSON has weakuser1" '"weakuser1"' "$OUT"
@@ -76,8 +72,7 @@ echo ""
 # ── JSON with reveal ──────────────────────────────────────────────
 
 echo "--- Test: JSON with reveal ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid $WEAK_ID --reveal -o json)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid $WEAK_ID --reveal -o json
 assert_output_contains "JSON has password key" '"password"' "$OUT"
 assert_output_contains "JSON password value" '"password"' "$OUT"
 echo ""
@@ -85,8 +80,7 @@ echo ""
 # ── Table output ──────────────────────────────────────────────────
 
 echo "--- Test: Table output ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --userid $WEAK_ID)
-echo "$OUT"
+run_moosh audit:password -p "$MOODLE_PATH" --userid $WEAK_ID
 assert_output_contains "Table has id" "id" "$OUT"
 assert_output_contains "Table has username" "username" "$OUT"
 assert_output_contains "Table has weakuser1" "weakuser1" "$OUT"
@@ -95,7 +89,7 @@ echo ""
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH audit:password -p "$MOODLE_PATH" --help)
+run_moosh audit:password -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Audit user passwords" "$OUT"
 assert_output_contains "Help shows --reveal" "--reveal" "$OUT"
 assert_output_contains "Help shows --userid" "--userid" "$OUT"

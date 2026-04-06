@@ -28,8 +28,7 @@ echo "========== activity:info =========="
 echo ""
 
 echo "--- Test: Table output ---"
-OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" 1 2>&1)
-echo "$OUT"
+run_moosh activity:info -p "$MOODLE_PATH" 1
 assert_output_contains "Shows course module ID" "Course module ID" "$OUT"
 assert_output_contains "Shows module type" "resource" "$OUT"
 assert_output_contains "Shows name" "Algebra Fundamentals" "$OUT"
@@ -43,27 +42,27 @@ assert_output_contains "Shows context" "Context ID" "$OUT"
 echo ""
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" 1 -o csv 2>&1)
+run_moosh activity:info -p "$MOODLE_PATH" 1 -o csv
 assert_output_contains "CSV has module type" "resource" "$OUT"
 assert_output_contains "CSV has header" "Course module ID" "$OUT"
 assert_output_contains "CSV has name" "Algebra Fundamentals" "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" 1 -o json 2>&1)
+run_moosh activity:info -p "$MOODLE_PATH" 1 -o json
 assert_output_contains "JSON has module type" '"Module type"' "$OUT"
 assert_output_contains "JSON has resource" "resource" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent cmid ---"
-OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" 99999 2>&1)
+run_moosh activity:info -p "$MOODLE_PATH" 99999
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for nonexistent cmid" 1 "$EXIT_CODE"
 assert_output_contains "Shows not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" --help 2>&1)
+run_moosh activity:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Show detailed information" "$OUT"
 assert_output_contains "Help shows cmid" "cmid" "$OUT"
 echo ""
@@ -73,7 +72,8 @@ echo ""
 echo "--- Test: Multiple activities ---"
 # Get all cmids and test a few
 for CMID in 1 2 3; do
-    OUT=$($PHP $MOOSH activity:info -p "$MOODLE_PATH" "$CMID" -o csv 2>&1)
+    run_moosh activity:info -p "$MOODLE_PATH" "$CMID" -o csv
+    OUT="$OUT"
     assert_output_contains "Activity $CMID has data" "Course module ID" "$OUT"
 done
 echo ""

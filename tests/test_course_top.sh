@@ -24,20 +24,19 @@ echo "========== course:top =========="
 echo ""
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH course:top -p "$MOODLE_PATH" -o csv)
-echo "$OUT"
+run_moosh course:top -p "$MOODLE_PATH" -o csv
 assert_output_contains "Header" "courseid,shortname,fullname,hits" "$OUT"
 assert_output_contains "Recently Active Course" "recentlyactive" "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH course:top -p "$MOODLE_PATH" -o json)
+run_moosh course:top -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has courseid" '"courseid"' "$OUT"
 assert_output_contains "JSON has hits" '"hits"' "$OUT"
 echo ""
 
 echo "--- Test: Limit option ---"
-OUT=$($PHP $MOOSH course:top -p "$MOODLE_PATH" --limit 1 -o csv)
+run_moosh course:top -p "$MOODLE_PATH" --limit 1 -o csv
 DATA_LINES=$(echo "$OUT" | tail -n +2 | wc -l)
 if [ "$DATA_LINES" -le 1 ]; then
     echo "  PASS: Limit respected ($DATA_LINES rows)"
@@ -49,12 +48,12 @@ fi
 echo ""
 
 echo "--- Test: Days option ---"
-OUT=$($PHP $MOOSH course:top -p "$MOODLE_PATH" --days 1 -o csv)
+run_moosh course:top -p "$MOODLE_PATH" --days 1 -o csv
 assert_output_contains "Days filter works" "courseid" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH course:top -p "$MOODLE_PATH" --help)
+run_moosh course:top -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Show top courses" "$OUT"
 assert_output_contains "Help shows --limit" "--limit" "$OUT"
 assert_output_contains "Help shows --days" "--days" "$OUT"

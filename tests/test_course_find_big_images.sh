@@ -22,21 +22,20 @@ echo "========== course:find-big-images =========="
 echo ""
 
 echo "--- Test: Default threshold detects 2MB image ---"
-OUT=$($PHP $MOOSH course:find-big-images -p "$MOODLE_PATH" -o csv)
-echo "$OUT"
+run_moosh course:find-big-images -p "$MOODLE_PATH" -o csv
 assert_output_contains "Header present" "courseid,shortname,fullname,filename,size_kb" "$OUT"
 assert_output_contains "Detects big image file" "big_image_chickens_frog_2MB.png" "$OUT"
 assert_output_contains "Big Media course detected" "Big Media" "$OUT"
 echo ""
 
 echo "--- Test: Small threshold to find any images ---"
-OUT=$($PHP $MOOSH course:find-big-images -p "$MOODLE_PATH" --size 0 -o csv)
+run_moosh course:find-big-images -p "$MOODLE_PATH" --size 0 -o csv
 assert_output_contains "Header still present" "courseid" "$OUT"
 assert_output_contains "Big image in small threshold" "big_image_chickens_frog_2MB.png" "$OUT"
 echo ""
 
 echo "--- Test: Large threshold excludes 2MB image ---"
-OUT=$($PHP $MOOSH course:find-big-images -p "$MOODLE_PATH" --size 5000 -o csv)
+run_moosh course:find-big-images -p "$MOODLE_PATH" --size 5000 -o csv
 DATA_LINES=$(echo "$OUT" | tail -n +2 | grep -c . || true)
 if [ "$DATA_LINES" -eq 0 ]; then
     echo "  PASS: No images above 5MB threshold"
@@ -48,13 +47,13 @@ fi
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH course:find-big-images -p "$MOODLE_PATH" -o json)
+run_moosh course:find-big-images -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON array" "[" "$OUT"
 assert_output_contains "JSON has filename" '"filename"' "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH course:find-big-images -p "$MOODLE_PATH" --help)
+run_moosh course:find-big-images -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Find courses with oversized overview images" "$OUT"
 assert_output_contains "Help shows --size" "--size" "$OUT"
 echo ""

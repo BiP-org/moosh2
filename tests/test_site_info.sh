@@ -26,7 +26,7 @@ echo "========== site:info =========="
 echo ""
 
 echo "--- Test: Table output ---"
-OUT=$($PHP $MOOSH site:info -p "$MOODLE_PATH" 2>&1)
+run_moosh site:info -p "$MOODLE_PATH"
 assert_output_contains "Shows site name" "Site name" "$OUT"
 assert_output_contains "Shows URL" "URL" "$OUT"
 assert_output_contains "Shows Moodle version" "Moodle version" "$OUT"
@@ -67,20 +67,20 @@ fi
 echo ""
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH site:info -p "$MOODLE_PATH" -o csv 2>&1)
+run_moosh site:info -p "$MOODLE_PATH" -o csv
 assert_output_contains "CSV header" "Metric,Value" "$OUT"
 assert_output_contains "CSV has site name" "Site name" "$OUT"
 echo ""
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH site:info -p "$MOODLE_PATH" -o json 2>&1)
+run_moosh site:info -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has Metric" '"Metric"' "$OUT"
 assert_output_contains "JSON has Value" '"Value"' "$OUT"
 assert_output_contains "JSON has site name" "Site name" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH site:info -p "$MOODLE_PATH" --help 2>&1)
+run_moosh site:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Moodle site overview" "$OUT"
 echo ""
 

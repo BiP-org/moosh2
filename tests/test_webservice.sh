@@ -61,7 +61,7 @@ echo "========== webservice:call =========="
 echo ""
 
 echo "--- Test: Get site info (JSON) ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token "$TOKEN" -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token "$TOKEN" -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Site info exit code 0" 0 $EC
 assert_output_contains "Shows sitename" "sitename" "$OUT"
@@ -69,7 +69,7 @@ assert_output_contains "Shows username" "admin" "$OUT"
 echo ""
 
 echo "--- Test: Pretty-print JSON ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token "$TOKEN" --pretty -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token "$TOKEN" --pretty -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Pretty exit code 0" 0 $EC
 assert_output_contains "Pretty has sitename" "sitename" "$OUT"
@@ -78,7 +78,7 @@ assert_output_contains "Has indentation" "    " "$OUT"
 echo ""
 
 echo "--- Test: XML format ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token "$TOKEN" --format xml -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token "$TOKEN" --format xml -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "XML exit code 0" 0 $EC
 assert_output_contains "XML has RESPONSE tag" "RESPONSE" "$OUT"
@@ -86,49 +86,49 @@ assert_output_contains "XML has sitename" "sitename" "$OUT"
 echo ""
 
 echo "--- Test: POST method ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token "$TOKEN" --post -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token "$TOKEN" --post -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "POST exit code 0" 0 $EC
 assert_output_contains "POST has sitename" "sitename" "$OUT"
 echo ""
 
 echo "--- Test: With parameters ---"
-OUT=$($PHP $MOOSH webservice:call core_course_get_courses --token "$TOKEN" --pretty "options[ids][0]=2" -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_course_get_courses --token "$TOKEN" --pretty "options[ids][0]=2" -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Params exit code 0" 0 $EC
 assert_output_contains "Shows course data" "fullname" "$OUT"
 echo ""
 
 echo "--- Test: Invalid token ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token invalidtoken -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token invalidtoken -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid token" 1 $EC
 assert_output_contains "Error for invalid token" "exception" "$OUT"
 echo ""
 
 echo "--- Test: Missing token ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for missing token" 1 $EC
 assert_output_contains "Error for missing token" "token is required" "$OUT"
 echo ""
 
 echo "--- Test: Invalid format ---"
-OUT=$($PHP $MOOSH webservice:call core_webservice_get_site_info --token "$TOKEN" --format yaml -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_webservice_get_site_info --token "$TOKEN" --format yaml -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid format" 1 $EC
 assert_output_contains "Error for invalid format" "Invalid format" "$OUT"
 echo ""
 
 echo "--- Test: Raw params ---"
-OUT=$($PHP $MOOSH webservice:call core_course_get_courses --token "$TOKEN" --raw-params "options[ids][0]=2" --pretty -p "$MOODLE_PATH" 2>&1)
+run_moosh webservice:call core_course_get_courses --token "$TOKEN" --raw-params "options[ids][0]=2" --pretty -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Raw params exit code 0" 0 $EC
 assert_output_contains "Raw params shows course" "fullname" "$OUT"
 echo ""
 
 echo "--- Test: webservice:call help ---"
-OUT=$($PHP $MOOSH webservice:call -p "$MOODLE_PATH" --help 2>&1)
+run_moosh webservice:call -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Call a Moodle webservice function" "$OUT"
 assert_output_contains "Help shows --token" "--token" "$OUT"
 assert_output_contains "Help shows --post" "--post" "$OUT"

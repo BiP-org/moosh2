@@ -53,8 +53,7 @@ echo ""
 # ── context:freeze dry run ───────────────────────────────────────
 
 echo "--- Test: Freeze dry run (no --run) ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX
 assert_output_contains "Shows dry run message" "Dry run" "$OUT"
 assert_output_contains "Shows context ID" "ID=$COURSE_CTX" "$OUT"
 assert_output_contains "Shows Course level" "Course" "$OUT"
@@ -83,8 +82,7 @@ echo ""
 # ── context:freeze with --run ────────────────────────────────────
 
 echo "--- Test: Freeze with --run ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX --run 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX --run
 assert_output_contains "Shows frozen message" "Frozen" "$OUT"
 assert_output_contains "Shows context ID in output" "ID=$COURSE_CTX" "$OUT"
 assert_output_contains "Shows done summary" "1 frozen, 0 already frozen" "$OUT"
@@ -111,16 +109,14 @@ echo ""
 # ── Freeze already frozen context ────────────────────────────────
 
 echo "--- Test: Freeze already frozen context ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX --run 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX --run
 assert_output_contains "Shows already frozen summary" "0 frozen, 1 already frozen" "$OUT"
 echo ""
 
 # ── context:unfreeze dry run ─────────────────────────────────────
 
 echo "--- Test: Unfreeze dry run ---"
-OUT=$($PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX 2>&1)
-echo "$OUT"
+run_moosh context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX
 assert_output_contains "Unfreeze dry run message" "Dry run" "$OUT"
 assert_output_contains "Shows currently frozen" "currently frozen" "$OUT"
 echo ""
@@ -128,8 +124,7 @@ echo ""
 # ── context:unfreeze with --run ──────────────────────────────────
 
 echo "--- Test: Unfreeze with --run ---"
-OUT=$($PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --run 2>&1)
-echo "$OUT"
+run_moosh context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --run
 assert_output_contains "Shows unfrozen message" "Unfrozen" "$OUT"
 assert_output_contains "Shows done summary" "1 unfrozen, 0 already unfrozen" "$OUT"
 echo ""
@@ -155,16 +150,14 @@ echo ""
 # ── Unfreeze already unfrozen context ────────────────────────────
 
 echo "--- Test: Unfreeze already unfrozen context ---"
-OUT=$($PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --run 2>&1)
-echo "$OUT"
+run_moosh context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --run
 assert_output_contains "Shows already unfrozen summary" "0 unfrozen, 1 already unfrozen" "$OUT"
 echo ""
 
 # ── --level option (instance ID mode) ────────────────────────────
 
 echo "--- Test: Freeze by course instance ID with --level ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" 2 --level=course --run 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" 2 --level=course --run
 assert_output_contains "Frozen via --level" "Frozen" "$OUT"
 assert_output_contains "Level output shows Course" "Course" "$OUT"
 echo ""
@@ -175,8 +168,7 @@ $PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" 2 --level=course --run >/dev/null
 # ── --children option ────────────────────────────────────────────
 
 echo "--- Test: Freeze with --children (dry run) ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX --children 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX --children
 assert_output_contains "Children dry run shows Dry run" "Dry run" "$OUT"
 # Total should be 1 (the course) + children
 EXPECTED_TOTAL=$((1 + COURSE_CHILD_COUNT))
@@ -184,8 +176,7 @@ assert_output_contains "Children dry run shows total" "Total: $EXPECTED_TOTAL co
 echo ""
 
 echo "--- Test: Freeze with --children (--run) ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX --children --run 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX --children --run
 assert_output_contains "Children freeze done summary" "frozen" "$OUT"
 echo ""
 
@@ -215,16 +206,14 @@ echo ""
 
 # Unfreeze with children
 echo "--- Test: Unfreeze with --children (--run) ---"
-OUT=$($PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --children --run 2>&1)
-echo "$OUT"
+run_moosh context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX --children --run
 assert_output_contains "Children unfreeze done summary" "unfrozen" "$OUT"
 echo ""
 
 # ── Multiple IDs ─────────────────────────────────────────────────
 
 echo "--- Test: Freeze multiple contexts ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" $COURSE_CTX $CAT_CTX --run 2>&1)
-echo "$OUT"
+run_moosh context:freeze -p "$MOODLE_PATH" $COURSE_CTX $CAT_CTX --run
 assert_output_contains "Multiple freeze shows 2 frozen" "2 frozen" "$OUT"
 echo ""
 
@@ -234,7 +223,7 @@ $PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" $COURSE_CTX $CAT_CTX --run >/dev/
 # ── Invalid level name ───────────────────────────────────────────
 
 echo "--- Test: Invalid level name ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" 1 --level=invalid --run 2>&1)
+run_moosh context:freeze -p "$MOODLE_PATH" 1 --level=invalid --run
 EXIT_CODE=$?
 assert_exit_code "Exit code is 1 for invalid level" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions unknown level" "Unknown context level" "$OUT"
@@ -243,7 +232,7 @@ echo ""
 # ── Invalid context ID ───────────────────────────────────────────
 
 echo "--- Test: Invalid context ID ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" 999999 --run 2>&1)
+run_moosh context:freeze -p "$MOODLE_PATH" 999999 --run
 EXIT_CODE=$?
 assert_exit_code "Exit code is 1 for invalid ID" 1 "$EXIT_CODE"
 assert_output_contains "Error mentions not found" "not found" "$OUT"
@@ -252,7 +241,7 @@ echo ""
 # ── Help output ──────────────────────────────────────────────────
 
 echo "--- Test: context:freeze help ---"
-OUT=$($PHP $MOOSH context:freeze -p "$MOODLE_PATH" --help 2>&1)
+run_moosh context:freeze -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Freeze" "$OUT"
 assert_output_contains "Help shows --level" "--level" "$OUT"
 assert_output_contains "Help shows --children" "--children" "$OUT"
@@ -260,7 +249,7 @@ assert_output_contains "Help shows --run" "--run" "$OUT"
 echo ""
 
 echo "--- Test: context:unfreeze help ---"
-OUT=$($PHP $MOOSH context:unfreeze -p "$MOODLE_PATH" --help 2>&1)
+run_moosh context:unfreeze -p "$MOODLE_PATH" --help
 assert_output_contains "Unfreeze help shows description" "Unfreeze" "$OUT"
 assert_output_contains "Unfreeze help shows --level" "--level" "$OUT"
 assert_output_contains "Unfreeze help shows --children" "--children" "$OUT"

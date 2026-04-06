@@ -42,8 +42,7 @@ echo ""
 # ── Dry run ───────────────────────────────────────────────────────
 
 echo "--- Test: Dry run (no --run) ---"
-OUT=$($PHP $MOOSH backup:empty-files /tmp/test_ef_backup.mbz)
-echo "$OUT"
+run_moosh backup:empty-files /tmp/test_ef_backup.mbz
 assert_output_contains "Shows dry run message" "Dry run" "$OUT"
 assert_output_contains "Shows archive type" "gzip" "$OUT"
 assert_output_contains "Shows data file count" "Data files: 1" "$OUT"
@@ -63,8 +62,7 @@ echo ""
 # ── Run with --output-file ────────────────────────────────────────
 
 echo "--- Test: --run with --output-file ---"
-OUT=$($PHP $MOOSH backup:empty-files --run --output-file /tmp/test_ef_emptied.mbz /tmp/test_ef_backup.mbz)
-echo "$OUT"
+run_moosh backup:empty-files --run --output-file /tmp/test_ef_emptied.mbz /tmp/test_ef_backup.mbz
 assert_output_contains "Shows truncated count" "Truncated 1" "$OUT"
 assert_output_contains "Shows bytes removed" "removed 33 bytes" "$OUT"
 assert_output_contains "Shows new size" "New backup size:" "$OUT"
@@ -132,8 +130,7 @@ echo ""
 
 echo "--- Test: --run in-place ---"
 cp /tmp/test_ef_backup.mbz /tmp/test_ef_inplace.mbz
-OUT=$($PHP $MOOSH backup:empty-files --run /tmp/test_ef_inplace.mbz)
-echo "$OUT"
+run_moosh backup:empty-files --run /tmp/test_ef_inplace.mbz
 assert_output_contains "Truncated in-place" "Truncated 1" "$OUT"
 INPLACE_SIZE=$(stat -c%s /tmp/test_ef_inplace.mbz)
 if [ "$INPLACE_SIZE" -lt "$ORIG_SIZE" ] || [ "$INPLACE_SIZE" -le "$((ORIG_SIZE + 1000))" ]; then
@@ -148,7 +145,7 @@ echo ""
 # ── Invalid file ──────────────────────────────────────────────────
 
 echo "--- Test: Invalid file ---"
-OUT=$($PHP $MOOSH backup:empty-files --run /tmp/nonexistent.mbz 2>&1)
+run_moosh backup:empty-files --run /tmp/nonexistent.mbz
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for missing file" 1 "$EXIT_CODE"
 assert_output_contains "Error message" "not found" "$OUT"
@@ -157,7 +154,7 @@ echo ""
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH backup:empty-files --help)
+run_moosh backup:empty-files --help
 assert_output_contains "Help shows description" "Truncate data files inside a Moodle backup" "$OUT"
 assert_output_contains "Help shows file argument" "file" "$OUT"
 assert_output_contains "Help shows --output-file" "--output-file" "$OUT"

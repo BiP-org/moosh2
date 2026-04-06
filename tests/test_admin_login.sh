@@ -22,8 +22,7 @@ echo ""
 # ── Default output (cookie:value format) ──────────────────────────
 
 echo "--- Test: Default output ---"
-OUT=$($PHP $MOOSH admin:login -p "$MOODLE_PATH")
-echo "$OUT"
+run_moosh admin:login -p "$MOODLE_PATH"
 assert_output_contains "Contains MoodleSession" "MoodleSession" "$OUT"
 assert_output_contains "Contains colon separator" ":" "$OUT"
 # Session ID should be non-empty alphanumeric
@@ -34,8 +33,7 @@ echo ""
 # ── CSV output ────────────────────────────────────────────────────
 
 echo "--- Test: CSV output ---"
-OUT=$($PHP $MOOSH admin:login -p "$MOODLE_PATH" -o csv)
-echo "$OUT"
+run_moosh admin:login -p "$MOODLE_PATH" -o csv
 assert_output_contains "CSV header" "cookie_name,cookie_value" "$OUT"
 assert_output_contains "CSV has MoodleSession" "MoodleSession" "$OUT"
 echo ""
@@ -43,8 +41,7 @@ echo ""
 # ── JSON output ───────────────────────────────────────────────────
 
 echo "--- Test: JSON output ---"
-OUT=$($PHP $MOOSH admin:login -p "$MOODLE_PATH" -o json)
-echo "$OUT"
+run_moosh admin:login -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has cookie_name" '"cookie_name"' "$OUT"
 assert_output_contains "JSON has cookie_value" '"cookie_value"' "$OUT"
 assert_output_contains "JSON has MoodleSession" '"MoodleSession"' "$OUT"
@@ -67,7 +64,7 @@ echo ""
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH admin:login -p "$MOODLE_PATH" --help)
+run_moosh admin:login -p "$MOODLE_PATH" --help
 assert_output_contains "Help shows description" "Create an admin login session" "$OUT"
 echo ""
 

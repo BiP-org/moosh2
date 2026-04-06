@@ -28,8 +28,7 @@ echo "========== theme:info =========="
 echo ""
 
 echo "--- Test: Overview (table) ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" 2>&1)
-echo "$OUT"
+run_moosh theme:info -p "$MOODLE_PATH"
 assert_output_contains "Shows site theme" "boost" "$OUT"
 assert_output_contains "Shows course overrides" "Course theme overrides" "$OUT"
 assert_output_contains "Shows category overrides" "Category theme overrides" "$OUT"
@@ -37,20 +36,19 @@ assert_output_contains "Shows user overrides" "User theme overrides" "$OUT"
 echo ""
 
 echo "--- Test: Overview (CSV) ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" -o csv 2>&1)
+run_moosh theme:info -p "$MOODLE_PATH" -o csv
 assert_output_contains "CSV has site theme" "boost" "$OUT"
 assert_output_contains "CSV has header" "Site theme" "$OUT"
 echo ""
 
 echo "--- Test: Overview (JSON) ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" -o json 2>&1)
+run_moosh theme:info -p "$MOODLE_PATH" -o json
 assert_output_contains "JSON has site theme" '"Site theme"' "$OUT"
 assert_output_contains "JSON has boost" "boost" "$OUT"
 echo ""
 
 echo "--- Test: Detailed info for boost ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" boost 2>&1)
-echo "$OUT"
+run_moosh theme:info -p "$MOODLE_PATH" boost
 assert_output_contains "Shows name" "boost" "$OUT"
 assert_output_contains "Shows component" "theme_boost" "$OUT"
 assert_output_contains "Shows version disk" "Version (disk)" "$OUT"
@@ -60,12 +58,12 @@ assert_output_contains "Shows settings count" "Configuration settings" "$OUT"
 echo ""
 
 echo "--- Test: Detailed info (CSV) ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" boost -o csv 2>&1)
+run_moosh theme:info -p "$MOODLE_PATH" boost -o csv
 assert_output_contains "CSV detail has component" "theme_boost" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent theme ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" nonexistent 2>&1)
+run_moosh theme:info -p "$MOODLE_PATH" nonexistent
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for nonexistent theme" 1 "$EXIT_CODE"
 assert_output_contains "Shows not found" "not found" "$OUT"
@@ -73,7 +71,7 @@ assert_output_contains "Shows available themes" "Available themes" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH theme:info -p "$MOODLE_PATH" --help 2>&1)
+run_moosh theme:info -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Show theme usage information" "$OUT"
 echo ""
 
@@ -86,8 +84,7 @@ echo "========== theme:settings-export =========="
 echo ""
 
 echo "--- Test: Export boost settings ---"
-OUT=$($PHP $MOOSH theme:settings-export -p "$MOODLE_PATH" boost --outputdir "$EXPORT_DIR" 2>&1)
-echo "$OUT"
+run_moosh theme:settings-export -p "$MOODLE_PATH" boost --outputdir "$EXPORT_DIR"
 assert_output_contains "Shows exported" "exported" "$OUT"
 EXPORT_FILE=$(ls -1 "$EXPORT_DIR"/boost_settings_*.tar.gz 2>/dev/null | head -1)
 if [ -n "$EXPORT_FILE" ] && [ -f "$EXPORT_FILE" ]; then
@@ -100,14 +97,14 @@ fi
 echo ""
 
 echo "--- Test: Nonexistent theme ---"
-OUT=$($PHP $MOOSH theme:settings-export -p "$MOODLE_PATH" nonexistent --outputdir "$EXPORT_DIR" 2>&1)
+run_moosh theme:settings-export -p "$MOODLE_PATH" nonexistent --outputdir "$EXPORT_DIR"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for nonexistent theme" 1 "$EXIT_CODE"
 assert_output_contains "Shows not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH theme:settings-export -p "$MOODLE_PATH" --help 2>&1)
+run_moosh theme:settings-export -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Export theme settings" "$OUT"
 assert_output_contains "Help shows --outputdir" "--outputdir" "$OUT"
 echo ""
@@ -124,8 +121,7 @@ echo ""
 EXPORT_FILE=$(ls -1 "$EXPORT_DIR"/boost_settings_*.tar.gz 2>/dev/null | head -1)
 
 echo "--- Test: Dry run ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" "$EXPORT_FILE" 2>&1)
-echo "$OUT"
+run_moosh theme:settings-import -p "$MOODLE_PATH" "$EXPORT_FILE"
 assert_output_contains "Shows dry run" "Dry run" "$OUT"
 assert_output_contains "Shows theme name" "boost" "$OUT"
 assert_output_contains "Shows component" "theme_boost" "$OUT"
@@ -133,34 +129,33 @@ assert_output_contains "Shows settings count" "Settings:" "$OUT"
 echo ""
 
 echo "--- Test: Import with --run ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" --run "$EXPORT_FILE" 2>&1)
-echo "$OUT"
+run_moosh theme:settings-import -p "$MOODLE_PATH" --run "$EXPORT_FILE"
 assert_output_contains "Shows imported" "imported" "$OUT"
 assert_output_contains "Shows component" "theme_boost" "$OUT"
 echo ""
 
 echo "--- Test: Import to different theme ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" --target-theme classic "$EXPORT_FILE" 2>&1)
+run_moosh theme:settings-import -p "$MOODLE_PATH" --target-theme classic "$EXPORT_FILE"
 assert_output_contains "Target theme" "classic" "$OUT"
 assert_output_contains "Target component" "theme_classic" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent target theme ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" --run --target-theme nonexistent "$EXPORT_FILE" 2>&1)
+run_moosh theme:settings-import -p "$MOODLE_PATH" --run --target-theme nonexistent "$EXPORT_FILE"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for nonexistent target" 1 "$EXIT_CODE"
 assert_output_contains "Shows not installed" "not installed" "$OUT"
 echo ""
 
 echo "--- Test: Nonexistent file ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" /tmp/nonexistent.tar.gz 2>&1)
+run_moosh theme:settings-import -p "$MOODLE_PATH" /tmp/nonexistent.tar.gz
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for nonexistent file" 1 "$EXIT_CODE"
 assert_output_contains "Shows not found" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
-OUT=$($PHP $MOOSH theme:settings-import -p "$MOODLE_PATH" --help 2>&1)
+run_moosh theme:settings-import -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Import theme settings" "$OUT"
 assert_output_contains "Help shows --target-theme" "--target-theme" "$OUT"
 echo ""

@@ -24,7 +24,7 @@ TMPDIR=$(mktemp -d)
 # ── Help output ───────────────────────────────────────────────────
 
 echo "--- Test: Help output ---"
-OUT=$($PHP $MOOSH log:unpack --help)
+run_moosh log:unpack --help
 assert_output_contains "Help description" "Restore IDs" "$OUT"
 assert_output_contains "Help shows file argument" "file" "$OUT"
 assert_output_contains "Help shows output argument" "output" "$OUT"
@@ -43,7 +43,7 @@ $PHP $MOOSH log:export -p "$MOODLE_PATH" --compact --from="2020-01-01" --to="203
 $PHP $MOOSH log:export -p "$MOODLE_PATH" --from="2020-01-01" --to="2030-12-31" "$TMPDIR/normal.csv" 2>&1
 
 # Unpack
-OUT=$($PHP $MOOSH log:unpack "$COMPACT_DIR/logs.csv" "$TMPDIR/restored.csv" 2>&1)
+run_moosh log:unpack "$COMPACT_DIR/logs.csv" "$TMPDIR/restored.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 0 for unpack" 0 "$EXIT_CODE"
 assert_output_contains "Unpacked message" "Unpacked" "$OUT"
@@ -160,7 +160,7 @@ echo "--- Test: Missing metadata.json ---"
 NO_META_DIR=$(mktemp -d)
 echo "eventname,timecreated" > "$NO_META_DIR/logs.csv"
 echo "test_event,1234567890" >> "$NO_META_DIR/logs.csv"
-OUT=$($PHP $MOOSH log:unpack "$NO_META_DIR/logs.csv" "$NO_META_DIR/out.csv" 2>&1)
+run_moosh log:unpack "$NO_META_DIR/logs.csv" "$NO_META_DIR/out.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for missing metadata" 1 "$EXIT_CODE"
 assert_output_contains "Error about missing metadata" "metadata.json not found" "$OUT"
@@ -170,7 +170,7 @@ echo ""
 # ── Missing input file ───────────────────────────────────────────
 
 echo "--- Test: Missing input file ---"
-OUT=$($PHP $MOOSH log:unpack "$TMPDIR/nonexistent.csv" "$TMPDIR/out.csv" 2>&1)
+run_moosh log:unpack "$TMPDIR/nonexistent.csv" "$TMPDIR/out.csv"
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for missing input" 1 "$EXIT_CODE"
 assert_output_contains "Error about missing file" "not found" "$OUT"

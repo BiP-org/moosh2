@@ -28,8 +28,7 @@ trap "rm -rf $TMPDIR" EXIT
 #   We create an assignment activity so there's a grade item to export/import.
 
 echo "--- Creating test assignment ---"
-OUT=$($PHP $MOOSH activity:create assign 2 -p "$MOODLE_PATH" --name "Test Assignment" --run 2>&1)
-echo "$OUT"
+run_moosh activity:create assign 2 -p "$MOODLE_PATH" --name "Test Assignment" --run
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
@@ -40,7 +39,7 @@ echo "========== gradebook:export =========="
 echo ""
 
 echo "--- Test: Export default txt format ---"
-OUT=$($PHP $MOOSH gradebook:export 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh gradebook:export 2 -p "$MOODLE_PATH"
 assert_output_contains "CSV header has Email" "Email address" "$OUT"
 assert_output_contains "CSV header has First name" "First name" "$OUT"
 assert_output_contains "Has student data" "student01@example.invalid" "$OUT"
@@ -70,31 +69,31 @@ fi
 echo ""
 
 echo "--- Test: Export XML format ---"
-OUT=$($PHP $MOOSH gradebook:export 2 -p "$MOODLE_PATH" -f xml 2>&1)
+run_moosh gradebook:export 2 -p "$MOODLE_PATH" -f xml
 assert_output_contains "XML has results tag" "results" "$OUT"
 echo ""
 
 echo "--- Test: Export invalid format ---"
-OUT=$($PHP $MOOSH gradebook:export 2 -p "$MOODLE_PATH" -f pdf 2>&1)
+run_moosh gradebook:export 2 -p "$MOODLE_PATH" -f pdf
 EC=$?
 assert_exit_code "Exit code 1 for invalid format" 1 $EC
 assert_output_contains "Error for invalid format" "Invalid format" "$OUT"
 echo ""
 
 echo "--- Test: Export invalid course ---"
-OUT=$($PHP $MOOSH gradebook:export 999 -p "$MOODLE_PATH" 2>&1)
+run_moosh gradebook:export 999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid course" 1 $EC
 assert_output_contains "Error for invalid course" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Export percentage display ---"
-OUT=$($PHP $MOOSH gradebook:export 2 -p "$MOODLE_PATH" --display-type 2 2>&1)
+run_moosh gradebook:export 2 -p "$MOODLE_PATH" --display-type 2
 assert_output_contains "Percentage header" "Percentage" "$OUT"
 echo ""
 
 echo "--- Test: gradebook:export help ---"
-OUT=$($PHP $MOOSH gradebook:export -p "$MOODLE_PATH" --help 2>&1)
+run_moosh gradebook:export -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Export gradebook data for a course" "$OUT"
 assert_output_contains "Help shows courseid" "courseid" "$OUT"
 assert_output_contains "Help shows --format" "--format" "$OUT"
@@ -110,7 +109,7 @@ echo "========== gradebook:import =========="
 echo ""
 
 echo "--- Test: Import dry run ---"
-OUT=$($PHP $MOOSH gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Dry run exit code 0" 0 $EC
 assert_output_contains "Shows mapping" "Mapped CSV column" "$OUT"
@@ -119,7 +118,7 @@ assert_output_contains "Shows dry run message" "Dry run" "$OUT"
 echo ""
 
 echo "--- Test: Import with --run ---"
-OUT=$($PHP $MOOSH gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH" --run 2>&1)
+run_moosh gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH" --run
 EC=$?
 assert_exit_code "Import exit code 0" 0 $EC
 assert_output_contains "Shows imported count" "Imported" "$OUT"
@@ -127,28 +126,28 @@ assert_output_contains "Shows user count" "user(s)" "$OUT"
 echo ""
 
 echo "--- Test: Import nonexistent file ---"
-OUT=$($PHP $MOOSH gradebook:import /nonexistent/grades.csv 2 -p "$MOODLE_PATH" 2>&1)
+run_moosh gradebook:import /nonexistent/grades.csv 2 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for missing file" 1 $EC
 assert_output_contains "Error for missing file" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Import invalid course ---"
-OUT=$($PHP $MOOSH gradebook:import "$TMPDIR/export.csv" 999 -p "$MOODLE_PATH" 2>&1)
+run_moosh gradebook:import "$TMPDIR/export.csv" 999 -p "$MOODLE_PATH"
 EC=$?
 assert_exit_code "Exit code 1 for invalid course" 1 $EC
 assert_output_contains "Error for invalid course" "not found" "$OUT"
 echo ""
 
 echo "--- Test: Import invalid map-users-by ---"
-OUT=$($PHP $MOOSH gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH" --map-users-by username 2>&1)
+run_moosh gradebook:import "$TMPDIR/export.csv" 2 -p "$MOODLE_PATH" --map-users-by username
 EC=$?
 assert_exit_code "Exit code 1 for invalid map-users-by" 1 $EC
 assert_output_contains "Error for invalid mapping" "Invalid" "$OUT"
 echo ""
 
 echo "--- Test: gradebook:import help ---"
-OUT=$($PHP $MOOSH gradebook:import -p "$MOODLE_PATH" --help 2>&1)
+run_moosh gradebook:import -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Import grades from a CSV file" "$OUT"
 assert_output_contains "Help shows file" "file" "$OUT"
 assert_output_contains "Help shows --map-users-by" "--map-users-by" "$OUT"
