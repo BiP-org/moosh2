@@ -6,7 +6,7 @@
 
 - **PHP**: >= 8.3
 - **Moodle**: >= 5.2
-- **Main dependency**: symfony/console ^7.0
+  - **Main dependency**: symfony/console ^7.0
 - **Entry points**: `php moosh.php` or `php bin/moosh`
 
 ## Repository Structure

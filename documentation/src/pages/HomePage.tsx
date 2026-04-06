@@ -2,39 +2,24 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/CodeBlock';
-import { Terminal, Layers, Settings, FileOutput, BookOpen, Zap } from 'lucide-react';
+import { Terminal, Eye, BookOpen } from 'lucide-react';
 import { commands } from '@/data/commands';
 import { categories } from '@/data/categories';
 
 const features = [
   {
     icon: Terminal,
-    title: '169 Commands',
-    description: 'Comprehensive CLI tools covering courses, users, plugins, roles, and more.',
+    title: 'Nearly 200 Commands',
+    description: 'CLI tools for managing everything Moodle - courses, users, plugins, roles, and more.',
   },
   {
-    icon: Layers,
-    title: 'Version-Aware',
-    description: 'Automatic handler selection based on your Moodle version (5.1+, 5.2+).',
-  },
-  {
-    icon: Settings,
-    title: 'Flexible Bootstrap',
-    description: '6 bootstrap levels from no Moodle includes to full browser-context bootstrap.',
-  },
-  {
-    icon: FileOutput,
-    title: 'Multiple Output Formats',
-    description: 'Table, CSV, JSON, and one-line output for easy scripting and integration.',
-  },
-  {
-    icon: Zap,
-    title: 'Built on Symfony Console',
-    description: 'Modern PHP 8.2+ codebase using Symfony Console 7.x.',
+    icon: Eye,
+    title: 'One moosh to rule them all',
+    description: 'Single moosh installation will handle all your Moodle instances on a server.',
   },
   {
     icon: BookOpen,
-    title: 'Open Source',
+    title: 'Open Source forever',
     description: 'Licensed under GNU GPL v3+. Community-driven development.',
   },
 ];
@@ -52,10 +37,11 @@ export function HomePage() {
           moosh2
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Moodle Shell &mdash; a command-line tool for managing Moodle installations.
-          Rewritten with Symfony Console 7.x and PHP 8.2+.
+          Moodle Shell &mdash; manage you Moodle like a hacker - from command-line!
         </p>
-      </section>
+        <p className="text-base text-muted-foreground max-w-2xl mx-auto">
+          This is moosh 2 - a rewrite for Moodle 5.2 and above.
+        </p></section>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Quick Start</h2>
