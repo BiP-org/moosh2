@@ -26,6 +26,8 @@ class ActivityInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'Course module ID',
         );
+
+        $command->addExampleUsage("Show info about activity with cmid 18", "18");
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

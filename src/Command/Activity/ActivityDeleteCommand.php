@@ -38,7 +38,7 @@ class ActivityDeleteCommand extends BaseCommand
     {
         $this
             ->setName('activity:delete')
-            ->setDescription('Delete activities from a course')
+            ->setDescription('Delete activities from a course.')
             ->setHelp('Deletes one or more course module activities by their course module ID. Requires --run to actually delete.');
 
         $this->handler->configureCommand($this);

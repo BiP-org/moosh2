@@ -32,13 +32,14 @@ class ActivityAdd52Handler extends BaseHandler
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Activity ID number')
             ->addOption('set', 'S', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Set module property: key=value (repeatable)');
 
-        $help = $command->getHelp() . "\n\n";
-        $help .= "Example 1. Add assignment to section 2 of course id 4:\n";
-        $help .= '    <info>moosh activity:create --run assign 4 --name="Entry statistics" --section=2</info>';
-        $help .= "\n";
-        $help .= "Example 2. Add assignment with online text and no file submissions:\n";
-        $help .= 'moosh activity:create --run assign 4 --name="Entry statistics 3" --section=1 --set="assignsubmission_onlinetext_enabled=1" --set="assignsubmission_file_enabled=0"';
-        $command->setHelp($help);
+        $command->addExampleUsage(
+            'Add assignment to section 2 of course id 4',
+            '--run assign 4 --name="Entry statistics" --section=2',
+        );
+        $command->addExampleUsage(
+            'Add assignment with online text and no file submissions',
+            '--run assign 4 --name="Entry statistics 3" --section=1 --set="assignsubmission_onlinetext_enabled=1" --set="assignsubmission_file_enabled=0"',
+        );
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

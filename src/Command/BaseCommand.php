@@ -31,6 +31,7 @@ abstract class BaseCommand extends Command
      * Override in subclasses to change the default.
      */
     protected BootstrapLevel $bootstrapLevel = BootstrapLevel::FullNoAdminCheck;
+    protected array $exampleUsage = [];
 
     /**
      * Implement the actual command logic here.
@@ -162,5 +163,28 @@ abstract class BaseCommand extends Command
         }
 
         return $bootstrapper;
+    }
+
+    public function addExampleUsage(string $description, string $command): void
+    {
+        $this->exampleUsage[] = ['description' => $description, 'command' => $command];
+    }
+
+    public function getProcessedHelp(): string
+    {
+        $help = parent::getProcessedHelp();
+
+        if ($this->exampleUsage !== []) {
+            $help .= "\n\n";
+            foreach ($this->exampleUsage as $i => $example) {
+                $help .= "\nExample " . ($i + 1) . '. ' . $example['description'] . ":\n";
+                $help .= '    <info>moosh ' . $this->getName() . ' '. $example['command'] . '</info>';
+                if ($i < count($this->exampleUsage) - 1) {
+                    $help .= "\n";
+                }
+            }
+        }
+
+        return $help;
     }
 }

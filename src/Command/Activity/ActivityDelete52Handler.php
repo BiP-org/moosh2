@@ -28,8 +28,11 @@ class ActivityDelete52Handler extends BaseHandler
         $command->addArgument(
             'cmid',
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
-            'Course module ID(s) to delete',
+            'Course module ID(s) to delete. This is the ID you get when accessing activity from a course page, ie /mod/assign/view.php?id=20',
         );
+
+        $command->addExampleUsage("Really delete activity with cmid 18", "--run 18");
+        $command->addExampleUsage("Delete multiple activities", "100 101 102");
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -59,7 +62,9 @@ class ActivityDelete52Handler extends BaseHandler
             foreach ($cmids as $cmid) {
                 $cm = $DB->get_record('course_modules', ['id' => (int) $cmid]);
                 $module = $DB->get_record('modules', ['id' => $cm->module]);
-                $output->writeln("  cmid=$cmid (type: {$module->name}, course: {$cm->course})");
+                $instance = $DB->get_record($module->name, ['id' => $cm->instance]);
+                $name = $instance->name ?? '(unknown)';
+                $output->writeln("  cmid=$cmid (type: {$module->name}, name: {$name}, course: {$cm->course})");
             }
             return Command::SUCCESS;
         }
