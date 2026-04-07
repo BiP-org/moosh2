@@ -57,7 +57,14 @@ class AdminLogin52Handler extends BaseHandler
         // When using file-based sessions, PHP refuses to read session files
         // not owned by the running process uid. Detect the mismatch early.
         if (ini_get('session.save_handler') === 'files') {
-            $datarootOwner = fileowner($CFG->dataroot);
+            $verbose->step("Checking if session file owner differs than current user");
+
+            $sessionDir = $CFG->sessiondir ?? $CFG->dataroot . '/sessions';
+            $datarootOwner = fileowner($sessionDir);
+            $verbose->detail('Moodle session directory', $sessionDir);
+            $verbose->detail('Moodle session directory owner UID', $datarootOwner);
+            $verbose->detail('Current user UID', posix_getuid());
+
             if ($datarootOwner !== false && $datarootOwner !== posix_getuid()) {
                 $ownerInfo = posix_getpwuid($datarootOwner);
                 $ownerName = $ownerInfo['name'] ?? "uid $datarootOwner";
