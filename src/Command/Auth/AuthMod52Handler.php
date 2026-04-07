@@ -25,6 +25,12 @@ class AuthMod52Handler extends BaseHandler
         $command
             ->addArgument('action', InputArgument::REQUIRED, 'Action: enable, disable, up, down')
             ->addArgument('plugin', InputArgument::REQUIRED, 'Auth plugin name (e.g. email, ldap, oauth2)');
+
+        $command->addExampleUsage('Enable self-registration via email', 'enable email --run');
+        $command->addExampleUsage('Disable email-based self-registration', 'disable email --run');
+        $command->addExampleUsage('Move oauth2 higher in priority', 'up oauth2 --run');
+        $command->addExampleUsage('Move ldap lower in priority', 'down ldap --run');
+        $command->addExampleUsage('Dry run — show what would happen', 'enable email');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -39,7 +39,13 @@ class AuthModCommand extends BaseCommand
         $this
             ->setName('auth:mod')
             ->setDescription('Enable, disable, or reorder auth plugins')
-            ->setHelp('Modify authentication plugin status: enable, disable, move up, or move down in priority order. Requires --run to apply changes.');
+            ->setHelp(<<<'HELP'
+                Modify authentication plugin status: enable, disable, move up, or move down
+                in priority order. The "manual" and "nologin" plugins cannot be modified —
+                they are always active.
+
+                Requires --run to apply changes.
+                HELP);
 
         $this->handler->configureCommand($this);
     }
