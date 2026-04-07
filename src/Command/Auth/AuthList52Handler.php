@@ -40,11 +40,36 @@ class AuthList52Handler extends BaseHandler
         $available = \core_component::get_plugin_list('auth');
         $enabledList = !empty($CFG->auth) ? explode(',', $CFG->auth) : [];
 
+        // Build ordered list matching Moodle's admin UI:
+        // manual first, then enabled plugins in configured order, then nologin,
+        // then remaining disabled plugins alphabetically.
+        $orderedPlugins = [];
+
+        // Manual is always first, nologin always second — matching Moodle's admin UI.
+        $orderedPlugins[] = 'manual';
+        if (isset($available['nologin'])) {
+            $orderedPlugins[] = 'nologin';
+        }
+
+        // Enabled plugins in their configured order (excluding manual/nologin).
+        foreach ($enabledList as $auth) {
+            if ($auth !== 'manual' && $auth !== 'nologin' && isset($available[$auth])) {
+                $orderedPlugins[] = $auth;
+            }
+        }
+
+        // Disabled plugins alphabetically.
+        $disabledPlugins = array_diff(array_keys($available), $orderedPlugins);
+        sort($disabledPlugins);
+        $orderedPlugins = array_merge($orderedPlugins, $disabledPlugins);
+
         $headers = ['plugin', 'name', 'enabled', 'users', 'can_signup', 'can_change_password', 'is_internal'];
         $rows = [];
 
-        foreach (array_keys($available) as $auth) {
-            $isEnabled = in_array($auth, $enabledList, true) || $auth === 'manual';
+        foreach ($orderedPlugins as $auth) {
+            $isEnabled = in_array($auth, $enabledList, true)
+                || $auth === 'manual'
+                || $auth === 'nologin';
 
             if ($enabledOnly && !$isEnabled) {
                 continue;

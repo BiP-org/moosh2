@@ -42,8 +42,8 @@ class AuthMod52Handler extends BaseHandler
             return Command::FAILURE;
         }
 
-        if ($pluginName === 'manual') {
-            $output->writeln('<error>The manual auth plugin cannot be modified — it is always active.</error>');
+        if ($pluginName === 'manual' || $pluginName === 'nologin') {
+            $output->writeln("<error>The '$pluginName' auth plugin cannot be modified — it is always active.</error>");
             return Command::FAILURE;
         }
 
