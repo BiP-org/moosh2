@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/CodeBlock';
-import { Terminal, Eye, BookOpen, FlaskConical } from 'lucide-react';
+import { Terminal, Eye, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
 import { commands } from '@/data/commands';
 import { categories } from '@/data/categories';
 
@@ -26,7 +26,13 @@ const features = [
     icon: FlaskConical,
     title: 'Well tested',
     description: 'Covered by nearly 3000 tests!',
-  },];
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Powerful but gentle',
+    description: 'moosh is extremely powerful - but it was also designed to prevent you from destroying your own site.',
+  },
+];
 
 export function HomePage() {
   return (
