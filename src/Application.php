@@ -163,6 +163,7 @@ use Moosh2\Command\ProfileField\ProfileFieldImportCommand;
 use Moosh2\Command\ProfileField\ProfileFieldInfoCommand;
 use Moosh2\Command\Search\SearchQuestionIdCommand;
 use Moosh2\Command\Search\SearchTimestampCommand;
+use Moosh2\Command\Section\SectionCopyCommand;
 use Moosh2\Command\Sql\SqlCliCommand;
 use Moosh2\Command\Sql\SqlDumpCommand;
 use Moosh2\Command\Sql\SqlRunCommand;
@@ -503,6 +504,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new MaintenanceOnCommand($this->moodleVersion));
         $this->addCommand(new MaintenanceOffCommand($this->moodleVersion));
         $this->addCommand(new PhpEvalCommand($this->moodleVersion));
+        $this->addCommand(new SectionCopyCommand($this->moodleVersion));
         $this->addCommand(new SessionKillCommand($this->moodleVersion));
         $this->addCommand(new SiteInfoCommand($this->moodleVersion));
         $this->addCommand(new SystemCheckCommand($this->moodleVersion));
