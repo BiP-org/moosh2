@@ -22,7 +22,7 @@ class CourseEnrol52Handler extends BaseHandler
     {
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
-            ->addArgument('userid', InputArgument::REQUIRED | InputArgument::IS_ARRAY, 'Username(s) or user ID(s) to enrol')
+            ->addArgument('user', InputArgument::REQUIRED | InputArgument::IS_ARRAY, 'Username(s) or user ID(s) to enrol')
             ->addOption('id', null, InputOption::VALUE_NONE, 'Treat user arguments as numeric IDs instead of usernames')
             ->addOption('role', 'r', InputOption::VALUE_REQUIRED, 'Role shortname (default: student)', 'student')
             ->addOption('start-date', null, InputOption::VALUE_REQUIRED, 'Enrolment start date (strtotime-parseable)')
@@ -36,7 +36,7 @@ class CourseEnrol52Handler extends BaseHandler
         $verbose = new VerboseLogger($output);
         $runMode = $input->getOption('run');
         $courseId = (int) $input->getArgument('courseid');
-        $users = $input->getArgument('userid');
+        $users = $input->getArgument('user');
         $byId = $input->getOption('id');
         $roleName = $input->getOption('role');
         $startDateOpt = $input->getOption('start-date');
