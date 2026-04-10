@@ -78,25 +78,38 @@ echo "========== course:unenrol =========="
 echo ""
 
 echo "--- Test: Dry run ---"
-run_moosh course:unenrol -p "$MOODLE_PATH" 2 3
+run_moosh course:unenrol -p "$MOODLE_PATH" 2 student01
 assert_output_contains "Shows dry run" "Dry run" "$OUT"
 assert_output_contains "Shows user" "student01" "$OUT"
 assert_output_contains "Shows plugin" "manual" "$OUT"
 echo ""
 
 echo "--- Test: Unenrol with --run ---"
-run_moosh course:unenrol -p "$MOODLE_PATH" --run 2 3
+run_moosh course:unenrol -p "$MOODLE_PATH" --run 2 student01
 assert_output_contains "Shows unenrolled" "Unenrolled" "$OUT"
 assert_output_contains "Shows username" "student01" "$OUT"
 echo ""
 
 echo "--- Test: Already unenrolled ---"
-run_moosh course:unenrol -p "$MOODLE_PATH" --run 2 3
+run_moosh course:unenrol -p "$MOODLE_PATH" --run 2 student01
 assert_output_contains "No enrolments" "No enrolments" "$OUT"
 echo ""
 
+echo "--- Test: Unenrol by ID ---"
+run_moosh course:enrol -p "$MOODLE_PATH" --run 2 student05
+run_moosh course:unenrol -p "$MOODLE_PATH" --run --id 2 7
+assert_output_contains "Unenrolled by ID" "Unenrolled" "$OUT"
+echo ""
+
+echo "--- Test: Nonexistent user ---"
+run_moosh course:unenrol -p "$MOODLE_PATH" 2 nonexistentuser
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for bad user" 1 "$EXIT_CODE"
+assert_output_contains "User not found" "not found" "$OUT"
+echo ""
+
 echo "--- Test: Nonexistent course ---"
-run_moosh course:unenrol -p "$MOODLE_PATH" 99999 3
+run_moosh course:unenrol -p "$MOODLE_PATH" 99999 student01
 EXIT_CODE=$?
 assert_exit_code "Exit code 1 for bad course" 1 "$EXIT_CODE"
 echo ""
@@ -105,6 +118,7 @@ echo "--- Test: Help ---"
 run_moosh course:unenrol -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Unenrol users" "$OUT"
 assert_output_contains "Help shows --plugin" "--plugin" "$OUT"
+assert_output_contains "Help shows --id" "--id" "$OUT"
 echo ""
 
 

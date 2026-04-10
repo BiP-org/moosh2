@@ -122,13 +122,9 @@ class CourseEnrol52Handler extends BaseHandler
         $userRecords = [];
         foreach ($users as $identifier) {
             if ($byId) {
-                $record = $DB->get_record('user', ['id' => (int) $identifier, 'deleted' => 0]);
+                $record = $DB->get_record('user', ['id' => (int) $identifier, 'deleted' => 0], '*', MUST_EXIST);
             } else {
-                $record = $DB->get_record('user', ['username' => $identifier, 'deleted' => 0]);
-            }
-            if (!$record) {
-                $output->writeln("<error>User '$identifier' not found.</error>");
-                return Command::FAILURE;
+                $record = $DB->get_record('user', ['username' => $identifier, 'deleted' => 0], '*', MUST_EXIST);
             }
             $userRecords[] = $record;
         }

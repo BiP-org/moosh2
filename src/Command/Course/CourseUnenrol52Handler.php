@@ -22,7 +22,8 @@ class CourseUnenrol52Handler extends BaseHandler
     {
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
-            ->addArgument('userid', InputArgument::REQUIRED | InputArgument::IS_ARRAY, 'User ID(s) to unenrol')
+            ->addArgument('user', InputArgument::REQUIRED | InputArgument::IS_ARRAY, 'Username(s) or user ID(s) to unenrol')
+            ->addOption('id', null, InputOption::VALUE_NONE, 'Treat user arguments as numeric IDs instead of usernames')
             ->addOption('plugin', null, InputOption::VALUE_REQUIRED, 'Only unenrol from this enrolment plugin (e.g. manual)');
     }
 
@@ -33,7 +34,8 @@ class CourseUnenrol52Handler extends BaseHandler
         $verbose = new VerboseLogger($output);
         $runMode = $input->getOption('run');
         $courseId = (int) $input->getArgument('courseid');
-        $userIds = $input->getArgument('userid');
+        $users = $input->getArgument('user');
+        $byId = $input->getOption('id');
         $pluginFilter = $input->getOption('plugin');
 
         require_once $CFG->dirroot . '/enrol/locallib.php';
@@ -45,22 +47,31 @@ class CourseUnenrol52Handler extends BaseHandler
             return Command::FAILURE;
         }
 
+        // Validate users
+        $verbose->step('Validating users');
+        $userRecords = [];
+        foreach ($users as $identifier) {
+            if ($byId) {
+                $record = $DB->get_record('user', ['id' => (int) $identifier, 'deleted' => 0]);
+            } else {
+                $record = $DB->get_record('user', ['username' => $identifier, 'deleted' => 0]);
+            }
+            if (!$record) {
+                $output->writeln("<error>User '$identifier' not found.</error>");
+                return Command::FAILURE;
+            }
+            $userRecords[] = $record;
+        }
+
         $manager = new \course_enrolment_manager($PAGE, $course);
 
         // Collect all unenrolment actions first
         $verbose->step('Checking enrolments');
         $actions = [];
-        foreach ($userIds as $uid) {
-            $uid = (int) $uid;
-            $user = $DB->get_record('user', ['id' => $uid, 'deleted' => 0]);
-            if (!$user) {
-                $output->writeln("<error>User with ID $uid not found.</error>");
-                return Command::FAILURE;
-            }
-
-            $enrolments = $manager->get_user_enrolments($uid);
+        foreach ($userRecords as $user) {
+            $enrolments = $manager->get_user_enrolments($user->id);
             if (empty($enrolments)) {
-                $output->writeln("<comment>User {$user->username} (ID=$uid) has no enrolments in this course.</comment>");
+                $output->writeln("<comment>User {$user->username} (ID={$user->id}) has no enrolments in this course.</comment>");
                 continue;
             }
 
