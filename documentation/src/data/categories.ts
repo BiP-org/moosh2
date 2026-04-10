@@ -42,6 +42,7 @@ export const categories: Category[] = [
   { slug: 'report', label: 'Report', description: 'Usage and concurrency reports' },
   { slug: 'role', label: 'Role', description: 'Role creation, import/export, and management' },
   { slug: 'search', label: 'Search', description: 'Search for question IDs and timestamps in database' },
+  { slug: 'section', label: 'Section', description: 'Course section management' },
   { slug: 'session', label: 'Session', description: 'User session management' },
   { slug: 'site', label: 'Site', description: 'Site information overview' },
   { slug: 'sql', label: 'SQL', description: 'Direct SQL access, dumps, and queries' },
