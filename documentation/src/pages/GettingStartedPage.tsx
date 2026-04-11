@@ -13,17 +13,19 @@ export function GettingStartedPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Requirements</h2>
         <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-          <li>PHP 8.2 or higher</li>
+          <li>PHP 8.3 or higher</li>
           <li>Composer</li>
-          <li>A working Moodle installation (5.1+)</li>
+          <li>A working Moodle installation (5.2+)</li>
         </ul>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Installation</h2>
-        <CodeBlock>{`git clone https://github.com/tmuras/moosh.git moosh2
+        <h2 className="text-xl font-semibold">Installation from github</h2>
+        <CodeBlock>{`git clone -b 2.x https://github.com/tmuras/moosh.git moosh2
 cd moosh2
 composer install`}</CodeBlock>
+          <h2 className="text-xl font-semibold">Using composer</h2>
+          <CodeBlock>{`composer require tmuras/moosh:2.x@dev`}</CodeBlock>
       </section>
 
       <section className="space-y-3">
