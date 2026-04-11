@@ -53,6 +53,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SETUP_DIR="$SCRIPT_DIR/test_data_setup_${MOODLE_VERSION}"
 DUMP_FILE="$SETUP_DIR/dump.sql.gz"
 DATA_FILE="$SETUP_DIR/data.tar.gz"
+# current shell user
+USER=$(whoami)
 
 # Check dump files exist.
 if [[ ! -f "$DUMP_FILE" ]]; then
@@ -92,7 +94,8 @@ echo "Dataroot cleared. ($((SECONDS - STEP_START))s)"
 # Restore dataroot from archive.
 echo "Restoring dataroot from data.tar.gz..."
 STEP_START=$SECONDS
-sudo tar xzf "$DATA_FILE" -C "$(dirname "$DATAROOT")"
+sudo tar -xzf "$DATA_FILE" -C "$(dirname "$DATAROOT")"
+sudo chown -R $USER $DATAROOT
 echo "Dataroot restored. ($((SECONDS - STEP_START))s)"
 
 echo "=== Done in $((SECONDS - TOTAL_START))s ==="
