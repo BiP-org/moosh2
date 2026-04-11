@@ -57,7 +57,7 @@ class CategoryImport52Handler extends BaseHandler
 
         if (!$runMode) {
             $output->writeln("<info>Dry run — would import $count category(ies) under parent $parentId (use --run to execute).</info>");
-            $this->previewCategories($xml, $output, 0);
+            $this->previewCategories($xml, $output, 0, $parentId);
             return Command::SUCCESS;
         }
 
@@ -142,13 +142,23 @@ class CategoryImport52Handler extends BaseHandler
         return $count;
     }
 
-    private function previewCategories(\SimpleXMLElement $xml, OutputInterface $output, int $depth): void
+    private function previewCategories(\SimpleXMLElement $xml, OutputInterface $output, int $depth, int $parentId): void
     {
+        global $DB;
+
         foreach ($xml->category as $cat) {
             $pad = str_repeat('  ', $depth);
-            $output->writeln("  {$pad}" . (string) $cat->name);
+            $name = (string) $cat->name;
+            $existing = $DB->get_record('course_categories', ['name' => $name, 'parent' => $parentId]);
+            if ($existing) {
+                $output->writeln("  {$pad}{$name} <comment>(already exists, ID={$existing->id} — will be skipped)</comment>");
+                $childParentId = $existing->id;
+            } else {
+                $output->writeln("  {$pad}{$name}");
+                $childParentId = $parentId;
+            }
             if (isset($cat->subcategories)) {
-                $this->previewCategories($cat->subcategories, $output, $depth + 1);
+                $this->previewCategories($cat->subcategories, $output, $depth + 1, $childParentId);
             }
         }
     }
