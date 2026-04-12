@@ -22,7 +22,7 @@ jobs:
         run: composer install --no-dev --optimize-autoloader
 
       - name: Build moosh.phar
-        run: php -d phar.readonly=0 build-phar.php
+        run: php -d phar.readonly=0 bin/build-phar.php
 
       - name: Verify phar works
         run: php moosh.phar list

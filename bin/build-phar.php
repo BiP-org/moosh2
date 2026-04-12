@@ -29,7 +29,7 @@ if (file_exists($pharFile)) {
 $phar = new Phar($pharFile, 0, 'moosh.phar');
 $phar->startBuffering();
 
-$baseDir = __DIR__;
+$baseDir = __DIR__ . '/..';
 
 $dirs = ['src', 'includes', 'vendor'];
 
