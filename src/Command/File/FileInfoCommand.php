@@ -32,11 +32,13 @@ class FileInfoCommand extends BaseCommand
             ->setName('file:info')
             ->setDescription('Show detailed file information')
             ->setHelp(<<<'HELP'
-                Show file details including physical path.
+                Show file details including physical path on disk.
 
-                Examples:
-                  file:info 42
-                  file:info --hash abc123
+                Accepts one or more file IDs as arguments. Use --stdin to read
+                space-separated IDs from standard input (e.g. piped from file:list -i).
+
+                Use --field to output a single metric per file, one value per line.
+                This is useful for piping into other tools like tar or xargs.
                 HELP);
         $this->handler->configureCommand($this);
     }

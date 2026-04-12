@@ -8,6 +8,7 @@
 
 namespace Moosh2\Command\Course;
 
+use Moosh2\Command\StdinIdsTrait;
 use Moosh2\Output\ResultFormatter;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -17,6 +18,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 trait CourseListHelperTrait
 {
+    use StdinIdsTrait;
+
     /**
      * Recursively collect category IDs.
      *
@@ -28,26 +31,6 @@ trait CourseListHelperTrait
         foreach ($category->get_children() as $child) {
             $ids = array_merge($ids, $this->getCategoryIds($child));
         }
-        return $ids;
-    }
-
-    /**
-     * Read space-separated course IDs from stdin.
-     *
-     * @return int[]|null  Array of IDs when --stdin is active, null otherwise.
-     */
-    private function readStdinIds(InputInterface $input): ?array
-    {
-        if (!$input->getOption('stdin')) {
-            return null;
-        }
-
-        $raw = file_get_contents('php://stdin');
-        $ids = array_filter(
-            array_map('intval', preg_split('/\s+/', trim($raw))),
-            fn(int $id) => $id > 0,
-        );
-
         return $ids;
     }
 

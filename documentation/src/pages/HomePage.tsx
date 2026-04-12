@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/CodeBlock';
-import { Terminal, Eye, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
+import { Terminal, Eye, BookOpen, FlaskConical, ShieldCheck, History } from 'lucide-react';
 import { commands } from '@/data/commands';
 import { categories } from '@/data/categories';
 
@@ -31,6 +31,13 @@ const features = [
     icon: ShieldCheck,
     title: 'Powerful but gentle',
     description: 'moosh is extremely powerful - but it was also designed to prevent you from destroying your own site.',
+  },
+  {
+    icon: History,
+    title: 'Support for old Moodle and PHP versions',
+    description: 'moosh 2 built to run with the latest Moodle and PHP versions.' +
+        'But... if there is a command that you absolutely need in your old Moodle, then ' +
+        'it may be added as a stand-alone script.',
   },
 ];
 

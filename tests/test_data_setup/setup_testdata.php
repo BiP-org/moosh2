@@ -237,6 +237,46 @@ $fs->create_file_from_pathname([
 cli_writeln("  Created lesson 'Media Lesson' with content page containing embedded image");
 cli_writeln("  Created course: Big Media (id={$bigMediaCourse->id})");
 
+// ---------- File-Rich Course (10 resources × 10 files) ----------
+
+cli_writeln('');
+cli_heading('Creating "File-Rich Course" with 10 resources, each containing 10 files');
+
+$fileRichCourse = $generator->create_course([
+    'fullname'  => 'File-Rich Course',
+    'shortname' => 'filerich_' . $category->id,
+    'category'  => $category->id,
+    'summary'   => 'Course with 10 resources, each containing 10 unique files for tar archive testing.',
+    'numsections' => 3,
+]);
+
+for ($r = 1; $r <= 10; $r++) {
+    $resource = $resourcegen->create_instance([
+        'course' => $fileRichCourse->id,
+        'name'   => "Resource Pack $r",
+        'intro'  => "Resource pack $r containing 10 files.",
+        'introformat' => FORMAT_HTML,
+        'defaultfilename' => "pack{$r}_file01.txt",
+    ], ['section' => (($r - 1) % 3) + 1]);
+
+    $moduleContext = context_module::instance($resource->cmid);
+
+    for ($f = 2; $f <= 10; $f++) {
+        $num = str_pad($f, 2, '0', STR_PAD_LEFT);
+        $fs->create_file_from_string([
+            'contextid' => $moduleContext->id,
+            'component' => 'mod_resource',
+            'filearea'  => 'content',
+            'itemid'    => 0,
+            'filepath'  => '/',
+            'filename'  => "pack{$r}_file{$num}.txt",
+        ], "Content: resource $r, file $f — " . uniqid('', true));
+    }
+
+    cli_writeln("  Created Resource Pack $r with 10 files (cmid={$resource->cmid})");
+}
+cli_writeln("  Created course: File-Rich Course (id={$fileRichCourse->id})");
+
 // ---------- Students ----------
 
 cli_writeln('');
