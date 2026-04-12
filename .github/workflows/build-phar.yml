@@ -25,7 +25,7 @@ jobs:
         run: php -d phar.readonly=0 bin/build-phar.php
 
       - name: Verify phar works
-        run: php moosh.phar list
+        run: php bin/moosh.phar list
 
       - name: Upload moosh.phar as artifact
         uses: actions/upload-artifact@v4
