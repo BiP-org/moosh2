@@ -9,6 +9,7 @@ import { GlobalOptionsPage } from '@/pages/GlobalOptionsPage';
 import { OutputFormatsPage } from '@/pages/OutputFormatsPage';
 import { CommandsPage } from '@/pages/CommandsPage';
 import { CommandDetailPage } from '@/pages/CommandDetailPage';
+import { SuperCombosPage } from '@/pages/SuperCombosPage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
               <Route path="/output-formats" element={<OutputFormatsPage />} />
               <Route path="/commands" element={<CommandsPage />} />
               <Route path="/commands/:category/:command" element={<CommandDetailPage />} />
+              <Route path="/super-combos" element={<SuperCombosPage />} />
             </Route>
           </Routes>
         </HashRouter>
