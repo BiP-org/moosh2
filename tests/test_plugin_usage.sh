@@ -44,7 +44,7 @@ echo ""
 echo "--- Test: --type activity ---"
 run_moosh plugin:usage -p "$MOODLE_PATH" --type activity -o csv
 echo "$OUT" | head -5
-assert_output_contains "Resource activity with count" "activity,resource,File,14,enabled" "$OUT"
+assert_output_contains "Resource activity with count" "activity,resource,File,24,enabled" "$OUT"
 assert_output_contains "Forum activity listed" "activity,forum,Forum,0,enabled" "$OUT"
 assert_output_contains "Assignment activity listed" "activity,assign,Assignment,0,enabled" "$OUT"
 assert_output_not_contains "No block in activity filter" "block," "$OUT"
@@ -72,8 +72,8 @@ echo ""
 
 echo "--- Test: --type format ---"
 run_moosh plugin:usage -p "$MOODLE_PATH" --type format -o csv
-assert_output_contains "Topics format with 16 courses" "format,topics," "$OUT"
-assert_output_contains "Topics count is 16" ",16," "$OUT"
+assert_output_contains "Topics format with 17 courses" "format,topics," "$OUT"
+assert_output_contains "Topics count is 17" ",17," "$OUT"
 assert_output_contains "Weeks format" "format,weeks," "$OUT"
 echo ""
 

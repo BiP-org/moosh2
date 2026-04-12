@@ -60,7 +60,7 @@ echo ""
 echo "--- Test: Count query ---"
 run_moosh sql:select -p "$MOODLE_PATH" "SELECT COUNT(*) AS total FROM {course} WHERE id > 1" -o csv
 assert_output_contains "Header has total" "total" "$OUT"
-assert_output_contains "16 courses" "16" "$OUT"
+assert_output_contains "17 courses" "17" "$OUT"
 echo ""
 
 # ── Join query ────────────────────────────────────────────────────

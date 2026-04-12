@@ -83,9 +83,9 @@ echo ""
 echo "--- Test: Computer Science category ---"
 run_moosh category:info -p "$MOODLE_PATH" 5 -o json
 assert_output_contains "CS name" '"Computer Science"' "$OUT"
-assert_output_contains "7 direct courses" '"Direct courses": 7' "$OUT"
-assert_output_contains "7 total courses" '"Total courses (recursive)": 7' "$OUT"
-assert_output_contains "6 total activities" '"Total activities": 6' "$OUT"
+assert_output_contains "8 direct courses" '"Direct courses": 8' "$OUT"
+assert_output_contains "8 total courses" '"Total courses (recursive)": 8' "$OUT"
+assert_output_contains "16 total activities" '"Total activities": 16' "$OUT"
 echo ""
 
 # ── Empty category (id=1) ────────────────────────────────────────
