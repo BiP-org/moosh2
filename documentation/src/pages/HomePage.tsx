@@ -92,6 +92,17 @@ php moosh.php help course:list`}</CodeBlock>
         </div>
       </section>
 
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold mb-3">What is it for?</h2>
+        <p>moosh is meant to be run:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>As a CLI command to support Moodle development, troubleshooting or administration</li>
+          <li>In bash-oneliners for quick task automation</li>
+          <li>As part of shell scripts to automate Moodle processes</li>
+        </ul>
+        <p>There is no moosh API that could be used programmatically.</p>
+      </section>
+
       <section>
         <h2 className="text-lg font-semibold mb-4">Command Categories</h2>
         <div className="flex flex-wrap gap-2">
