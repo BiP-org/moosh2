@@ -19,7 +19,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * List course categories matching optional search criteria.
  *
- * Canonical name: category:list  |  Alias: category-list
+ * Canonical name: category:list
  *
  * Delegates argument/option definition and execution to a
  * version-specific handler selected at construction time.

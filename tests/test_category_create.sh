@@ -51,6 +51,11 @@ run_moosh category:create -p "$MOODLE_PATH" --run "Cat A" "Cat B" "Cat C" -o csv
 assert_output_contains "First category created" "Cat A" "$OUT"
 assert_output_contains "Second category created" "Cat B" "$OUT"
 assert_output_contains "Third category created" "Cat C" "$OUT"
+# Verify category exists
+run_moosh category:list -p "$MOODLE_PATH" --sql "cc.name = 'Cat C'" -o csv
+VERIFY="$OUT"
+assert_output_contains "Category exists after create" "Cat C" "$VERIFY"
+
 echo ""
 
 # ── Create subcategory ────────────────────────────────────────────

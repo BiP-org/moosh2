@@ -58,11 +58,6 @@ class CategoryList52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command
-            ->addArgument(
-                'search',
-                InputArgument::OPTIONAL | InputArgument::IS_ARRAY,
-                'SQL WHERE fragments to filter categories',
-            )
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display only category IDs')
             ->addOption('parent', null, InputOption::VALUE_REQUIRED, 'Filter to categories with this parent ID')
             ->addOption('fields', 'f', InputOption::VALUE_REQUIRED, 'Comma-separated list of fields to show')
@@ -84,11 +79,6 @@ class CategoryList52Handler extends BaseHandler
         $parentId = $input->getOption('parent');
         $fieldsRaw = $input->getOption('fields');
         $sqlOption = $input->getOption('sql');
-        $searchFragments = $input->getArgument('search');
-
-        if ($sqlOption !== null) {
-            $searchFragments[] = $sqlOption;
-        }
 
         $filters = $this->parseBooleanFilters($input);
         $visible = $filters['visible'];
@@ -134,8 +124,8 @@ class CategoryList52Handler extends BaseHandler
             $where[] = 'cc.parent > 0';
         }
 
-        if ($searchFragments) {
-            $where[] = '(' . implode(' ', $searchFragments) . ')';
+        if ($sqlOption) {
+            $where[] = $sqlOption;
         }
 
         $sql .= ' WHERE ' . implode(' AND ', $where);
