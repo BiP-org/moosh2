@@ -196,11 +196,28 @@ final class Application extends SymfonyApplication {
     private ?MoodleBootstrapper $bootstrapper = null;
     private bool $bootstrapperResolved = false;
 
+    /**
+     * Working directory at process start, captured before Moodle's config.php
+     * (loaded during bootstrap) changes it.
+     */
+    private static ?string $originalCwd = null;
+
     public function __construct() {
+        $cwd = getcwd();
+        self::$originalCwd = $cwd !== false ? $cwd : '';
+
         parent::__construct('moosh', self::VERSION);
 
         $this->resolveVersionEarly();
         $this->registerCommands();
+    }
+
+    /**
+     * Directory the user ran moosh from. Captured before Moodle bootstrap
+     * changes cwd, so it's reliable throughout command execution.
+     */
+    public static function getOriginalCwd(): string {
+        return self::$originalCwd ?? (getcwd() ?: '');
     }
 
     /**

@@ -8,6 +8,7 @@
 
 namespace Moosh2\Command\File;
 
+use Moosh2\Application;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Output\ResultFormatter;
 use Moosh2\Output\VerboseLogger;
@@ -47,8 +48,14 @@ class FileUpload52Handler extends BaseHandler
         $storedPath = $input->getOption('storedpath');
         $filename = $input->getOption('filename');
 
+        $originalCwd = Application::getOriginalCwd();
+        if (!str_starts_with($filePath, '/') && $originalCwd !== '') {
+            $filePath = $originalCwd . '/' . $filePath;
+        }
+
         if (!file_exists($filePath)) {
             $output->writeln("<error>File not found: $filePath</error>");
+            $output->writeln("<error>Invocation directory: $originalCwd</error>");
             return Command::FAILURE;
         }
 
