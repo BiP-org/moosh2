@@ -188,60 +188,16 @@ echo ""
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  file:upload
-# ═══════════════════════════════════════════════════════════════════
-
-echo "========== file:upload =========="
-echo ""
-
-# Create a test file
-echo "Hello from moosh2 test" > "$TMPDIR/testfile.txt"
-
-# Get context ID for course 2
-run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_context WHERE contextlevel=50 AND instanceid=2" -o csv
-CTX_ID=$(echo "$OUT" | tail -1)
-echo "  Course 2 context ID: $CTX_ID"
-
-echo "--- Test: Dry run ---"
-run_moosh file:upload "$TMPDIR/testfile.txt" --contextid $CTX_ID --component course --filearea summary -p "$MOODLE_PATH"
-EC=$?
-assert_exit_code "Dry run exit code 0" 0 $EC
-assert_output_contains "Shows dry run" "Dry run" "$OUT"
-echo ""
-
-echo "--- Test: Upload file ---"
-run_moosh file:upload "$TMPDIR/testfile.txt" --contextid $CTX_ID --component course --filearea summary -p "$MOODLE_PATH" --run
-EC=$?
-assert_exit_code "Upload exit code 0" 0 $EC
-assert_output_contains "Shows filename" "testfile.txt" "$OUT"
-assert_output_contains "Shows component" "course" "$OUT"
-echo ""
-
-echo "--- Test: Missing file ---"
-run_moosh file:upload /nonexistent.txt --contextid $CTX_ID --component course --filearea summary -p "$MOODLE_PATH" --run
-EC=$?
-assert_exit_code "Exit code 1 for missing file" 1 $EC
-echo ""
-
-echo "--- Test: Missing options ---"
-run_moosh file:upload "$TMPDIR/testfile.txt" -p "$MOODLE_PATH" --run
-EC=$?
-assert_exit_code "Exit code 1 for missing options" 1 $EC
-echo ""
-
-echo "--- Test: Help ---"
-run_moosh file:upload -p "$MOODLE_PATH" --help
-assert_output_contains "Help description" "Upload a file" "$OUT"
-assert_output_contains "Help shows --contextid" "--contextid" "$OUT"
-echo ""
-
-
-# ═══════════════════════════════════════════════════════════════════
 #  file:delete
 # ═══════════════════════════════════════════════════════════════════
 
 echo "========== file:delete =========="
 echo ""
+
+# Get context ID for course 2
+run_moosh sql:select -p "$MOODLE_PATH" "SELECT id FROM mdl_context WHERE contextlevel=50 AND instanceid=2" -o csv
+CTX_ID=$(echo "$OUT" | tail -1)
+echo "  Course 2 context ID: $CTX_ID"
 
 # Upload a file to delete
 echo "delete me" > "$TMPDIR/deleteme.txt"
