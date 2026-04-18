@@ -11,7 +11,7 @@ export function SuperCombosPage() {
         </p>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-4" id={"upload-site-logos"}>
         <h2 className="text-xl font-semibold">Upload and configure site logos</h2>
         <p className="text-muted-foreground">
           Moodle stores logos in the <code className="bg-muted px-1.5 py-0.5 rounded text-sm">core_admin</code> component

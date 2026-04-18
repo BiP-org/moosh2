@@ -1,4 +1,5 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Layout } from '@/components/layout/Layout';
@@ -11,11 +12,24 @@ import { CommandsPage } from '@/pages/CommandsPage';
 import { CommandDetailPage } from '@/pages/CommandDetailPage';
 import { SuperCombosPage } from '@/pages/SuperCombosPage';
 
+function ScrollToHash() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const id = hash.slice(1);
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }, [pathname, hash]);
+  return null;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <TooltipProvider>
         <HashRouter>
+          <ScrollToHash />
           <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<HomePage />} />

@@ -35,9 +35,21 @@ const features = [
   {
     icon: History,
     title: 'Support for old Moodle and PHP versions',
-    description: 'moosh 2 built to run with the latest Moodle and PHP versions.' +
-        'But... if there is a command that you absolutely need in your old Moodle, then ' +
-        'it may be added as a stand-alone script.',
+    description: (
+      <>
+        moosh 2 built to run with the latest Moodle and PHP versions.
+        But... if there is a command that you absolutely need in your old Moodle, then{' '}
+        <a className="underline" href="https://github.com/tmuras/moosh/issues">request it</a> as a{' '}
+        <a
+          href="https://github.com/tmuras/moosh/tree/2.x/stand_alone_scripts"
+          className="underline"
+          target="_blank"
+          rel="noreferrer"
+        >
+          stand-alone script
+        </a>.
+      </>
+    ),
   },
 ];
 
