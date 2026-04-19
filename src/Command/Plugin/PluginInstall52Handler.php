@@ -45,20 +45,8 @@ class PluginInstall52Handler extends BaseHandler
         require_once $CFG->libdir . '/upgradelib.php';
         require_once $CFG->libdir . '/filelib.php';
 
-        $moodleRelease = moodle_major_version();
-
-        $verbose->step("Resolving plugin $pluginName for Moodle $moodleRelease");
-
-        $client = new PluginApiClient($proxy);
-
-        try {
-            $version = $client->findBestVersion($pluginName, (string) $moodleRelease, $releaseVersion, $force);
-        } catch (\RuntimeException $e) {
-            $output->writeln('<error>' . $e->getMessage() . '</error>');
-            return Command::FAILURE;
-        }
-
-        // Determine installation path
+        // Determine installation path up front so we can validate filesystem
+        // permissions before touching the network or temp files.
         $split = explode('_', $pluginName, 2);
         if (count($split) !== 2) {
             $output->writeln("<error>Invalid plugin name '$pluginName'. Expected format: type_name (e.g. mod_attendance).</error>");
@@ -75,8 +63,29 @@ class PluginInstall52Handler extends BaseHandler
 
         $installPath = $pluginTypes[$type];
         $targetPath = $installPath . DIRECTORY_SEPARATOR . $component;
-
         $exists = file_exists($targetPath);
+
+        if (!is_writable($installPath)) {
+            $output->writeln("<error>No write permission for plugin directory $installPath. Check filesystem ownership and permissions for the user running moosh.</error>");
+            return Command::FAILURE;
+        }
+        if ($exists && !is_writable($targetPath)) {
+            $output->writeln("<error>No write permission for existing plugin directory $targetPath. Check filesystem ownership and permissions for the user running moosh.</error>");
+            return Command::FAILURE;
+        }
+
+        $moodleRelease = moodle_major_version();
+
+        $verbose->step("Resolving plugin $pluginName for Moodle $moodleRelease");
+
+        $client = new PluginApiClient($proxy);
+
+        try {
+            $version = $client->findBestVersion($pluginName, (string) $moodleRelease, $releaseVersion, $force);
+        } catch (\RuntimeException $e) {
+            $output->writeln('<error>' . $e->getMessage() . '</error>');
+            return Command::FAILURE;
+        }
 
         if (!$runMode) {
             $output->writeln('<info>Dry run — would install the following plugin (use --run to execute):</info>');
@@ -141,7 +150,12 @@ class PluginInstall52Handler extends BaseHandler
 
         // Move to target
         $verbose->step("Installing to $targetPath");
-        rename($pluginDir, $targetPath);
+        if (!@rename($pluginDir, $targetPath)) {
+            $error = error_get_last();
+            $this->cleanup($tempDir);
+            $output->writeln("<error>Failed to install plugin to $targetPath: " . ($error['message'] ?? 'unknown error') . '</error>');
+            return Command::FAILURE;
+        }
 
         // Cleanup temp
         $this->cleanup($tempDir);

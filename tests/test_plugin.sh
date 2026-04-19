@@ -162,6 +162,26 @@ run_moosh plugin:install -p "$MOODLE_PATH" --run --force --delete block_progress
 assert_output_contains "Reinstalled" "Installed block_progress" "$OUT"
 echo ""
 
+echo "--- Test: No write permission on plugin directory ---"
+# Strip current user's write access from mod/ to simulate a locked-down filesystem.
+ORIG_MOD_PERMS=$(stat -c '%a' "$MOODLE_PATH/mod")
+chmod u-w "$MOODLE_PATH/mod"
+run_moosh plugin:install -p "$MOODLE_PATH" --run --force mod_attendance
+EC=$?
+# Restore before asserting so a failing assert doesn't leave mod/ locked.
+chmod "$ORIG_MOD_PERMS" "$MOODLE_PATH/mod"
+assert_exit_code "Exit code 1 for no write perms" 1 $EC
+assert_output_contains "No write permission error" "No write permission" "$OUT"
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: Plugin not installed when permission denied"
+    ((PASS++))
+else
+    echo "  FAIL: Plugin was installed despite permission denial"
+    ((FAIL++))
+    rm -rf "$MOODLE_PATH/mod/attendance"
+fi
+echo ""
+
 echo "--- Test: Help ---"
 run_moosh plugin:install --help
 assert_output_contains "Help description" "Download and install a plugin" "$OUT"
