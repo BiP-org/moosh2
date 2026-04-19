@@ -1,3 +1,9 @@
+---
+name: write-integration-test
+description: Conventions for writing moosh integration tests under tests/. Use when adding, extending, or fixing a tests/*.sh integration test.
+paths: tests/**
+---
+
 # write-integration-test
 
 Skill for writing integration tests for moosh commands. Applies to files inside the `tests/` directory.
