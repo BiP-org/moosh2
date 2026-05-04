@@ -14,6 +14,8 @@ use Moosh2\Bootstrap\MoodleVersion;
 use Moosh2\Command\Activity\ActivityAddCommand;
 use Moosh2\Command\Activity\ActivityInfoCommand;
 use Moosh2\Command\Admin\AdminLoginCommand;
+use Moosh2\Command\Archive\ArchiveDumpCommand;
+use Moosh2\Command\Archive\ArchiveRestoreCommand;
 use Moosh2\Command\Content\ContentReplaceCommand;
 use Moosh2\Command\Content\ContentReplaceEncodedCommand;
 use Moosh2\Command\Content\ContentHttpsReplaceCommand;
@@ -370,6 +372,8 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new ActivityDeleteCommand($this->moodleVersion));
         $this->addCommand(new ActivityModCommand($this->moodleVersion));
         $this->addCommand(new AdminLoginCommand($this->moodleVersion));
+        $this->addCommand(new ArchiveDumpCommand($this->moodleVersion));
+        $this->addCommand(new ArchiveRestoreCommand($this->moodleVersion));
         $this->addCommand(new AuditBruteforceCommand($this->moodleVersion));
         $this->addCommand(new AuditPasswordCommand($this->moodleVersion));
         $this->addCommand(new AuthListCommand($this->moodleVersion));
