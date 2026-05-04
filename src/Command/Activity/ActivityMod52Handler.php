@@ -39,6 +39,15 @@ class ActivityMod52Handler extends BaseHandler
             ->addOption('section', 's', InputOption::VALUE_REQUIRED, 'Move to section number')
             ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Move before this course module ID (use with --section; only valid with a single cmid)')
             ->addOption('set', 'S', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Set module property: key=value (repeatable)');
+
+        $command->addExampleUsage('Dry-run a rename of cmid 42', '--name "New Name" 42');
+        $command->addExampleUsage('Rename activity', '--run --name "New Name" 42');
+        $command->addExampleUsage('Hide activity', '--run --visible 0 42');
+        $command->addExampleUsage('Hide multiple activities at once', '--run --visible 0 42 43 44');
+        $command->addExampleUsage('Hide cmids piped from stdin (e.g. moosh activity:list --course=41 -i | ...)', '--stdin --visible 0 --run');
+        $command->addExampleUsage('Move activity to section 3', '--run --section 3 42');
+        $command->addExampleUsage('Move activity 42 before activity 50', '--run --section 3 --before 50 42');
+        $command->addExampleUsage('Set module-specific property', '--run --set duedate=1735689600 42');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

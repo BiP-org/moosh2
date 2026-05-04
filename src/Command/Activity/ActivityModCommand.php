@@ -39,7 +39,16 @@ class ActivityModCommand extends BaseCommand
         $this
             ->setName('activity:mod')
             ->setDescription('Modify an activity or move it to a different section')
-            ->setHelp('Modifies activity properties (name, visibility, ID number) or moves it to a different section. Requires --run to apply changes.');
+            ->setHelp(<<<'HELP'
+                Modifies activity properties (name, visibility, ID number) or moves activities
+                to a different section. Accepts one or more course module IDs as positional
+                arguments, or reads them from stdin with --stdin (handy for piping from
+                activity:list).
+
+                --before is only valid when modifying a single cmid.
+
+                Requires --run to apply changes; without --run a dry-run preview is shown.
+                HELP);
 
         $this->handler->configureCommand($this);
     }
