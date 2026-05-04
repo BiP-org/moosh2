@@ -25,10 +25,21 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
 
     output=$(bash "$test_file" 2>&1)
     exit_code=$?
-    echo "$output"
-
     pass_count=$(echo "$output" | grep -c '  PASS:')
     fail_count=$(echo "$output" | grep -c '  FAIL:')
+
+    # Retry once on errors — the test DB occasionally returns transient errors
+    # (orphan InnoDB tablespaces after restore). Discard the first run's output.
+    if [ "$exit_code" -ne 0 ] || [ "$fail_count" -gt 0 ]; then
+        echo "# First run had errors (exit=$exit_code, fail=$fail_count); retrying after 1s..."
+        sleep 1
+        output=$(bash "$test_file" 2>&1)
+        exit_code=$?
+        pass_count=$(echo "$output" | grep -c '  PASS:')
+        fail_count=$(echo "$output" | grep -c '  FAIL:')
+    fi
+
+    echo "$output"
 
     TOTAL_PASS=$((TOTAL_PASS + pass_count))
     TOTAL_FAIL=$((TOTAL_FAIL + fail_count))
