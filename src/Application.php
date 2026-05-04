@@ -13,6 +13,7 @@ use Moosh2\Bootstrap\MoodlePathResolver;
 use Moosh2\Bootstrap\MoodleVersion;
 use Moosh2\Command\Activity\ActivityAddCommand;
 use Moosh2\Command\Activity\ActivityInfoCommand;
+use Moosh2\Command\Activity\ActivityListCommand;
 use Moosh2\Command\Admin\AdminLoginCommand;
 use Moosh2\Command\Archive\ArchiveDumpCommand;
 use Moosh2\Command\Archive\ArchiveRestoreCommand;
@@ -369,6 +370,7 @@ final class Application extends SymfonyApplication {
 
         $this->addCommand(new ActivityAddCommand($this->moodleVersion));
         $this->addCommand(new ActivityInfoCommand($this->moodleVersion));
+        $this->addCommand(new ActivityListCommand($this->moodleVersion));
         $this->addCommand(new ActivityDeleteCommand($this->moodleVersion));
         $this->addCommand(new ActivityModCommand($this->moodleVersion));
         $this->addCommand(new AdminLoginCommand($this->moodleVersion));

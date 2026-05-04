@@ -127,7 +127,9 @@ class CourseEnrol52Handler extends BaseHandler
                 $record = $DB->get_record('user', ['username' => $identifier, 'deleted' => 0]);
             }
             if (!$record) {
-                $output->writeln("<error>User '$identifier' not found. --id was set to '$byId'.</error>");
+                $label = $byId ? "User with ID '$identifier'" : "User '$identifier'";
+                $hint = $byId ? '' : ' (use --id to look up by numeric ID)';
+                $output->writeln("<error>$label not found.$hint</error>");
                 return Command::FAILURE;
             }
             $userRecords[] = $record;

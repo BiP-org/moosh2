@@ -145,6 +145,48 @@ assert_exit_code "Exit code 1 for invalid cmid" 1 "$EXIT_CODE"
 assert_output_contains "Error for invalid cmid" "not found" "$OUT"
 echo ""
 
+# -- Multiple cmids via positional args ---
+
+echo "--- Setup: Create two more forums for bulk tests ---"
+run_moosh activity:create -p "$MOODLE_PATH" --run --name "Bulk Forum A" forum 2 -o csv
+BULK_A=$(echo "$OUT" | tail -1 | cut -d, -f1)
+run_moosh activity:create -p "$MOODLE_PATH" --run --name "Bulk Forum B" forum 2 -o csv
+BULK_B=$(echo "$OUT" | tail -1 | cut -d, -f1)
+echo "  Created bulk cmids: A=$BULK_A B=$BULK_B"
+echo ""
+
+echo "--- Test: Modify multiple cmids via positional args ---"
+run_moosh activity:mod -p "$MOODLE_PATH" --run --visible 0 $BULK_A $BULK_B -o csv
+assert_output_contains "Bulk A in output" "$BULK_A" "$OUT"
+assert_output_contains "Bulk B in output" "$BULK_B" "$OUT"
+echo ""
+
+# -- --stdin reads cmids from stdin ---
+
+echo "--- Test: Modify cmids via --stdin ---"
+run_moosh activity:mod -p "$MOODLE_PATH" --stdin --run --visible 1 -o csv <<< "$BULK_A $BULK_B"
+assert_output_contains "Bulk A visible 1" ",1," "$OUT"
+assert_output_contains "Bulk B in output" "$BULK_B" "$OUT"
+echo ""
+
+# -- No cmid and no --stdin ---
+
+echo "--- Test: No cmid provided ---"
+run_moosh activity:mod -p "$MOODLE_PATH" --run --visible 0
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 when no cmid" 1 "$EXIT_CODE"
+assert_output_contains "Error mentions cmid" "No cmid provided" "$OUT"
+echo ""
+
+# -- --before with multiple cmids is rejected ---
+
+echo "--- Test: --before with multiple cmids rejected ---"
+run_moosh activity:mod -p "$MOODLE_PATH" --run --section 2 --before $BULK_A $BULK_A $BULK_B
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for --before+multi" 1 "$EXIT_CODE"
+assert_output_contains "Error mentions --before" "--before is only valid with a single cmid" "$OUT"
+echo ""
+
 # -- Help ---
 
 echo "--- Test: activity:mod help ---"
@@ -155,6 +197,7 @@ assert_output_contains "Help shows --visible" "--visible" "$OUT"
 assert_output_contains "Help shows --section" "--section" "$OUT"
 assert_output_contains "Help shows --before" "--before" "$OUT"
 assert_output_contains "Help shows --set" "--set" "$OUT"
+assert_output_contains "Help shows --stdin" "--stdin" "$OUT"
 echo ""
 
 print_summary

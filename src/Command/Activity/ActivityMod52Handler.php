@@ -10,6 +10,7 @@ namespace Moosh2\Command\Activity;
 
 use core_courseformat\formatactions;
 use Moosh2\Command\BaseHandler;
+use Moosh2\Command\StdinIdsTrait;
 use Moosh2\Output\ResultFormatter;
 use Moosh2\Output\VerboseLogger;
 use Symfony\Component\Console\Command\Command;
@@ -25,15 +26,18 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class ActivityMod52Handler extends BaseHandler
 {
+    use StdinIdsTrait;
+
     public function configureCommand(Command $command): void
     {
         $command
-            ->addArgument('cmid', InputArgument::REQUIRED, 'Course module ID to modify')
+            ->addArgument('cmid', InputArgument::OPTIONAL | InputArgument::IS_ARRAY, 'Course module ID(s) to modify')
+            ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read space-separated cmids from stdin instead of positional arguments')
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Set activity name')
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Set visibility (1 or 0)')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Set ID number')
             ->addOption('section', 's', InputOption::VALUE_REQUIRED, 'Move to section number')
-            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Move before this course module ID (use with --section)')
+            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Move before this course module ID (use with --section; only valid with a single cmid)')
             ->addOption('set', 'S', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Set module property: key=value (repeatable)');
     }
 
@@ -45,7 +49,6 @@ class ActivityMod52Handler extends BaseHandler
         $format = $input->getOption('output');
         $runMode = $input->getOption('run');
 
-        $cmid = (int) $input->getArgument('cmid');
         $newName = $input->getOption('name');
         $newVisible = $input->getOption('visible');
         $newIdnumber = $input->getOption('idnumber');
@@ -53,22 +56,23 @@ class ActivityMod52Handler extends BaseHandler
         $beforeCmid = $input->getOption('before');
         $setOptions = $input->getOption('set');
 
-        $verbose->step('Loading Moodle libraries');
-        require_once $CFG->dirroot . '/course/lib.php';
+        // Resolve cmids: stdin takes precedence over positional args.
+        $stdinIds = $this->readStdinIds($input);
+        if ($stdinIds !== null) {
+            $cmids = $stdinIds;
+        } else {
+            $cmids = array_map('intval', $input->getArgument('cmid'));
+        }
 
-        // Validate course module exists.
-        $cm = get_coursemodule_from_id('', $cmid);
-        if (!$cm) {
-            $output->writeln("<error>Course module with ID $cmid not found.</error>");
+        if (empty($cmids)) {
+            $output->writeln('<error>No cmid provided. Pass cmid(s) as arguments or use --stdin.</error>');
             return Command::FAILURE;
         }
 
-        $module = $DB->get_record('modules', ['id' => $cm->module]);
-        $course = $DB->get_record('course', ['id' => $cm->course]);
-
-        // Resolve current section number from section ID.
-        $currentSectionRecord = $DB->get_record('course_sections', ['id' => $cm->section]);
-        $currentSectionNum = $currentSectionRecord ? (int) $currentSectionRecord->section : 0;
+        if ($beforeCmid !== null && count($cmids) !== 1) {
+            $output->writeln('<error>--before is only valid with a single cmid.</error>');
+            return Command::FAILURE;
+        }
 
         // Parse --set options.
         $setFields = [];
@@ -85,108 +89,122 @@ class ActivityMod52Handler extends BaseHandler
             $setFields[$key] = $value;
         }
 
-        // Check something was requested.
         if ($newName === null && $newVisible === null && $newIdnumber === null && $newSection === null && $setFields === []) {
             $output->writeln('<error>No modifications specified. Use --name, --visible, --idnumber, --section, or --set.</error>');
             return Command::FAILURE;
         }
 
-        // Build summary of changes.
-        $changes = [];
-        if ($newName !== null) {
-            $changes[] = "name: \"{$cm->name}\" -> \"$newName\"";
-        }
-        if ($newVisible !== null) {
-            $changes[] = "visible: {$cm->visible} -> $newVisible";
-        }
-        if ($newIdnumber !== null) {
-            $changes[] = "idnumber: \"{$cm->idnumber}\" -> \"$newIdnumber\"";
-        }
-        if ($newSection !== null) {
-            $changes[] = "section: {$currentSectionNum} -> $newSection";
-            if ($beforeCmid !== null) {
-                $changes[] = "before cmid: $beforeCmid";
+        $verbose->step('Loading Moodle libraries');
+        require_once $CFG->dirroot . '/course/lib.php';
+
+        // Validate all cmids up front.
+        $cms = [];
+        foreach ($cmids as $cmid) {
+            $cmid = (int) $cmid;
+            $cm = get_coursemodule_from_id('', $cmid);
+            if (!$cm) {
+                $output->writeln("<error>Course module with ID $cmid not found.</error>");
+                return Command::FAILURE;
             }
-        }
-        foreach ($setFields as $key => $value) {
-            $instance = $DB->get_record($module->name, ['id' => $cm->instance]);
-            $oldValue = $instance->$key ?? '(unset)';
-            $changes[] = "$key: \"$oldValue\" -> \"$value\"";
+            $cms[$cmid] = $cm;
         }
 
+        // Dry-run preview.
         if (!$runMode) {
-            $output->writeln("<info>Dry run — would modify {$module->name} (cmid=$cmid) in course {$cm->course} (use --run to execute):</info>");
-            foreach ($changes as $change) {
-                $output->writeln("  $change");
+            $output->writeln('<info>Dry run — would modify the following activity(ies) (use --run to execute):</info>');
+            foreach ($cms as $cmid => $cm) {
+                $module = $DB->get_record('modules', ['id' => $cm->module]);
+                $currentSectionRecord = $DB->get_record('course_sections', ['id' => $cm->section]);
+                $currentSectionNum = $currentSectionRecord ? (int) $currentSectionRecord->section : 0;
+
+                $output->writeln("  {$module->name} (cmid=$cmid, course={$cm->course}):");
+                if ($newName !== null) {
+                    $output->writeln("    name: \"{$cm->name}\" -> \"$newName\"");
+                }
+                if ($newVisible !== null) {
+                    $output->writeln("    visible: {$cm->visible} -> $newVisible");
+                }
+                if ($newIdnumber !== null) {
+                    $output->writeln("    idnumber: \"{$cm->idnumber}\" -> \"$newIdnumber\"");
+                }
+                if ($newSection !== null) {
+                    $output->writeln("    section: {$currentSectionNum} -> $newSection");
+                    if ($beforeCmid !== null) {
+                        $output->writeln("    before cmid: $beforeCmid");
+                    }
+                }
+                foreach ($setFields as $key => $value) {
+                    $instance = $DB->get_record($module->name, ['id' => $cm->instance]);
+                    $oldValue = $instance->$key ?? '(unset)';
+                    $output->writeln("    $key: \"$oldValue\" -> \"$value\"");
+                }
             }
             return Command::SUCCESS;
         }
 
-        $verbose->step("Modifying {$module->name} (cmid=$cmid)");
+        $rows = [];
+        foreach ($cms as $cmid => $cm) {
+            $module = $DB->get_record('modules', ['id' => $cm->module]);
 
-        // Apply name change.
-        if ($newName !== null) {
-            $verbose->info("Renaming to: $newName");
-            $DB->set_field($module->name, 'name', $newName, ['id' => $cm->instance]);
-            // Also update the cached name in course_modules if available.
-            rebuild_course_cache($cm->course, true);
-        }
+            $verbose->step("Modifying {$module->name} (cmid=$cmid)");
 
-        // Apply visibility change.
-        if ($newVisible !== null) {
-            $verbose->info("Setting visible: $newVisible");
-            set_coursemodule_visible($cmid, (int) $newVisible, (int) $newVisible);
-        }
-
-        // Apply idnumber change.
-        if ($newIdnumber !== null) {
-            $verbose->info("Setting idnumber: $newIdnumber");
-            $DB->set_field('course_modules', 'idnumber', $newIdnumber, ['id' => $cmid]);
-        }
-
-        // Move to different section.
-        if ($newSection !== null) {
-            $sectionRecord = $DB->get_record('course_sections', [
-                'course' => $cm->course,
-                'section' => (int) $newSection,
-            ]);
-            if (!$sectionRecord) {
-                $output->writeln("<error>Section $newSection not found in course {$cm->course}.</error>");
-                return Command::FAILURE;
+            if ($newName !== null) {
+                $verbose->info("Renaming to: $newName");
+                $DB->set_field($module->name, 'name', $newName, ['id' => $cm->instance]);
+                rebuild_course_cache($cm->course, true);
             }
 
-            $verbose->info("Moving to section $newSection");
-            $beforeMod = $beforeCmid !== null ? (int) $beforeCmid : null;
-            $action = formatactions::cm($cm->course);
-            if ($beforeMod) {
-                $action->move_before($cm->id, $beforeMod);
-            } else {
-                $action->move_end_section($cm->id, $sectionRecord->id);
+            if ($newVisible !== null) {
+                $verbose->info("Setting visible: $newVisible");
+                set_coursemodule_visible($cmid, (int) $newVisible, (int) $newVisible);
             }
+
+            if ($newIdnumber !== null) {
+                $verbose->info("Setting idnumber: $newIdnumber");
+                $DB->set_field('course_modules', 'idnumber', $newIdnumber, ['id' => $cmid]);
+            }
+
+            if ($newSection !== null) {
+                $sectionRecord = $DB->get_record('course_sections', [
+                    'course' => $cm->course,
+                    'section' => (int) $newSection,
+                ]);
+                if (!$sectionRecord) {
+                    $output->writeln("<error>Section $newSection not found in course {$cm->course}.</error>");
+                    return Command::FAILURE;
+                }
+
+                $verbose->info("Moving to section $newSection");
+                $beforeMod = $beforeCmid !== null ? (int) $beforeCmid : null;
+                $action = formatactions::cm($cm->course);
+                if ($beforeMod) {
+                    $action->move_before($cm->id, $beforeMod);
+                } else {
+                    $action->move_end_section($cm->id, $sectionRecord->id);
+                }
+            }
+
+            if ($setFields !== []) {
+                $instance = $DB->get_record($module->name, ['id' => $cm->instance], '*', MUST_EXIST);
+                foreach ($setFields as $key => $value) {
+                    $verbose->info("Setting $key: $value");
+                    $instance->$key = $value;
+                }
+                $DB->update_record($module->name, $instance);
+                rebuild_course_cache($cm->course, true);
+            }
+
+            // Collect output row using updated state.
+            $cm = get_coursemodule_from_id('', $cmid);
+            $activityName = $DB->get_field($module->name, 'name', ['id' => $cm->instance]);
+            $updatedSection = $DB->get_record('course_sections', ['id' => $cm->section]);
+            $updatedSectionNum = $updatedSection ? (int) $updatedSection->section : 0;
+            $rows[] = [$cm->id, $module->name, $activityName, $updatedSectionNum, $cm->visible, $cm->idnumber];
         }
 
-        // Apply --set fields to the module instance.
-        if ($setFields !== []) {
-            $instance = $DB->get_record($module->name, ['id' => $cm->instance], '*', MUST_EXIST);
-            foreach ($setFields as $key => $value) {
-                $verbose->info("Setting $key: $value");
-                $instance->$key = $value;
-            }
-            $DB->update_record($module->name, $instance);
-            rebuild_course_cache($cm->course, true);
-        }
-
-        $verbose->done('Modifications applied');
-
-        // Output the updated state.
-        $cm = get_coursemodule_from_id('', $cmid);
-        $activityName = $DB->get_field($module->name, 'name', ['id' => $cm->instance]);
-        $updatedSection = $DB->get_record('course_sections', ['id' => $cm->section]);
-        $updatedSectionNum = $updatedSection ? (int) $updatedSection->section : 0;
+        $verbose->done('Modifications applied to ' . count($cms) . ' activity(ies)');
 
         $headers = ['cmid', 'module', 'name', 'section', 'visible', 'idnumber'];
-        $rows = [[$cm->id, $module->name, $activityName, $updatedSectionNum, $cm->visible, $cm->idnumber]];
-
         $formatter = new ResultFormatter($output, $format);
         $formatter->display($headers, $rows);
 
