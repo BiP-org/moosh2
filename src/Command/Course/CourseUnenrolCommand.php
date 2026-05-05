@@ -32,7 +32,7 @@ class CourseUnenrolCommand extends BaseCommand
         $this
             ->setName('course:unenrol')
             ->setDescription('Unenrol users from a course')
-            ->setHelp('Unenrols one or more users from a course. Requires --run to execute.');
+            ->setHelp('Unenrols one or more users from a course. With --role, only removes the specified role; if it is the user\'s only role in the course, the user is fully unenrolled. Requires --run to execute.');
         $this->handler->configureCommand($this);
     }
 
