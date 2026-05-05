@@ -32,7 +32,9 @@ class ActivityList52Handler extends BaseHandler
 
         $command->addExampleUsage('List all activities in course 41', '--course=41');
         $command->addExampleUsage('List all forums in course 41', '--course=41 --module=forum');
-        $command->addExampleUsage('Pipe cmids into activity:mod to hide all activities in course 41', '--course=41 -i | xargs -n1 | moosh activity:mod --stdin --visible 0 --run');
+        $command->addExampleUsage('List activities in section 2 of course 41', '--course=41 --section=2');
+        $command->addExampleUsage('Print only cmids (one line, space-separated)', '--course=41 -i');
+        $command->addExampleUsage('Pipe cmids into activity:mod to hide all activities in a course', '--course=41 -i | moosh activity:mod --stdin --visible 0 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

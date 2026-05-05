@@ -51,6 +51,16 @@ class AdminLoginCommand extends BaseCommand
         return $this->handler;
     }
 
+    protected function shouldCheckDataOwnership(InputInterface $input): bool
+    {
+        return !$input->getOption('web-login');
+    }
+
+    protected function dataOwnershipFailureHints(): array
+    {
+        return ['Or use --web-login to create the session via the web server.'];
+    }
+
     protected function handle(InputInterface $input, OutputInterface $output): int
     {
         $verbose = new VerboseLogger($output);

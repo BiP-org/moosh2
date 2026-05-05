@@ -61,6 +61,13 @@ class ArchiveRestore52Handler extends BaseHandler
                 InputOption::VALUE_NONE,
                 'Permit overwriting existing code/files destinations',
             );
+
+        $command->addExampleUsage('Dry-run a full restore', 'backup.tar.gz');
+        $command->addExampleUsage('Full restore (code + files + database)', '--run backup.tar.gz');
+        $command->addExampleUsage('Restore only the database', '--db --run backup.tar.gz');
+        $command->addExampleUsage('Restore only the dataroot files', '--files --run backup.tar.gz');
+        $command->addExampleUsage('Restore code into a different path', '--code --code-destination=/tmp/restored --run backup.tar.gz');
+        $command->addExampleUsage('Allow overwriting existing destinations', '--overwrite --run backup.tar.gz');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

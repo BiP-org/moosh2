@@ -82,7 +82,7 @@ echo "Database recreated. ($((SECONDS - STEP_START))s)"
 # Restore database from dump.
 echo "Restoring database from dump.sql.gz..."
 STEP_START=$SECONDS
-gunzip -c "$DUMP_FILE" | mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME"
+gunzip -c "$DUMP_FILE" | mysql --abort-source-on-error -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME"
 echo "Database restored. ($((SECONDS - STEP_START))s)"
 
 # Clear dataroot.

@@ -49,16 +49,7 @@ class ArchiveRestoreCommand extends BaseCommand
                 Restore is destructive — without --run the command shows a
                 dry-run plan only. Pass --run to actually overwrite the
                 target codebase, dataroot and database.
-
-                Examples:
-                  archive:restore backup.tar.gz                   # dry-run
-                  archive:restore --db --run backup.tar.gz        # only DB
-                  archive:restore --code-destination=/tmp/restored --code --run backup.tar.gz
                 HELP);
-
-        $this->addExampleUsage('Dry-run a full restore', 'backup.tar.gz');
-        $this->addExampleUsage('Restore only the database', '--db --run backup.tar.gz');
-        $this->addExampleUsage('Restore code into a different path', '--code --code-destination=/tmp/m --run backup.tar.gz');
 
         $this->handler->configureCommand($this);
     }

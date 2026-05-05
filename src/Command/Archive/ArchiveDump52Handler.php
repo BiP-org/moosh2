@@ -62,6 +62,13 @@ class ArchiveDump52Handler extends BaseHandler
                 InputOption::VALUE_NONE,
                 'Overwrite the destination file if it exists',
             );
+
+        $command->addExampleUsage('Full archive (code + files + database)', '/tmp/site.tar.gz');
+        $command->addExampleUsage('Database + files only (skip code)', '--db --files /tmp/data.tar.gz');
+        $command->addExampleUsage('Database only', '--db /tmp/db.tar.gz');
+        $command->addExampleUsage('Replace existing archive', '--overwrite /tmp/site.tar.gz');
+        $command->addExampleUsage('Tag the archive with a description in MANIFEST.yml', '--description="pre-upgrade snapshot" /var/backups/site.tar.gz');
+        $command->addExampleUsage('Exclude additional code paths beyond defaults', '--exclude-code-paths="local/custom,theme/legacy" /tmp/code.tar.gz');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

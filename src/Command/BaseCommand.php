@@ -104,13 +104,15 @@ abstract class BaseCommand extends Command
             );
             $verbose->done('Moodle bootstrap complete');
 
-            if (!$input->getOption('no-user-check')) {
+            if ($input->getOption('no-user-check')) {
+                $verbose->skip('Skipping data ownership check — --no-user-check flag');
+            } elseif (!$this->shouldCheckDataOwnership($input)) {
+                $verbose->skip('Skipping data ownership check — disabled by command');
+            } else {
                 $result = $this->checkDataOwnership($output, $verbose);
                 if ($result !== null) {
                     return $result;
                 }
-            } else {
-                $verbose->skip('Skipping data ownership check — --no-user-check flag');
             }
         } else {
             $verbose->skip('No bootstrapper — running without Moodle context');
@@ -154,6 +156,26 @@ abstract class BaseCommand extends Command
     }
 
     /**
+     * Override to disable the data ownership check for specific commands or option combinations
+     * (e.g. when a command can operate against a dataroot owned by a different user).
+     */
+    protected function shouldCheckDataOwnership(InputInterface $input): bool
+    {
+        return true;
+    }
+
+    /**
+     * Override to append a command-specific hint when the data ownership check fails.
+     * Each returned line is rendered as an additional <error> line below the standard message.
+     *
+     * @return string[]
+     */
+    protected function dataOwnershipFailureHints(): array
+    {
+        return [];
+    }
+
+    /**
      * Check that directories under Moodle dataroot are owned by the current user.
      *
      * Returns Command::FAILURE if a mismatch is found, null if everything is fine.
@@ -182,6 +204,9 @@ abstract class BaseCommand extends Command
                 $currentUser,
             ));
             $output->writeln('<error>This may cause file permission problems. Use --no-user-check to skip this check.</error>');
+            foreach ($this->dataOwnershipFailureHints() as $hint) {
+                $output->writeln('<error>' . $hint . '</error>');
+            }
             return Command::FAILURE;
         }
 

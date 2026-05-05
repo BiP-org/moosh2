@@ -51,16 +51,7 @@ class ArchiveDumpCommand extends BaseCommand
 
                 With no --code/--files/--db flag, all three are included.
                 Pass any combination of those flags to archive a subset.
-
-                Examples:
-                  archive:dump backup.tar.gz
-                  archive:dump --db --files /tmp/data-only.tar.gz
-                  archive:dump --overwrite --description="pre-upgrade" /var/backups/site.tar.gz
                 HELP);
-
-        $this->addExampleUsage('Full archive', '/tmp/site.tar.gz');
-        $this->addExampleUsage('Database + files only', '--db --files /tmp/data.tar.gz');
-        $this->addExampleUsage('Replace existing archive', '--overwrite /tmp/site.tar.gz');
 
         $this->handler->configureCommand($this);
     }
