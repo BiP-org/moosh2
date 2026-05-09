@@ -124,6 +124,7 @@ use Moosh2\Command\Role\RoleListCommand;
 use Moosh2\Command\Role\RoleModCommand;
 use Moosh2\Command\Role\RoleResetCommand;
 use Moosh2\Command\Course\CourseModCommand;
+use Moosh2\Command\Enrol\EnrolCreateCommand;
 use Moosh2\Command\Enrol\EnrolDeleteCommand;
 use Moosh2\Command\Enrol\EnrolListCommand;
 use Moosh2\Command\Enrol\EnrolModCommand;
@@ -466,6 +467,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new CourseInfoCommand($this->moodleVersion));
         $this->addCommand(new CourseTopCommand($this->moodleVersion));
         $this->addCommand(new CourseModCommand($this->moodleVersion));
+        $this->addCommand(new EnrolCreateCommand($this->moodleVersion));
         $this->addCommand(new EnrolDeleteCommand($this->moodleVersion));
         $this->addCommand(new EnrolListCommand($this->moodleVersion));
         $this->addCommand(new EnrolModCommand($this->moodleVersion));
