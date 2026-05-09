@@ -7,6 +7,7 @@
     "type": "project",
     "require": {
         "php": ">=8.3",
+        "ext-zip": "*",
         "symfony/console": "^7.0"
     },
     "autoload": {

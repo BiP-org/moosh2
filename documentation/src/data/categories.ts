@@ -3,6 +3,7 @@ import type { Category } from './types';
 export const categories: Category[] = [
   { slug: 'activity', label: 'Activity', description: 'Create, modify, delete, and inspect course activities' },
   { slug: 'admin', label: 'Admin', description: 'Administrative login and session management' },
+  { slug: 'apache', label: 'Apache', description: 'Apache access-log analysis tools' },
   { slug: 'audit', label: 'Audit', description: 'Security auditing and password checking' },
   { slug: 'auth', label: 'Auth', description: 'Authentication plugin management' },
   { slug: 'backup', label: 'Backup', description: 'Backup file inspection and management' },
@@ -32,6 +33,8 @@ export const categories: Category[] = [
   { slug: 'grouping', label: 'Grouping', description: 'Course grouping management' },
   { slug: 'log', label: 'Log', description: 'Log export and unpacking' },
   { slug: 'maintenance', label: 'Maintenance', description: 'Maintenance mode toggle' },
+  { slug: 'make', label: 'Make', description: 'Assemble a Moodle codebase from a manifest, like drush make' },
+  { slug: 'nginx', label: 'Nginx', description: 'Nginx access-log analysis tools' },
   { slug: 'php', label: 'PHP', description: 'PHP code evaluation in Moodle context' },
   { slug: 'plugin', label: 'Plugin', description: 'Plugin download, install, uninstall, and usage' },
   { slug: 'profilefield', label: 'Profile Field', description: 'Custom user profile field management' },

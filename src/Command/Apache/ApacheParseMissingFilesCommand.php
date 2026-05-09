@@ -35,7 +35,20 @@ class ApacheParseMissingFilesCommand extends BaseCommand
     {
         $this
             ->setName('apache:parse-missing-files')
-            ->setDescription('Find Moodle file.php URLs that returned 404 in an Apache access log');
+            ->setDescription('Find Moodle file.php URLs that returned 404 in an Apache access log')
+            ->setHelp(<<<'HELP'
+                Streams an Apache access log in the standard combined format and reports
+                every GET /file.php/... URL that returned HTTP 404, grouped by path with
+                an occurrence count.
+
+                Output is one "count,path" line per missing file, in first-seen order.
+                Lines that do not match the combined format are skipped silently.
+
+                Use --after to limit the scan to a date range. The value is parsed with
+                strtotime(), so anything from "2024-01-01" to "1 week ago" works.
+
+                Does not bootstrap Moodle — runs anywhere with no Moodle config required.
+                HELP);
 
         $this->handler->configureCommand($this);
 
