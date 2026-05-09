@@ -15,6 +15,7 @@ use Moosh2\Command\Activity\ActivityAddCommand;
 use Moosh2\Command\Activity\ActivityInfoCommand;
 use Moosh2\Command\Activity\ActivityListCommand;
 use Moosh2\Command\Admin\AdminLoginCommand;
+use Moosh2\Command\Apache\ApacheParseMissingFilesCommand;
 use Moosh2\Command\Archive\ArchiveDumpCommand;
 use Moosh2\Command\Archive\ArchiveRestoreCommand;
 use Moosh2\Command\Content\ContentReplaceCommand;
@@ -376,6 +377,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new ActivityDeleteCommand($this->moodleVersion));
         $this->addCommand(new ActivityModCommand($this->moodleVersion));
         $this->addCommand(new AdminLoginCommand($this->moodleVersion));
+        $this->addCommand(new ApacheParseMissingFilesCommand($this->moodleVersion));
         $this->addCommand(new ArchiveDumpCommand($this->moodleVersion));
         $this->addCommand(new ArchiveRestoreCommand($this->moodleVersion));
         $this->addCommand(new AuditBruteforceCommand($this->moodleVersion));
