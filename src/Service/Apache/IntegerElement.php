@@ -1,17 +1,20 @@
 <?php
+/**
+ * moosh2 — Moodle Shell
+ *
+ * @copyright  2012 onwards Tomasz Muras
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace Moosh2\Service\Apache;
 
-class IntegerElement
+final class IntegerElement implements ElementParser
 {
-  public function __construct()
-  {
-  }
-  
-  public function parse($str)
-  {
-    if(! $str || $str == '-') {
-      return null;
+    public function parse(string $value): ?int
+    {
+        if ($value === '' || $value === '-') {
+            return null;
+        }
+        return (int) $value;
     }
-    return intval($str);
-  }
 }

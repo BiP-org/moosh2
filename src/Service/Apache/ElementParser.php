@@ -8,10 +8,10 @@
 
 namespace Moosh2\Service\Apache;
 
-final class StringElement implements ElementParser
+/**
+ * Parses a single captured field from an Apache access-log line.
+ */
+interface ElementParser
 {
-    public function parse(string $value): ?string
-    {
-        return $value === '-' ? null : $value;
-    }
+    public function parse(string $value): mixed;
 }

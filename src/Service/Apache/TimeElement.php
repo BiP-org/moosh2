@@ -1,26 +1,25 @@
 <?php
+/**
+ * moosh2 — Moodle Shell
+ *
+ * @copyright  2012 onwards Tomasz Muras
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace Moosh2\Service\Apache;
 
-class TimeElement
-{
-  private $format;
-  public function __construct($format)
-  {
-    $this->format = $format;
-  }
-  
-  public function parse($str)
-  {
-    //cut [ and ] if needed
-    
+use DateTimeImmutable;
 
-    $str = trim($str, '[]');
-    
-    $time = strptime($str, $this->format);
-    if(! $time) {
-      return false;
+final readonly class TimeElement implements ElementParser
+{
+    public function __construct(private string $format)
+    {
     }
-    return mktime($time['tm_hour'], $time['tm_min'], $time['tm_sec'], $time['tm_mon'] + 1, $time['tm_mday'], $time['tm_year'] + 1900);
-  }
+
+    public function parse(string $value): ?DateTimeImmutable
+    {
+        $value = trim($value, '[]');
+        $time = DateTimeImmutable::createFromFormat($this->format, $value);
+        return $time !== false ? $time : null;
+    }
 }
-	
