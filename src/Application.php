@@ -142,6 +142,7 @@ use Moosh2\Command\Course\CourseLastVisitedCommand;
 use Moosh2\Command\Course\CourseListCommand;
 use Moosh2\Command\Course\CourseTopCommand;
 use Moosh2\Command\Quiz\QuizDeleteAttemptCommand;
+use Moosh2\Command\Quiz\QuizExportCommand;
 use Moosh2\Command\Plugin\PluginDownloadCommand;
 use Moosh2\Command\Plugin\PluginInstallCommand;
 use Moosh2\Command\Plugin\PluginListCommand;
@@ -478,6 +479,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new PluginUninstallCommand($this->moodleVersion));
         $this->addCommand(new PluginUsageCommand($this->moodleVersion));
         $this->addCommand(new QuizDeleteAttemptCommand($this->moodleVersion));
+        $this->addCommand(new QuizExportCommand($this->moodleVersion));
         $this->addCommand(new QuestionDeleteCommand($this->moodleVersion));
         $this->addCommand(new QuestionExportCommand($this->moodleVersion));
         $this->addCommand(new QuestionImportCommand($this->moodleVersion));
