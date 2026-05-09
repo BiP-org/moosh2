@@ -9,6 +9,7 @@
 namespace Moosh2\Command\Apache;
 
 use DateTimeImmutable;
+use Moosh2\Command\BaseCommand;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Service\Apache\Format;
 use Moosh2\Service\Apache\Parser;
@@ -39,6 +40,17 @@ class ApacheParseMissingFiles52Handler extends BaseHandler
                 InputOption::VALUE_REQUIRED,
                 'Only consider entries on or after this date (anything strtotime() understands, e.g. "2024-01-01" or "1 week ago")',
             );
+
+        if ($command instanceof BaseCommand) {
+            $command->addExampleUsage(
+                'Report missing files from a combined-format log',
+                '/var/log/apache2/moodle-access.log',
+            );
+            $command->addExampleUsage(
+                'Only consider entries from the last week',
+                '--after="1 week ago" /var/log/apache2/moodle-access.log',
+            );
+        }
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

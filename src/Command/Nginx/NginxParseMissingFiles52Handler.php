@@ -10,6 +10,7 @@ namespace Moosh2\Command\Nginx;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Moosh2\Command\BaseCommand;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Service\Nginx\Format;
 use Moosh2\Service\Nginx\Parser;
@@ -49,6 +50,21 @@ class NginxParseMissingFiles52Handler extends BaseHandler
                 InputOption::VALUE_REQUIRED,
                 'Custom Nginx log_format string (the literal value from nginx.conf). Defaults to the standard "combined" format.',
             );
+
+        if ($command instanceof BaseCommand) {
+            $command->addExampleUsage(
+                'Report missing files from a default-format Nginx access log',
+                '/var/log/nginx/access.log',
+            );
+            $command->addExampleUsage(
+                'Only consider entries from the last week',
+                '--after="1 week ago" /var/log/nginx/access.log',
+            );
+            $command->addExampleUsage(
+                'Use a custom log_format copied from nginx.conf',
+                '--log-format=\'$remote_addr [$time_local] "$request" $status $body_bytes_sent\' /var/log/nginx/custom.log',
+            );
+        }
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

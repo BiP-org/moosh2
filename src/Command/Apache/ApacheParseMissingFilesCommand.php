@@ -51,15 +51,6 @@ class ApacheParseMissingFilesCommand extends BaseCommand
                 HELP);
 
         $this->handler->configureCommand($this);
-
-        $this->addExampleUsage(
-            'Report missing files from a combined-format log',
-            '/var/log/apache2/moodle-access.log',
-        );
-        $this->addExampleUsage(
-            'Only consider entries from the last week',
-            '--after="1 week ago" /var/log/apache2/moodle-access.log',
-        );
     }
 
     protected function getActiveHandler(): BaseHandler

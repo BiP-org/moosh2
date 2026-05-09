@@ -54,19 +54,6 @@ class NginxParseMissingFilesCommand extends BaseCommand
                 HELP);
 
         $this->handler->configureCommand($this);
-
-        $this->addExampleUsage(
-            'Report missing files from a default-format Nginx access log',
-            '/var/log/nginx/access.log',
-        );
-        $this->addExampleUsage(
-            'Only consider entries from the last week',
-            '--after="1 week ago" /var/log/nginx/access.log',
-        );
-        $this->addExampleUsage(
-            'Use a custom log_format copied from nginx.conf',
-            '--log-format=\'$remote_addr [$time_local] "$request" $status $body_bytes_sent\' /var/log/nginx/custom.log',
-        );
     }
 
     protected function getActiveHandler(): BaseHandler
