@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 #
 # Drops everything, reinstalls Moodle from scratch, populates test data,
 # and creates a fresh dump (dump.sql.gz + data.tar.gz).
@@ -23,7 +23,7 @@ PHP=/usr/bin/php
 
 echo "=== Moodle 5.2 full reinstall ==="
 
-# 1. Drop and recreate database.
+# Drop and recreate database.
 echo "Dropping and recreating database '$DB_NAME'..."
 mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
 DROP DATABASE IF EXISTS \`$DB_NAME\`;
@@ -31,12 +31,12 @@ CREATE DATABASE \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unico
 SQL
 echo "Database recreated."
 
-# 2. Clear dataroot.
+# Clear dataroot.
 echo "Clearing dataroot '$DATAROOT'..."
 sudo rm -rf "${DATAROOT:?}"/*
 echo "Dataroot cleared."
 
-# 3. Install Moodle.
+# Install Moodle.
 echo "Installing Moodle..."
 sudo -u www-data $PHP "$MOODLE_DIR/admin/cli/install_database.php" \
     --adminuser="$ADMIN_USER" \
@@ -47,12 +47,17 @@ sudo -u www-data $PHP "$MOODLE_DIR/admin/cli/install_database.php" \
     --agree-license
 echo "Moodle installed."
 
-# 4. Run test data setup.
+# Run test data setup.
 echo "Populating test data..."
 sudo -u www-data $PHP "$SCRIPT_DIR/setup_testdata.php" $MOODLE_DIR
 echo "Test data created."
 
-# 5. Create dump (run from SCRIPT_DIR so files land here).
+# Run Moodle cron
+echo "Running Moodle cron..."
+sudo -u www-data $PHP "$MOODLE_DIR/admin/cli/cron.php"
+echo "Moodle cron complete."
+
+# Create dump (run from SCRIPT_DIR so files land here).
 echo "Creating dump..."
 cd "$SCRIPT_DIR"
 bash "$SCRIPT_DIR/dump.sh"
