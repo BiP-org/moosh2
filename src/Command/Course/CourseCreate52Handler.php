@@ -31,11 +31,13 @@ class CourseCreate52Handler extends BaseHandler
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Course format', 'topics')
             ->addOption('numsections', null, InputOption::VALUE_REQUIRED, 'Number of sections')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Course ID number')
-            ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visibility (1 or 0)', '1');
+            ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visibility (1 or 0)', '1')
+            ->addOption('newsitems', null, InputOption::VALUE_REQUIRED, 'Number of announcements shown in the Latest announcements block');
 
         $command->addExampleUsage('Dry run — show what would be created', 'CS101');
         $command->addExampleUsage('Create two courses in category 3', 'CS101 CS102 --category=3 --run');
         $command->addExampleUsage('Create course with custom full name', 'CS101 --fullname="Computer Science" --run');
+        $command->addExampleUsage('Hide the Latest announcements block', 'CS101 --newsitems=0 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -56,6 +58,7 @@ class CourseCreate52Handler extends BaseHandler
         $numsections = $input->getOption('numsections');
         $idnumber = $input->getOption('idnumber');
         $visible = (int) $input->getOption('visible');
+        $newsitems = $input->getOption('newsitems');
 
         if (!$runMode) {
             $output->writeln('<info>Dry run — the following courses would be created (use --run to execute):</info>');
@@ -97,6 +100,12 @@ class CourseCreate52Handler extends BaseHandler
 
             if ($idnumber !== null) {
                 $course->idnumber = $idnumber;
+            }
+
+            if ($newsitems !== null) {
+                $course->newsitems = (int) $newsitems;
+            } elseif (isset($defaults->newsitems)) {
+                $course->newsitems = $defaults->newsitems;
             }
 
             $verbose->info("Creating course: $shortname");

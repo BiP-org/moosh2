@@ -63,9 +63,22 @@ run_moosh course:create -p "$MOODLE_PATH" --run \
     --idnumber "MATH301" \
     --visible 1 \
     --numsections 10 \
+    --newsitems 7 \
     advmath -o csv
 assert_output_contains "Created advmath" "advmath" "$OUT"
 assert_output_contains "Full name" "Advanced Mathematics" "$OUT"
+# Verify newsitems was persisted (course:list does not expose newsitems, query DB directly).
+NEWSITEMS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='advmath';" 2>/dev/null)
+assert_output_contains "newsitems persisted as 7" "7" "$NEWSITEMS"
+echo ""
+
+# ── newsitems option ──────────────────────────────────────────────
+
+echo "--- Test: Create course with --newsitems=0 (hide announcements block) ---"
+run_moosh course:create -p "$MOODLE_PATH" --run --category 2 --newsitems 0 quietcourse -o csv
+assert_output_contains "Created quietcourse" "quietcourse" "$OUT"
+NEWSITEMS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='quietcourse';" 2>/dev/null)
+assert_output_contains "newsitems is 0" "0" "$NEWSITEMS"
 echo ""
 
 # ── Create hidden course ──────────────────────────────────────────
@@ -97,6 +110,7 @@ assert_output_contains "Help shows --fullname" "--fullname" "$OUT"
 assert_output_contains "Help shows --format" "--format" "$OUT"
 assert_output_contains "Help shows --visible" "--visible" "$OUT"
 assert_output_contains "Help shows --numsections" "--numsections" "$OUT"
+assert_output_contains "Help shows --newsitems" "--newsitems" "$OUT"
 echo ""
 
 # ── course-create alias ──────────────────────────────────────────
