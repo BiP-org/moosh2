@@ -31,8 +31,22 @@ class PluginInstallCommand extends BaseCommand
     {
         $this
             ->setName('plugin:install')
-            ->setDescription('Download and install a plugin from the moodle.org directory')
-            ->setHelp('Downloads a plugin, extracts it to the correct Moodle directory, and runs the upgrade process.');
+            ->setDescription('Install a plugin from the moodle.org directory or a local ZIP file')
+            ->setHelp(<<<'HELP'
+                Installs a Moodle plugin into the correct directory and runs the upgrade
+                process so Moodle picks up the new component.
+
+                Two sources are supported:
+                  * The moodle.org plugin directory — pass the frankenstyle name (e.g.
+                    mod_attendance) and moosh resolves the best release for the current
+                    Moodle version (override with --release).
+                  * A local ZIP file — pass --from-file=/path/to/plugin.zip. The plugin
+                    name is auto-detected from the ZIP's version.php; passing it
+                    explicitly will be cross-checked against the ZIP.
+
+                Requires --run to actually install. Without it, the command prints a
+                preview of what would happen.
+                HELP);
         $this->handler->configureCommand($this);
     }
 

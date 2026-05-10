@@ -162,6 +162,59 @@ run_moosh plugin:install -p "$MOODLE_PATH" --run --force --delete block_progress
 assert_output_contains "Reinstalled" "Installed block_progress" "$OUT"
 echo ""
 
+echo "--- Test: --from-file dry run with auto-detected plugin name ---"
+FROMFILE_DIR=$(mktemp -d)
+OUT=$(cd "$FROMFILE_DIR" && $PHP $MOOSH plugin:download --moodle-version 5.1 mod_attendance 2>&1)
+ZIP_PATH="$FROMFILE_DIR/mod_attendance.zip"
+if [ ! -f "$ZIP_PATH" ]; then
+    echo "  FAIL: Could not stage plugin ZIP for --from-file tests"
+    ((FAIL++))
+fi
+run_moosh plugin:install -p "$MOODLE_PATH" --from-file="$ZIP_PATH"
+assert_output_contains "Shows dry run" "Dry run" "$OUT"
+assert_output_contains "Shows detected plugin" "mod_attendance" "$OUT"
+assert_output_contains "Shows local source" "(local file)" "$OUT"
+echo ""
+
+echo "--- Test: --from-file install with --run ---"
+run_moosh plugin:install -p "$MOODLE_PATH" --from-file="$ZIP_PATH" --run
+assert_output_contains "Shows installed" "Installed mod_attendance" "$OUT"
+assert_output_contains "Shows source path" "$ZIP_PATH" "$OUT"
+if [ -f "$MOODLE_PATH/mod/attendance/version.php" ]; then
+    echo "  PASS: Plugin installed from local ZIP"
+    ((PASS++))
+else
+    echo "  FAIL: Plugin not installed from local ZIP"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --from-file with mismatched plugin name ---"
+run_moosh plugin:install -p "$MOODLE_PATH" --from-file="$ZIP_PATH" mod_wrong
+EC=$?
+assert_exit_code "Exit code 1 for mismatch" 1 $EC
+assert_output_contains "Shows mismatch error" "Plugin name mismatch" "$OUT"
+echo ""
+
+echo "--- Test: --from-file with nonexistent file ---"
+run_moosh plugin:install -p "$MOODLE_PATH" --from-file=/tmp/does_not_exist_$$.zip
+EC=$?
+assert_exit_code "Exit code 1 for missing file" 1 $EC
+assert_output_contains "Shows file not found" "File not found" "$OUT"
+echo ""
+
+echo "--- Test: --from-file rejects --release ---"
+run_moosh plugin:install -p "$MOODLE_PATH" --from-file="$ZIP_PATH" --release=2024010700
+EC=$?
+assert_exit_code "Exit code 1 for combo" 1 $EC
+assert_output_contains "Shows combo error" "cannot be combined" "$OUT"
+echo ""
+
+# Cleanup mod_attendance + ZIP staging dir before the no-write-permission test
+# so its strip/restore on mod/ runs against a clean state.
+rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+rm -rf "$FROMFILE_DIR"
+
 echo "--- Test: No write permission on plugin directory ---"
 # Strip current user's write access from mod/ to simulate a locked-down filesystem.
 ORIG_MOD_PERMS=$(stat -c '%a' "$MOODLE_PATH/mod")
@@ -184,9 +237,10 @@ echo ""
 
 echo "--- Test: Help ---"
 run_moosh plugin:install --help
-assert_output_contains "Help description" "Download and install a plugin" "$OUT"
+assert_output_contains "Help description" "Install a plugin" "$OUT"
 assert_output_contains "Help shows --force" "--force" "$OUT"
 assert_output_contains "Help shows --delete" "--delete" "$OUT"
+assert_output_contains "Help shows --from-file" "--from-file" "$OUT"
 echo ""
 
 
