@@ -56,7 +56,7 @@ class CourseRestore52Handler extends BaseHandler
         if ($startdateRaw !== null) {
             try {
                 $newStartdate = (new \DateTimeImmutable($startdateRaw))->getTimestamp();
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $output->writeln("<error>Invalid --course-startdate value: $startdateRaw (expected ISO-8601 like 2026-09-01 or 2026-09-01T00:00:00Z)</error>");
                 return Command::FAILURE;
             }

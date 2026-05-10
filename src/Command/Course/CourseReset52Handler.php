@@ -56,14 +56,24 @@ class CourseReset52Handler extends BaseHandler
             foreach ($allmods as $mod) {
                 $modFile = $CFG->dirroot . "/mod/{$mod->name}/lib.php";
                 $fn = "{$mod->name}_reset_course_form_defaults";
-                if (file_exists($modFile)) {
-                    include_once $modFile;
-                    if (function_exists($fn)) {
-                        $moddefs = $fn($course);
-                        if ($moddefs) {
-                            $defaults = array_merge($defaults, $moddefs);
-                        }
-                    }
+                if (!file_exists($modFile)) {
+                    continue;
+                }
+                if (!$DB->count_records($mod->name, ['course' => $course->id])) {
+                    continue;
+                }
+                include_once $modFile;
+                if (!function_exists($fn)) {
+                    continue;
+                }
+                try {
+                    $moddefs = $fn($course);
+                } catch (\Throwable $e) {
+                    $output->writeln("<comment>Warning: {$mod->name} reset defaults failed: {$e->getMessage()} — skipping plugin defaults.</comment>");
+                    continue;
+                }
+                if ($moddefs) {
+                    $defaults = $defaults + $moddefs;
                 }
             }
         }
