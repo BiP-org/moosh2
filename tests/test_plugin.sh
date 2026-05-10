@@ -63,6 +63,24 @@ assert_output_not_contains "No CSV header" "component,versions" "$OUT"
 assert_output_contains "Has plugin names" "aiplacement_" "$FIRST_LINE"
 echo ""
 
+echo "--- Test: --json (raw API JSON) ---"
+run_moosh plugin:list --json
+# Raw moodle.org API format: {"timestamp":...,"plugins":[...]}
+assert_output_contains "Has timestamp key" '"timestamp"' "$OUT"
+assert_output_contains "Has plugins key" '"plugins"' "$OUT"
+assert_output_not_contains "No table header" "component,versions" "$OUT"
+if command -v jq >/dev/null 2>&1; then
+    PLUGIN_COUNT=$(echo "$OUT" | jq '.plugins | length' 2>/dev/null)
+    if [ -n "$PLUGIN_COUNT" ] && [ "$PLUGIN_COUNT" -gt 100 ]; then
+        echo "  PASS: jq parsed $PLUGIN_COUNT plugins"
+        ((PASS++))
+    else
+        echo "  FAIL: jq could not parse output or too few plugins ($PLUGIN_COUNT)"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
 echo "--- Test: --ensure-cache (preflight) ---"
 # Force a refresh first so we have a known-fresh cache.
 run_moosh plugin:list --ensure-cache --refresh
@@ -80,6 +98,7 @@ assert_output_contains "Help description" "List available plugins" "$OUT"
 assert_output_contains "Help shows --type" "--type" "$OUT"
 assert_output_contains "Help shows --name-only" "--name-only" "$OUT"
 assert_output_contains "Help shows --ensure-cache" "--ensure-cache" "$OUT"
+assert_output_contains "Help shows --json" "--json" "$OUT"
 echo ""
 
 
