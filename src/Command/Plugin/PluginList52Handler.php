@@ -89,38 +89,41 @@ class PluginList52Handler extends BaseHandler
                 continue;
             }
 
-            $moodleReleases = [];
-            $latestUrl = '';
-            $highestVersion = 0;
-
+            $bestPerRelease = [];
             foreach ($plugin->versions as $version) {
-                if ($version->version >= $highestVersion) {
-                    $highestVersion = $version->version;
-                    $latestUrl = $version->downloadurl;
-                }
                 foreach ($version->supportedmoodles as $supported) {
-                    $moodleReleases[$supported->release] = true;
+                    $release = (string) $supported->release;
+                    if (!isset($bestPerRelease[$release])
+                        || $version->version > $bestPerRelease[$release]->version
+                    ) {
+                        $bestPerRelease[$release] = $version;
+                    }
                 }
             }
 
-            $releases = array_keys($moodleReleases);
-            sort($releases);
+            $releases = array_keys($bestPerRelease);
+            usort($releases, 'version_compare');
 
-            $rows[] = [
-                'component' => $plugin->component,
-                'versions' => implode(', ', $releases),
-                'url' => $latestUrl,
-            ];
+            foreach ($releases as $release) {
+                $rows[] = [
+                    'component' => $plugin->component,
+                    'moodle_version' => $release,
+                    'url' => $bestPerRelease[$release]->downloadurl,
+                ];
+            }
         }
 
         if ($nameOnly) {
             return Command::SUCCESS;
         }
 
-        usort($rows, fn(array $a, array $b) => strcmp($a['component'], $b['component']));
+        usort($rows, function (array $a, array $b): int {
+            $cmp = strcmp($a['component'], $b['component']);
+            return $cmp !== 0 ? $cmp : version_compare($a['moodle_version'], $b['moodle_version']);
+        });
 
         $formatter = new ResultFormatter($output, $format);
-        $formatter->display(['component', 'versions', 'url'], $rows);
+        $formatter->display(['component', 'moodle_version', 'url'], $rows);
 
         return Command::SUCCESS;
     }

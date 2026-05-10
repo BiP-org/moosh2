@@ -38,13 +38,13 @@ else
     ((FAIL++))
 fi
 FIRST_LINE=$($PHP $MOOSH plugin:list --type aiplacement -o csv 2>&1 | head -1)
-assert_output_contains "Header row" "component,versions,url" "$FIRST_LINE"
+assert_output_contains "Header row" "component,moodle_version,url" "$FIRST_LINE"
 echo ""
 
 echo "--- Test: JSON output ---"
 run_moosh plugin:list --type aiplacement -o json
 assert_output_contains "JSON has component" '"component"' "$OUT"
-assert_output_contains "JSON has versions" '"versions"' "$OUT"
+assert_output_contains "JSON has moodle_version" '"moodle_version"' "$OUT"
 assert_output_contains "JSON has url" '"url"' "$OUT"
 echo ""
 
@@ -58,7 +58,7 @@ echo "--- Test: Name only ---"
 run_moosh plugin:list --type aiplacement --name-only
 FIRST_LINE=$(echo "$OUT" | head -1)
 # Name-only should not have CSV headers or commas
-assert_output_not_contains "No CSV header" "component,versions" "$OUT"
+assert_output_not_contains "No CSV header" "component,moodle_version" "$OUT"
 # Should have underscore-separated plugin names
 assert_output_contains "Has plugin names" "aiplacement_" "$FIRST_LINE"
 echo ""
@@ -68,7 +68,7 @@ run_moosh plugin:list --json
 # Raw moodle.org API format: {"timestamp":...,"plugins":[...]}
 assert_output_contains "Has timestamp key" '"timestamp"' "$OUT"
 assert_output_contains "Has plugins key" '"plugins"' "$OUT"
-assert_output_not_contains "No table header" "component,versions" "$OUT"
+assert_output_not_contains "No table header" "component,moodle_version" "$OUT"
 if command -v jq >/dev/null 2>&1; then
     PLUGIN_COUNT=$(echo "$OUT" | jq '.plugins | length' 2>/dev/null)
     if [ -n "$PLUGIN_COUNT" ] && [ "$PLUGIN_COUNT" -gt 100 ]; then
@@ -85,11 +85,11 @@ echo "--- Test: --ensure-cache (preflight) ---"
 # Force a refresh first so we have a known-fresh cache.
 run_moosh plugin:list --ensure-cache --refresh
 assert_output_contains "Refresh message" "Plugin cache refreshed" "$OUT"
-assert_output_not_contains "No table header" "component,versions" "$OUT"
+assert_output_not_contains "No table header" "component,moodle_version" "$OUT"
 # Second call: cache is fresh, should report up-to-date without re-downloading.
 run_moosh plugin:list --ensure-cache
 assert_output_contains "Up-to-date message" "Plugin cache is up to date" "$OUT"
-assert_output_not_contains "No table header" "component,versions" "$OUT"
+assert_output_not_contains "No table header" "component,moodle_version" "$OUT"
 echo ""
 
 echo "--- Test: Help ---"
