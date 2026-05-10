@@ -70,6 +70,9 @@ class MakeBuildCommand extends BaseCommand
                 be empty or non-existent.
 
                 Requires git on PATH and the PHP zip extension.
+
+                Worked example (Moodle 5.2 site for teaching programming):
+                  https://github.com/tmuras/moosh/blob/2.x/examples/programming-course.make
                 HELP);
 
         $this->handler->configureCommand($this);

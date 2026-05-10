@@ -31,6 +31,7 @@ use Moosh2\Command\Debug\DebugOnCommand;
 use Moosh2\Command\Debug\DebugOffCommand;
 use Moosh2\Command\Maintenance\MaintenanceOnCommand;
 use Moosh2\Command\Maintenance\MaintenanceOffCommand;
+use Moosh2\Command\Moodle\MoodleDownloadCommand;
 use Moosh2\Command\Nginx\NginxParseMissingFilesCommand;
 use Moosh2\Command\Php\PhpEvalCommand;
 use Moosh2\Command\Session\SessionKillCommand;
@@ -535,6 +536,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new DebugOffCommand($this->moodleVersion));
         $this->addCommand(new MaintenanceOnCommand($this->moodleVersion));
         $this->addCommand(new MaintenanceOffCommand($this->moodleVersion));
+        $this->addCommand(new MoodleDownloadCommand($this->moodleVersion));
         $this->addCommand(new NginxParseMissingFilesCommand($this->moodleVersion));
         $this->addCommand(new PhpEvalCommand($this->moodleVersion));
         $this->addCommand(new SectionCopyCommand($this->moodleVersion));
