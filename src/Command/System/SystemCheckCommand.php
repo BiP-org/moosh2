@@ -15,7 +15,7 @@ class SystemCheckCommand extends BaseCommand
 
     public function __construct(?MoodleVersion $moodleVersion)
     {
-        $this->handler = new SystemCheck52Handler();
+        $this->handler = $this->resolveHandler($moodleVersion);
         parent::__construct();
     }
 
@@ -29,4 +29,9 @@ class SystemCheckCommand extends BaseCommand
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }
     protected function handle(InputInterface $input, OutputInterface $output): int { return $this->handler->handle($input, $output); }
+
+    private function resolveHandler(?MoodleVersion $moodleVersion): BaseHandler
+    {
+        return new SystemCheck52Handler();
+    }
 }

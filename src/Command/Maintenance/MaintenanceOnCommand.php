@@ -22,7 +22,7 @@ class MaintenanceOnCommand extends BaseCommand
 
     public function __construct(?MoodleVersion $moodleVersion)
     {
-        $this->handler = new MaintenanceOn52Handler();
+        $this->handler = $this->resolveHandler($moodleVersion);
         parent::__construct();
     }
 
@@ -36,4 +36,9 @@ class MaintenanceOnCommand extends BaseCommand
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }
     protected function handle(InputInterface $input, OutputInterface $output): int { return $this->handler->handle($input, $output); }
+
+    private function resolveHandler(?MoodleVersion $moodleVersion): BaseHandler
+    {
+        return new MaintenanceOn52Handler();
+    }
 }

@@ -26,7 +26,7 @@ class MakeBuildCommand extends BaseCommand
 
     public function __construct(?MoodleVersion $moodleVersion)
     {
-        $this->handler = new MakeBuild52Handler();
+        $this->handler = $this->resolveHandler($moodleVersion);
         parent::__construct();
     }
 
@@ -86,5 +86,10 @@ class MakeBuildCommand extends BaseCommand
     protected function handle(InputInterface $input, OutputInterface $output): int
     {
         return $this->handler->handle($input, $output);
+    }
+
+    private function resolveHandler(?MoodleVersion $moodleVersion): BaseHandler
+    {
+        return new MakeBuild52Handler();
     }
 }

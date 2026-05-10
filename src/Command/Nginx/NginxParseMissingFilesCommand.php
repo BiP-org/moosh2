@@ -27,7 +27,7 @@ class NginxParseMissingFilesCommand extends BaseCommand
 
     public function __construct(?MoodleVersion $moodleVersion)
     {
-        $this->handler = new NginxParseMissingFiles52Handler();
+        $this->handler = $this->resolveHandler($moodleVersion);
         parent::__construct();
     }
 
@@ -64,5 +64,10 @@ class NginxParseMissingFilesCommand extends BaseCommand
     protected function handle(InputInterface $input, OutputInterface $output): int
     {
         return $this->handler->handle($input, $output);
+    }
+
+    private function resolveHandler(?MoodleVersion $moodleVersion): BaseHandler
+    {
+        return new NginxParseMissingFiles52Handler();
     }
 }
