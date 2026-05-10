@@ -32,31 +32,7 @@ final class PluginApiClient
     public function getPluginList(bool $forceRefresh = false): object
     {
         $cachePath = self::getCachePath();
-        $cacheDir = dirname($cachePath);
-
-        if (!is_dir($cacheDir)) {
-            mkdir($cacheDir, 0755, true);
-        }
-
-        $needsRefresh = $forceRefresh;
-        if (!$needsRefresh) {
-            if (!file_exists($cachePath)) {
-                $needsRefresh = true;
-            } else {
-                $stat = stat($cachePath);
-                if (!$stat || !$stat['size'] || (time() - $stat['mtime'] > self::CACHE_TTL)) {
-                    $needsRefresh = true;
-                }
-            }
-        }
-
-        if ($needsRefresh) {
-            $content = file_get_contents(self::API_URL, false, $this->createStreamContext());
-            if ($content === false) {
-                throw new \RuntimeException('Failed to fetch plugin list from ' . self::API_URL);
-            }
-            file_put_contents($cachePath, $content);
-        }
+        $this->ensureCacheFresh($forceRefresh);
 
         $json = file_get_contents($cachePath);
         if ($json === false) {
@@ -70,6 +46,46 @@ final class PluginApiClient
         }
 
         return $data;
+    }
+
+    /**
+     * Refresh plugins.json if missing or older than the cache TTL.
+     *
+     * @param bool $forceRefresh Always re-download, even if the cache is fresh.
+     * @return bool True if a download happened, false if the existing cache was reused.
+     */
+    public function ensureCacheFresh(bool $forceRefresh = false): bool
+    {
+        $cachePath = self::getCachePath();
+        $cacheDir = dirname($cachePath);
+
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0755, true);
+        }
+
+        if (!$forceRefresh && self::isCacheFresh($cachePath)) {
+            return false;
+        }
+
+        $content = file_get_contents(self::API_URL, false, $this->createStreamContext());
+        if ($content === false) {
+            throw new \RuntimeException('Failed to fetch plugin list from ' . self::API_URL);
+        }
+        file_put_contents($cachePath, $content);
+
+        return true;
+    }
+
+    private static function isCacheFresh(string $cachePath): bool
+    {
+        if (!file_exists($cachePath)) {
+            return false;
+        }
+        $stat = stat($cachePath);
+        if (!$stat || !$stat['size']) {
+            return false;
+        }
+        return (time() - $stat['mtime']) <= self::CACHE_TTL;
     }
 
     /**

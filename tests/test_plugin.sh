@@ -63,11 +63,23 @@ assert_output_not_contains "No CSV header" "component,versions" "$OUT"
 assert_output_contains "Has plugin names" "aiplacement_" "$FIRST_LINE"
 echo ""
 
+echo "--- Test: --ensure-cache (preflight) ---"
+# Force a refresh first so we have a known-fresh cache.
+run_moosh plugin:list --ensure-cache --refresh
+assert_output_contains "Refresh message" "Plugin cache refreshed" "$OUT"
+assert_output_not_contains "No table header" "component,versions" "$OUT"
+# Second call: cache is fresh, should report up-to-date without re-downloading.
+run_moosh plugin:list --ensure-cache
+assert_output_contains "Up-to-date message" "Plugin cache is up to date" "$OUT"
+assert_output_not_contains "No table header" "component,versions" "$OUT"
+echo ""
+
 echo "--- Test: Help ---"
 run_moosh plugin:list --help
 assert_output_contains "Help description" "List available plugins" "$OUT"
 assert_output_contains "Help shows --type" "--type" "$OUT"
 assert_output_contains "Help shows --name-only" "--name-only" "$OUT"
+assert_output_contains "Help shows --ensure-cache" "--ensure-cache" "$OUT"
 echo ""
 
 

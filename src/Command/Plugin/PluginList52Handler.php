@@ -24,12 +24,14 @@ class PluginList52Handler extends BaseHandler
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'Filter by plugin type prefix (e.g. mod, block, auth)')
             ->addOption('name-only', null, InputOption::VALUE_NONE, 'Display only frankenstyle plugin names')
             ->addOption('refresh', null, InputOption::VALUE_NONE, 'Force re-download of the plugin cache')
+            ->addOption('ensure-cache', null, InputOption::VALUE_NONE, 'Refresh plugins.json only if missing or stale, then exit (preflight for scripts)')
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port)');
 
         $command->addExampleUsage('List all available plugins', '');
         $command->addExampleUsage('List only activity module plugins', '--type=mod');
         $command->addExampleUsage('List plugin names only', '--name-only');
         $command->addExampleUsage('Refresh cached plugin list', '--refresh');
+        $command->addExampleUsage('Preflight cache check for scripts (refresh if stale, no listing)', '--ensure-cache');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -38,9 +40,20 @@ class PluginList52Handler extends BaseHandler
         $typeFilter = $input->getOption('type');
         $nameOnly = $input->getOption('name-only');
         $refresh = $input->getOption('refresh');
+        $ensureCache = $input->getOption('ensure-cache');
         $proxy = $input->getOption('proxy');
 
         $client = new PluginApiClient($proxy);
+
+        if ($ensureCache) {
+            $refreshed = $client->ensureCacheFresh($refresh);
+            $cachePath = PluginApiClient::getCachePath();
+            $output->writeln($refreshed
+                ? "Plugin cache refreshed: $cachePath"
+                : "Plugin cache is up to date: $cachePath");
+            return Command::SUCCESS;
+        }
+
         $data = $client->getPluginList($refresh);
 
         $rows = [];
