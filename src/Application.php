@@ -21,6 +21,7 @@ use Moosh2\Command\Archive\ArchiveRestoreCommand;
 use Moosh2\Command\Content\ContentReplaceCommand;
 use Moosh2\Command\Content\ContentReplaceEncodedCommand;
 use Moosh2\Command\Content\ContentHttpsReplaceCommand;
+use Moosh2\Command\Content\ContentSearchCommand;
 use Moosh2\Command\Course\CourseRepairCommand;
 use Moosh2\Command\RecycleBin\RecycleBinListCommand;
 use Moosh2\Command\RecycleBin\RecycleBinRestoreCommand;
@@ -546,6 +547,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new ContentReplaceCommand($this->moodleVersion));
         $this->addCommand(new ContentReplaceEncodedCommand($this->moodleVersion));
         $this->addCommand(new ContentHttpsReplaceCommand($this->moodleVersion));
+        $this->addCommand(new ContentSearchCommand($this->moodleVersion));
         $this->addCommand(new CourseRepairCommand($this->moodleVersion));
         $this->addCommand(new RecycleBinListCommand($this->moodleVersion));
         $this->addCommand(new RecycleBinRestoreCommand($this->moodleVersion));
