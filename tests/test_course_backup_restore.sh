@@ -69,6 +69,59 @@ echo "--- Test: Help ---"
 run_moosh course:backup -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Create a backup" "$OUT"
 assert_output_contains "Help shows --template" "--template" "$OUT"
+assert_output_contains "Help shows --exclude-cmids" "--exclude-cmids" "$OUT"
+echo ""
+
+echo "--- Test: --exclude-cmids dry run lists cmids ---"
+run_moosh course:backup -p "$MOODLE_PATH" --exclude-cmids=16,17 18
+assert_output_contains "Dry run header" "Dry run" "$OUT"
+assert_output_contains "Excluded cmids listed" "Excluding cmids: 16, 17" "$OUT"
+echo ""
+
+echo "--- Test: --exclude-cmids rejects non-numeric ---"
+run_moosh course:backup -p "$MOODLE_PATH" --exclude-cmids=foo 18
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for bad cmid" 1 "$EXIT_CODE"
+assert_output_contains "Invalid cmid error" "Invalid --exclude-cmids" "$OUT"
+echo ""
+
+echo "--- Test: --exclude-cmids rejects cmid from another course ---"
+run_moosh course:backup -p "$MOODLE_PATH" --exclude-cmids=1 18
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for wrong-course cmid" 1 "$EXIT_CODE"
+assert_output_contains "Wrong-course error" "does not belong to course" "$OUT"
+echo ""
+
+echo "--- Test: --exclude-cmids actually excludes activities from .mbz ---"
+EXCLUDE_BACKUP_DIR=$(mktemp -d)
+run_moosh course:backup -p "$MOODLE_PATH" --run --path "$EXCLUDE_BACKUP_DIR" --exclude-cmids=16,17 18
+EXCLUDE_FILE=$(ls "$EXCLUDE_BACKUP_DIR"/backup_18_*.mbz 2>/dev/null | head -1)
+if [ -n "$EXCLUDE_FILE" ] && [ -f "$EXCLUDE_FILE" ]; then
+    # Restore into a new course and count activities — should be 8 of 10.
+    run_moosh course:restore -p "$MOODLE_PATH" --run "$EXCLUDE_FILE" 5
+    RESTORED_ID=$(echo "$OUT" | grep -oP 'Restored course ID=\K[0-9]+' | tail -1)
+    if [ -n "$RESTORED_ID" ]; then
+        run_moosh activity:list -p "$MOODLE_PATH" -c "$RESTORED_ID" -o csv
+        ACTIVITY_COUNT=$(echo "$OUT" | tail -n +2 | grep -c '^[0-9]')
+        if [ "$ACTIVITY_COUNT" -eq 8 ]; then
+            echo "  PASS: Restored course has 8 activities (2 excluded)"
+            ((PASS++))
+        else
+            echo "  FAIL: Expected 8 activities in restored course, got $ACTIVITY_COUNT"
+            ((FAIL++))
+        fi
+        assert_output_not_contains "Resource Pack 1 was excluded" '"Resource Pack 1",' "$OUT"
+        assert_output_not_contains "Resource Pack 2 was excluded" '"Resource Pack 2",' "$OUT"
+        assert_output_contains "Resource Pack 3 still present" '"Resource Pack 3",' "$OUT"
+    else
+        echo "  FAIL: Could not extract restored course ID"
+        ((FAIL++))
+    fi
+else
+    echo "  FAIL: --exclude-cmids backup file not created"
+    ((FAIL++))
+fi
+rm -rf "$EXCLUDE_BACKUP_DIR"
 echo ""
 
 

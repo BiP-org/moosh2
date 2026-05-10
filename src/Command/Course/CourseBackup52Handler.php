@@ -25,12 +25,15 @@ class CourseBackup52Handler extends BaseHandler
             ->addOption('filename', 'f', InputOption::VALUE_REQUIRED, 'Output filename (default: auto-generated)')
             ->addOption('path', null, InputOption::VALUE_REQUIRED, 'Output directory (default: current directory)')
             ->addOption('template', null, InputOption::VALUE_NONE, 'Template backup: no users, anonymized, no role assignments, no logs')
-            ->addOption('fullbackup', null, InputOption::VALUE_NONE, 'Full backup: include logs and grade histories');
+            ->addOption('fullbackup', null, InputOption::VALUE_NONE, 'Full backup: include logs and grade histories')
+            ->addOption('exclude-cmids', null, InputOption::VALUE_REQUIRED,
+                'Comma-separated course module IDs (cmids) to exclude from the backup');
 
         $command->addExampleUsage('Backup course 2 to current directory', '2 --run');
         $command->addExampleUsage('Backup course 2 into a specific directory', '2 --path=/tmp --run');
         $command->addExampleUsage('Backup course 2 with a custom filename', '2 --filename=mybackup.mbz --run');
         $command->addExampleUsage('Template backup (no users, anonymized)', '2 --template --run');
+        $command->addExampleUsage('Backup course 2 excluding two activities', '2 --exclude-cmids=15,18 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -44,6 +47,7 @@ class CourseBackup52Handler extends BaseHandler
         $pathOpt = $input->getOption('path');
         $template = $input->getOption('template');
         $fullBackup = $input->getOption('fullbackup');
+        $excludeCmidsRaw = $input->getOption('exclude-cmids');
 
         require_once $CFG->dirroot . '/backup/util/includes/backup_includes.php';
 
@@ -51,6 +55,32 @@ class CourseBackup52Handler extends BaseHandler
         if (!$course) {
             $output->writeln("<error>Course with ID $courseId not found.</error>");
             return Command::FAILURE;
+        }
+
+        $excludeCmids = [];
+        if ($excludeCmidsRaw !== null) {
+            foreach (explode(',', $excludeCmidsRaw) as $token) {
+                $token = trim($token);
+                if ($token === '') {
+                    continue;
+                }
+                if (!ctype_digit($token) || (int) $token <= 0) {
+                    $output->writeln("<error>Invalid --exclude-cmids value '$token' (expected positive integer cmids).</error>");
+                    return Command::FAILURE;
+                }
+                $excludeCmids[(int) $token] = true;
+            }
+            foreach (array_keys($excludeCmids) as $cmid) {
+                $cm = $DB->get_record('course_modules', ['id' => $cmid]);
+                if (!$cm) {
+                    $output->writeln("<error>Course module with cmid $cmid not found.</error>");
+                    return Command::FAILURE;
+                }
+                if ((int) $cm->course !== $courseId) {
+                    $output->writeln("<error>cmid $cmid does not belong to course $courseId (belongs to course {$cm->course}).</error>");
+                    return Command::FAILURE;
+                }
+            }
         }
 
         $shortname = str_replace(['/', ' '], '_', $course->shortname);
@@ -73,6 +103,9 @@ class CourseBackup52Handler extends BaseHandler
             } else {
                 $output->writeln('  Mode: general');
             }
+            if ($excludeCmids) {
+                $output->writeln('  Excluding cmids: ' . implode(', ', array_keys($excludeCmids)));
+            }
             return Command::SUCCESS;
         }
 
@@ -91,7 +124,7 @@ class CourseBackup52Handler extends BaseHandler
             $USER->id,
         );
 
-        // Apply template/full settings
+        // Apply template/full settings and per-activity exclusions
         $tasks = $bc->get_plan()->get_tasks();
         foreach ($tasks as $task) {
             if ($task instanceof \backup_root_task) {
@@ -107,6 +140,21 @@ class CourseBackup52Handler extends BaseHandler
                 if ($fullBackup) {
                     $task->get_setting('logs')->set_value('1');
                     $task->get_setting('grade_histories')->set_value('1');
+                }
+                continue;
+            }
+
+            if ($excludeCmids && $task instanceof \backup_activity_task) {
+                $cmid = (int) $task->get_moduleid();
+                if (!isset($excludeCmids[$cmid])) {
+                    continue;
+                }
+                $settingName = $task->get_modulename() . '_' . $cmid . '_included';
+                try {
+                    $task->get_setting($settingName)->set_value(0);
+                    $verbose->detail('Excluding activity', "cmid=$cmid");
+                } catch (\Exception $e) {
+                    $output->writeln("<comment>Warning: could not exclude cmid $cmid: {$e->getMessage()}</comment>");
                 }
             }
         }
