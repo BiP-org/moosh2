@@ -63,6 +63,8 @@ run_moosh user:create -p "$MOODLE_PATH" --run \
     --city "London" \
     --country "GB" \
     --idnumber "EMP001" \
+    --institution "Acme University" \
+    --department "Engineering" \
     johndoe -o csv
 assert_output_contains "Created johndoe" "johndoe" "$OUT"
 assert_output_contains "Custom email" "john@example.com" "$OUT"
@@ -72,6 +74,11 @@ run_moosh user:info -p "$MOODLE_PATH" "$USER_ID" -o json
 VERIFY="$OUT"
 assert_output_contains "Firstname is John" '"John"' "$VERIFY"
 assert_output_contains "Lastname is Doe" '"Doe"' "$VERIFY"
+# Verify institution/department via user:list --fields
+run_moosh user:list -p "$MOODLE_PATH" --sql "u.username = 'johndoe'" --fields=username,institution,department -o csv
+VERIFY="$OUT"
+assert_output_contains "Institution stored" "Acme University" "$VERIFY"
+assert_output_contains "Department stored" "Engineering" "$VERIFY"
 echo ""
 
 # ── JSON output ───────────────────────────────────────────────────
@@ -101,6 +108,8 @@ assert_output_contains "Help shows --email" "--email" "$OUT"
 assert_output_contains "Help shows --firstname" "--firstname" "$OUT"
 assert_output_contains "Help shows --lastname" "--lastname" "$OUT"
 assert_output_contains "Help shows --auth" "--auth" "$OUT"
+assert_output_contains "Help shows --institution" "--institution" "$OUT"
+assert_output_contains "Help shows --department" "--department" "$OUT"
 echo ""
 
 # ── user-create alias ────────────────────────────────────────────

@@ -33,11 +33,14 @@ class UserCreate52Handler extends BaseHandler
             ->addOption('auth', null, InputOption::VALUE_REQUIRED, 'Authentication method', 'manual')
             ->addOption('city', null, InputOption::VALUE_REQUIRED, 'City')
             ->addOption('country', null, InputOption::VALUE_REQUIRED, 'Country code')
-            ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number');
+            ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number')
+            ->addOption('institution', null, InputOption::VALUE_REQUIRED, 'Institution')
+            ->addOption('department', null, InputOption::VALUE_REQUIRED, 'Department');
 
         $command->addExampleUsage('Create a single user with default password', 'john --run');
         $command->addExampleUsage('Create a user with full profile details', 'john --email=john@example.com --firstname=John --lastname=Doe --run');
         $command->addExampleUsage('Create multiple users with a shared password', 'student01 student02 student03 --password=Test123! --run');
+        $command->addExampleUsage('Create a user with institution and department', "john --firstname=John --lastname=Doe --institution='Acme University' --department=Engineering --run");
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -60,6 +63,8 @@ class UserCreate52Handler extends BaseHandler
         $city = $input->getOption('city');
         $country = $input->getOption('country');
         $idnumber = $input->getOption('idnumber');
+        $institution = $input->getOption('institution');
+        $department = $input->getOption('department');
 
         if (!$runMode) {
             $output->writeln('<info>Dry run — the following users would be created (use --run to execute):</info>');
@@ -93,6 +98,12 @@ class UserCreate52Handler extends BaseHandler
             }
             if ($idnumber !== null) {
                 $user->idnumber = $idnumber;
+            }
+            if ($institution !== null) {
+                $user->institution = $institution;
+            }
+            if ($department !== null) {
+                $user->department = $department;
             }
 
             $verbose->info("Creating user: $username");
