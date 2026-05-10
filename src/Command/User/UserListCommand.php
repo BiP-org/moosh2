@@ -49,8 +49,8 @@ class UserListCommand extends BaseCommand
 
                 Filter by SQL fragments (positional arguments or --sql), course enrolment
                 (--course plus --course-role, --course-enrol-plugin, or --course-inactive),
-                boolean flags (--is / --is-not for suspended, confirmed, deleted), or numeric
-                metrics (--number courses-enrolled>10).
+                cohort membership (--cohort), boolean flags (--is / --is-not for suspended,
+                confirmed, deleted), or numeric metrics (--number courses-enrolled>10).
 
                 Customize output with --fields, --sort, --limit, and --id-only.
                 HELP);

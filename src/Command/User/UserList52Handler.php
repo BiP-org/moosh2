@@ -81,6 +81,7 @@ class UserList52Handler extends BaseHandler
             ->addOption('course-inactive', null, InputOption::VALUE_NONE, 'Only users who never accessed the specified course (requires --course)')
             ->addOption('course-role', null, InputOption::VALUE_REQUIRED, 'Filter by role shortname in the specified course (requires --course)')
             ->addOption('course-enrol-plugin', null, InputOption::VALUE_REQUIRED, 'Filter by enrolment method plugin name (requires --course)')
+            ->addOption('cohort', null, InputOption::VALUE_REQUIRED, 'Filter to users belonging to this cohort ID')
             ->addOption('fields', 'f', InputOption::VALUE_REQUIRED, 'Comma-separated list of fields to show')
             ->addOption('sql', null, InputOption::VALUE_REQUIRED, 'SQL WHERE fragment to filter users (e.g. "u.username = \'admin\'")')
             ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read space-separated user IDs from stdin to filter results');
@@ -91,6 +92,7 @@ class UserList52Handler extends BaseHandler
         $command->addExampleUsage('Filter using a SQL WHERE fragment', '"deleted=0"');
         $command->addExampleUsage('Users enrolled in course 2', '--course=2');
         $command->addExampleUsage('Students enrolled in course 2', '--course=2 --course-role=student');
+        $command->addExampleUsage('Users belonging to cohort 1', '--cohort=1');
         $command->addExampleUsage('10 most recently active users', '--sort=lastaccess --descending --limit=10');
         $command->addExampleUsage('JSON output', '-o json');
         $command->addExampleUsage('IDs only (one line, space-separated)', '--id-only');
@@ -113,6 +115,7 @@ class UserList52Handler extends BaseHandler
         $courseInactive = $input->getOption('course-inactive');
         $courseRole = $input->getOption('course-role');
         $courseEnrolPlugin = $input->getOption('course-enrol-plugin');
+        $cohortId = $input->getOption('cohort');
         $fieldsRaw = $input->getOption('fields');
         $sqlOption = $input->getOption('sql');
         $searchFragments = $input->getArgument('search');
@@ -170,6 +173,12 @@ class UserList52Handler extends BaseHandler
                 $sql .= ' JOIN {role} r ON r.id = ra.roleid AND r.shortname = ?';
                 $params[] = $courseRole;
             }
+        }
+
+        // Cohort membership JOIN.
+        if ($cohortId !== null) {
+            $sql .= ' JOIN {cohort_members} cm ON cm.userid = u.id AND cm.cohortid = ?';
+            $params[] = (int) $cohortId;
         }
 
         // Build WHERE.

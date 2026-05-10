@@ -128,6 +128,35 @@ TEACHER_COUNT=$(echo "$OUT" | tail -n +2 | wc -l)
 assert_output_contains "10 teachers in course 2" "10" "$TEACHER_COUNT"
 echo ""
 
+echo "--- Test: --cohort (members) ---"
+run_moosh cohort:create "UL Cohort" -p "$MOODLE_PATH" --run -o csv
+COHORT_ID=$(echo "$OUT" | tail -1 | cut -d, -f1)
+run_moosh cohort:mod $COHORT_ID --add-member student01 -p "$MOODLE_PATH" --run
+run_moosh cohort:mod $COHORT_ID --add-member student02 -p "$MOODLE_PATH" --run
+run_moosh cohort:mod $COHORT_ID --add-member teacher01 -p "$MOODLE_PATH" --run
+
+run_moosh user:list -p "$MOODLE_PATH" --cohort $COHORT_ID -o csv
+assert_output_contains "Cohort member student01 present" "student01" "$OUT"
+assert_output_contains "Cohort member student02 present" "student02" "$OUT"
+assert_output_contains "Cohort member teacher01 present" "teacher01" "$OUT"
+assert_output_not_contains "Non-member student03 excluded" "student03" "$OUT"
+assert_output_not_contains "Admin excluded from cohort" "admin" "$OUT"
+MEMBER_COUNT=$(echo "$OUT" | tail -n +2 | wc -l)
+assert_output_contains "3 cohort members listed" "3" "$MEMBER_COUNT"
+echo ""
+
+echo "--- Test: --cohort with empty cohort ---"
+run_moosh cohort:create "Empty UL Cohort" -p "$MOODLE_PATH" --run -o csv
+EMPTY_COHORT_ID=$(echo "$OUT" | tail -1 | cut -d, -f1)
+run_moosh user:list -p "$MOODLE_PATH" --cohort $EMPTY_COHORT_ID -o csv
+assert_output_not_contains "No users in empty cohort" "student" "$OUT"
+echo ""
+
+echo "--- Test: --cohort combined with --is-not ---"
+run_moosh user:list -p "$MOODLE_PATH" --cohort $COHORT_ID --is-not suspended -o csv
+assert_output_contains "Filtered cohort member present" "student01" "$OUT"
+echo ""
+
 echo "--- Test: --course with empty course ---"
 run_moosh user:list -p "$MOODLE_PATH" --course 14 -o csv
 LINE_COUNT=$(echo "$OUT" | wc -l)
@@ -213,6 +242,7 @@ assert_output_contains "Help shows description" "List Moodle users" "$OUT"
 assert_output_contains "Help shows is/is-not options" "--is" "$OUT"
 assert_output_contains "Help shows course option" "--course" "$OUT"
 assert_output_contains "Help shows course-role option" "--course-role" "$OUT"
+assert_output_contains "Help shows cohort option" "--cohort" "$OUT"
 assert_output_contains "Help shows sort option" "--sort" "$OUT"
 assert_output_contains "Help shows limit option" "--limit" "$OUT"
 assert_output_contains "Help shows --number option" "--number" "$OUT"
