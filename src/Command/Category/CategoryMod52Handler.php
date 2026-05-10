@@ -33,6 +33,13 @@ class CategoryMod52Handler extends BaseHandler
             ->addOption('resort-courses', null, InputOption::VALUE_REQUIRED, 'Sort courses by: fullname, shortname, idnumber, timecreated')
             ->addOption('move-courses', null, InputOption::VALUE_REQUIRED, 'Move all courses to target category ID')
             ->addOption('recursive', null, InputOption::VALUE_NONE, 'Apply resort recursively');
+
+        $command->addExampleUsage('Rename a category', '5 --name="Renamed" --run');
+        $command->addExampleUsage('Hide a category', '5 --visible=0 --run');
+        $command->addExampleUsage('Move a category under a new parent', '5 --parent=1 --run');
+        $command->addExampleUsage('Resort subcategories by name recursively', '5 --resort=name --recursive --run');
+        $command->addExampleUsage('Resort courses by full name', '5 --resort-courses=fullname --run');
+        $command->addExampleUsage('Move all courses to another category', '5 --move-courses=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

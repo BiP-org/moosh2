@@ -21,6 +21,9 @@ class PluginUninstall52Handler extends BaseHandler
     {
         $command
             ->addArgument('plugin', InputArgument::REQUIRED, 'Frankenstyle plugin name (e.g. mod_attendance)');
+
+        $command->addExampleUsage('Uninstall a standard activity module', 'mod_attendance');
+        $command->addExampleUsage('Uninstall a local plugin', 'local_myplugin');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -24,6 +24,7 @@ class DebugOnCommand extends BaseCommand
         $this->setName('debug:on')
             ->setDescription('Enable developer debug mode')
             ->setHelp('Enables full developer debugging: debug display, SMTP debug, performance debug, string IDs, theme designer mode, disables JS cache.');
+        $this->handler->configureCommand($this);
     }
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }

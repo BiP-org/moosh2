@@ -32,6 +32,11 @@ class CacheCreate52Handler extends BaseHandler
             ->addOption('prefix', null, InputOption::VALUE_REQUIRED, 'Key prefix')
             ->addOption('compression', null, InputOption::VALUE_NONE, 'Enable compression (memcached)')
             ->addOption('serialiser', null, InputOption::VALUE_REQUIRED, 'Serialiser type (memcached)');
+
+        $command->addExampleUsage('Create a redis cache store', 'redis myredis --server=127.0.0.1 --run');
+        $command->addExampleUsage('Create a memcached cache store', 'memcached mymem --server=127.0.0.1:11211 --run');
+        $command->addExampleUsage('Create an APCu cache store', 'apcu myapcu --run');
+        $command->addExampleUsage('Create a file-based cache store', 'file myfile --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

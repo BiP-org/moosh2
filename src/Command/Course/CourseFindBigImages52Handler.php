@@ -23,6 +23,10 @@ class CourseFindBigImages52Handler extends BaseHandler
         $command
             ->addOption('size', 's', InputOption::VALUE_REQUIRED, 'Minimum image size in KB', '1024')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Maximum results', '100');
+
+        $command->addExampleUsage('Find images larger than the default 1 MB threshold', '');
+        $command->addExampleUsage('Find images larger than 512 KB', '--size=512');
+        $command->addExampleUsage('Find images larger than 2 MB, top 20 results', '--size=2048 --limit=20');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

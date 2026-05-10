@@ -23,6 +23,10 @@ class CategoryImport52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::REQUIRED, 'Path to XML file')
             ->addOption('parent', null, InputOption::VALUE_REQUIRED, 'Import under this parent category ID (0=top level)', '0');
+
+        $command->addExampleUsage('Dry run import preview', 'categories.xml');
+        $command->addExampleUsage('Import categories from XML', 'categories.xml --run');
+        $command->addExampleUsage('Import categories under a specific parent', 'categories.xml --parent=5 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

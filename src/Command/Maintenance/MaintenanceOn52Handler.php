@@ -12,6 +12,9 @@ class MaintenanceOn52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addOption('message', 'm', InputOption::VALUE_REQUIRED, 'Maintenance message');
+
+        $command->addExampleUsage('Enable maintenance mode', '');
+        $command->addExampleUsage('Enable maintenance mode with a custom message', '-m "Upgrading to Moodle 5.3..."');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

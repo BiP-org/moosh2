@@ -25,6 +25,10 @@ class CourseLastVisited52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Course ID(s) to check',
         );
+
+        $command->addExampleUsage('Show when course 2 was last visited', '2');
+        $command->addExampleUsage('Check multiple courses', '2 3 4');
+        $command->addExampleUsage('Output as CSV', '2 -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

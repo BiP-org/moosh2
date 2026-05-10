@@ -21,6 +21,10 @@ class CategoryExport52Handler extends BaseHandler
     {
         $command
             ->addArgument('categoryid', InputArgument::REQUIRED, 'Category ID to export (0=all)');
+
+        $command->addExampleUsage('Export all categories', '0');
+        $command->addExampleUsage('Export a single category subtree', '5');
+        $command->addExampleUsage('Export all categories to a file', '0 > categories.xml');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

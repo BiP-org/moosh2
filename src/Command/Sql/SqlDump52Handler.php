@@ -34,6 +34,11 @@ class SqlDump52Handler extends BaseHandler
             ->addOption('file', 'f', InputOption::VALUE_REQUIRED, 'Write dump to file instead of stdout')
             ->addOption('gzip', null, InputOption::VALUE_NONE, 'Compress output with gzip')
             ->addOption('tables', null, InputOption::VALUE_REQUIRED, 'Comma-separated table names to dump (without prefix)');
+
+        $command->addExampleUsage('Dump database to stdout', '');
+        $command->addExampleUsage('Dump database to a file', '--file=backup.sql');
+        $command->addExampleUsage('Dump and gzip-compress to a file', '--gzip --file=backup.sql.gz');
+        $command->addExampleUsage('Dump only selected tables', '--tables=user,course');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

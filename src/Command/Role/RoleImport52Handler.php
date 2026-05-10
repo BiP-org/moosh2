@@ -27,6 +27,9 @@ class RoleImport52Handler extends BaseHandler
             ->addArgument('file', InputArgument::OPTIONAL, 'Path to XML file (omit if using --stdin)')
             ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read XML from standard input')
             ->addOption('skip-validate', null, InputOption::VALUE_NONE, 'Skip XSD schema validation');
+
+        $command->addExampleUsage('Import role from an XML file', 'role.xml --run');
+        $command->addExampleUsage('Import role piped from stdin', '--stdin --run < role.xml');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

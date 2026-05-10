@@ -29,6 +29,10 @@ class RoleExport52Handler extends BaseHandler
             ->addArgument('role', InputArgument::REQUIRED, 'Role shortname or ID to export')
             ->addOption('file', 'f', InputOption::VALUE_REQUIRED, 'Write XML to file instead of stdout')
             ->addOption('pretty', null, InputOption::VALUE_NONE, 'Format XML with indentation');
+
+        $command->addExampleUsage('Export role XML to stdout', 'teacher');
+        $command->addExampleUsage('Export role XML to a file', 'teacher --file=teacher.xml');
+        $command->addExampleUsage('Export with indented XML', 'teacher --pretty');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

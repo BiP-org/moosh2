@@ -27,6 +27,10 @@ class UserDelete52Handler extends BaseHandler
                 'Username(s) or user ID(s) to delete',
             )
             ->addOption('id', null, InputOption::VALUE_NONE, 'Treat arguments as user IDs instead of usernames');
+
+        $command->addExampleUsage('Delete a single user by username', 'john --run');
+        $command->addExampleUsage('Delete multiple users by username', 'john jane --run');
+        $command->addExampleUsage('Delete a user by numeric ID', '5 --id --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

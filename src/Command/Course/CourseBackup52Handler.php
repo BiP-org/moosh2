@@ -26,6 +26,11 @@ class CourseBackup52Handler extends BaseHandler
             ->addOption('path', null, InputOption::VALUE_REQUIRED, 'Output directory (default: current directory)')
             ->addOption('template', null, InputOption::VALUE_NONE, 'Template backup: no users, anonymized, no role assignments, no logs')
             ->addOption('fullbackup', null, InputOption::VALUE_NONE, 'Full backup: include logs and grade histories');
+
+        $command->addExampleUsage('Backup course 2 to current directory', '2 --run');
+        $command->addExampleUsage('Backup course 2 into a specific directory', '2 --path=/tmp --run');
+        $command->addExampleUsage('Backup course 2 with a custom filename', '2 --filename=mybackup.mbz --run');
+        $command->addExampleUsage('Template backup (no users, anonymized)', '2 --template --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

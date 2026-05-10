@@ -35,6 +35,11 @@ class ProfileFieldAdd52Handler extends BaseHandler
             ->addOption('defaultdata', null, InputOption::VALUE_REQUIRED, 'Default value', '')
             ->addOption('param1', null, InputOption::VALUE_REQUIRED, 'Type-specific param1 (e.g. max length for text, menu options for menu)')
             ->addOption('param2', null, InputOption::VALUE_REQUIRED, 'Type-specific param2');
+
+        $command->addExampleUsage('Create a basic text field with default settings', 'department --run');
+        $command->addExampleUsage('Create a text field with display name', 'department --name="Department" --datatype=text --run');
+        $command->addExampleUsage('Create a menu field with options', 'role --datatype=menu --param1="Manager\\nTeacher\\nStudent" --run');
+        $command->addExampleUsage('Create a datetime field', 'startdate --datatype=datetime --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

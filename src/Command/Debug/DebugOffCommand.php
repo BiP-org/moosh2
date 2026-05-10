@@ -24,6 +24,7 @@ class DebugOffCommand extends BaseCommand
         $this->setName('debug:off')
             ->setDescription('Disable developer debug mode')
             ->setHelp('Disables debugging and restores production settings.');
+        $this->handler->configureCommand($this);
     }
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }

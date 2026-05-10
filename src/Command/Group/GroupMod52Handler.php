@@ -31,6 +31,11 @@ class GroupMod52Handler extends BaseHandler
             ->addOption('add-member', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Add member by username or user ID')
             ->addOption('remove-member', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Remove member by username or user ID')
             ->addOption('empty', null, InputOption::VALUE_NONE, 'Remove all members');
+
+        $command->addExampleUsage('Rename a group', '5 --name="New Name" --run');
+        $command->addExampleUsage('Add members to a group', '5 --add-member=admin --add-member=student01 --run');
+        $command->addExampleUsage('Remove a member from a group', '5 --remove-member=admin --run');
+        $command->addExampleUsage('Remove all members from a group', '5 --empty --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -25,6 +25,11 @@ class EventList52Handler extends BaseHandler
             ->addOption('crud', null, InputOption::VALUE_REQUIRED, 'Filter by CRUD: c, r, u, d')
             ->addOption('search', null, InputOption::VALUE_REQUIRED, 'Search event names')
             ->addOption('classname-only', null, InputOption::VALUE_NONE, 'Show classnames only');
+
+        $command->addExampleUsage('List all available events', '');
+        $command->addExampleUsage('List events from core only', '--component=core');
+        $command->addExampleUsage('List events with CRUD type create', '--crud=c');
+        $command->addExampleUsage('Search for course-related events', '--search=course');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

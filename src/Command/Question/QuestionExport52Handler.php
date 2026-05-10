@@ -25,6 +25,10 @@ class QuestionExport52Handler extends BaseHandler
         $command
             ->addArgument('categoryid', InputArgument::REQUIRED, 'Question category ID to export')
             ->addOption('format', 'f', InputOption::VALUE_REQUIRED, 'Export format: xml or gift', 'xml');
+
+        $command->addExampleUsage('Export questions as Moodle XML', '1');
+        $command->addExampleUsage('Export questions in GIFT format', '1 --format=gift');
+        $command->addExampleUsage('Save XML export to a file', '1 > questions.xml');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

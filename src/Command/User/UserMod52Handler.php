@@ -42,6 +42,12 @@ class UserMod52Handler extends BaseHandler
             ->addOption('remove-global-admin', null, InputOption::VALUE_NONE, 'Remove user from site administrators')
             ->addOption('assign-role', null, InputOption::VALUE_REQUIRED, 'Assign a system role by shortname')
             ->addOption('unassign-role', null, InputOption::VALUE_REQUIRED, 'Unassign a system role by shortname');
+
+        $command->addExampleUsage('Change a user email address', 'admin --email=new@example.com --run');
+        $command->addExampleUsage('Suspend a user account', 'student01 --suspended=1 --run');
+        $command->addExampleUsage('Make a user a site administrator', 'student01 --global-admin --run');
+        $command->addExampleUsage('Assign a system role by shortname', 'student01 --assign-role=manager --run');
+        $command->addExampleUsage('Set password ignoring the password policy', 'student01 --password=NewPass123! --ignore-policy --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

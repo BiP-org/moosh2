@@ -18,6 +18,10 @@ class CompletionMark52Handler extends BaseHandler
             ->addOption('userid', null, InputOption::VALUE_REQUIRED, 'User ID')
             ->addOption('cmid', null, InputOption::VALUE_REQUIRED, 'Course module ID (for activity completion)')
             ->addOption('state', null, InputOption::VALUE_REQUIRED, 'State: complete or incomplete', 'complete');
+
+        $command->addExampleUsage('Mark course 2 complete for user 3', '2 --userid=3 --run');
+        $command->addExampleUsage('Mark activity 42 complete for user 3 in course 2', '2 --userid=3 --cmid=42 --run');
+        $command->addExampleUsage('Mark activity 42 incomplete for user 3 in course 2', '2 --userid=3 --cmid=42 --state=incomplete --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

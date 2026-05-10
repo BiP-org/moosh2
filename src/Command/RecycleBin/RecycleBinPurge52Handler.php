@@ -13,6 +13,8 @@ class RecycleBinPurge52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('courseid', InputArgument::REQUIRED, 'Course ID');
+
+        $command->addExampleUsage('Empty the recycle bin for course 2', '2 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

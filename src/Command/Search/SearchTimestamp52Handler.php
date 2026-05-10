@@ -29,6 +29,10 @@ class SearchTimestamp52Handler extends BaseHandler
             ->addOption('from', null, InputOption::VALUE_REQUIRED, 'Range start (Unix timestamp)')
             ->addOption('to', null, InputOption::VALUE_REQUIRED, 'Range end (Unix timestamp)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max results per table', '100');
+
+        $command->addExampleUsage('Find rows matching an exact timestamp', '1704067200');
+        $command->addExampleUsage('Find rows within a timestamp range', '--from=1704067200 --to=1735689600');
+        $command->addExampleUsage('Cap matches per table', '--from=1704067200 --to=1735689600 --limit=10');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

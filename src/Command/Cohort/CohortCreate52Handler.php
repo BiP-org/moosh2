@@ -27,6 +27,10 @@ class CohortCreate52Handler extends BaseHandler
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number')
             ->addOption('category', null, InputOption::VALUE_REQUIRED, 'Category ID for context (default: system)')
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visible (1 or 0)', '1');
+
+        $command->addExampleUsage('Create a single system-level cohort', '"Staff" --run');
+        $command->addExampleUsage('Create multiple cohorts with shared idnumber prefix', '"Group A" "Group B" --idnumber=GRP --run');
+        $command->addExampleUsage('Create a cohort under a course category', '"Faculty Cohort" --category=2 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

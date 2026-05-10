@@ -29,6 +29,10 @@ class BadgeAdd52Handler extends BaseHandler
             ->addOption('description', 'd', InputOption::VALUE_REQUIRED, 'Badge description', '')
             ->addOption('course', 'c', InputOption::VALUE_REQUIRED, 'Course ID (creates a course badge instead of site badge)')
             ->addOption('image', null, InputOption::VALUE_REQUIRED, 'Path to badge image file');
+
+        $command->addExampleUsage('Create a site badge', '"Top Student" --run');
+        $command->addExampleUsage('Create a site badge with a description', '"Top Student" -d "Awarded for excellence" --run');
+        $command->addExampleUsage('Create a course badge with a custom image', '"Course Hero" --course=2 --image=hero.png --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

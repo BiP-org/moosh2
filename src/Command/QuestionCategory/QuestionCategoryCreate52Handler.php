@@ -27,6 +27,9 @@ class QuestionCategoryCreate52Handler extends BaseHandler
             ->addOption('parent', null, InputOption::VALUE_REQUIRED, 'Parent category ID')
             ->addOption('info', null, InputOption::VALUE_REQUIRED, 'Category description', '')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number');
+
+        $command->addExampleUsage('Create a question category in course 2', '"Algebra" 2 --run');
+        $command->addExampleUsage('Create a question category under a parent category', '"Exams" 2 --parent=5 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

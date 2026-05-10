@@ -20,6 +20,9 @@ class ProfileFieldImport52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('file', InputArgument::REQUIRED, 'Path to CSV file to import');
+
+        $command->addExampleUsage('Dry run preview of fields to import', 'fields.csv');
+        $command->addExampleUsage('Import profile fields from a CSV file', 'fields.csv --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

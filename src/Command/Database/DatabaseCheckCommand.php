@@ -24,6 +24,7 @@ class DatabaseCheckCommand extends BaseCommand
         $this->setName('database:check')
             ->setDescription('Check database schema consistency')
             ->setHelp('Verifies the database schema matches the expected Moodle schema and reports mismatches.');
+        $this->handler->configureCommand($this);
     }
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }

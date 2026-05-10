@@ -34,6 +34,12 @@ class FilterMod52Handler extends BaseHandler
             ->addOption('move', null, InputOption::VALUE_REQUIRED, 'Reorder: up or down')
             ->addOption('apply-to-strings', null, InputOption::VALUE_REQUIRED, 'Set applies to strings: 1 or 0')
             ->addOption('config', null, InputOption::VALUE_REQUIRED, 'Set local config: key=value (requires --context)');
+
+        $command->addExampleUsage('Enable a filter globally', 'mathjaxloader --state=on --run');
+        $command->addExampleUsage('Disable a filter globally', 'multilang --state=disabled --run');
+        $command->addExampleUsage('Move a filter higher in priority', 'mathjaxloader --move=up --run');
+        $command->addExampleUsage('Apply filter to strings', 'mathjaxloader --apply-to-strings=1 --run');
+        $command->addExampleUsage('Enable filter in a specific context', 'mathjaxloader --state=on --context=12 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

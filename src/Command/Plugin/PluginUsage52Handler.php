@@ -27,6 +27,11 @@ class PluginUsage52Handler extends BaseHandler
         $command
             ->addOption('contrib-only', 'c', InputOption::VALUE_NONE, 'Show only non-standard (contributed) plugins')
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'Show only a specific plugin type: activity, block, format, enrol, auth, qtype, filter');
+
+        $command->addExampleUsage('Show usage for all plugin types', '');
+        $command->addExampleUsage('Show only activity module usage', '--type=activity');
+        $command->addExampleUsage('Show only contributed (non-standard) plugins', '--contrib-only');
+        $command->addExampleUsage('Export block usage as CSV', '--type=block -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

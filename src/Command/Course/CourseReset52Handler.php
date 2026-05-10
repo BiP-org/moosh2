@@ -23,6 +23,13 @@ class CourseReset52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID to reset')
             ->addOption('settings', 's', InputOption::VALUE_REQUIRED, 'Space-separated key=value pairs (e.g. "reset_events=1 reset_roles_local=1")');
+
+        $command->addExampleUsage('Dry run — show what would be reset', '2');
+        $command->addExampleUsage('Reset course 2 with default settings', '2 --run');
+        $command->addExampleUsage('Reset events and local roles only', '2 --settings="reset_events=1 reset_roles_local=1" --run');
+        $command->addExampleUsage('Reset forum and quiz user data', '2 --settings="reset_forum_all=1 reset_quiz_attempts=1" --run');
+        $command->addExampleUsage('Reset completion and remove all groups', '2 --settings="reset_completion=1 reset_groups_remove=1 reset_groups_members=1" --run');
+        $command->addExampleUsage('Unenrol users with given role IDs', '2 --settings="unenrol_users=5,3" --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

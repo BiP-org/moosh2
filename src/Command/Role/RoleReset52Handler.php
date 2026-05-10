@@ -27,6 +27,8 @@ class RoleReset52Handler extends BaseHandler
         $command
             ->addArgument('role', InputArgument::REQUIRED, 'Role shortname or ID to reset')
             ->addArgument('file', InputArgument::REQUIRED, 'Path to XML definition file');
+
+        $command->addExampleUsage('Reset role from an XML definition file', 'teacher teacher-default.xml --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

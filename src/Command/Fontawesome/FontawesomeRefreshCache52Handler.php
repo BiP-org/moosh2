@@ -16,6 +16,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class FontawesomeRefreshCache52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Refresh the Font Awesome icon mapping cache', '--run');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         $verbose = new VerboseLogger($output);

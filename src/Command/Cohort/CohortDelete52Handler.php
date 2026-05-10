@@ -27,6 +27,9 @@ class CohortDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Cohort ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a single cohort by ID', '1 --run');
+        $command->addExampleUsage('Delete multiple cohorts by ID', '1 2 3 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -23,6 +23,10 @@ class FileDelete52Handler extends BaseHandler
         $command
             ->addArgument('fileid', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'File ID(s) to delete')
             ->addOption('hash', null, InputOption::VALUE_REQUIRED, 'Delete all files with this content hash');
+
+        $command->addExampleUsage('Delete a single file by ID', '42 --run');
+        $command->addExampleUsage('Delete multiple files by ID', '42 43 --run');
+        $command->addExampleUsage('Delete all files with given content hash', '--hash=abc123def --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

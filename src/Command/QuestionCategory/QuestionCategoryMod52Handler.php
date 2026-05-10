@@ -26,6 +26,9 @@ class QuestionCategoryMod52Handler extends BaseHandler
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Set category name')
             ->addOption('info', null, InputOption::VALUE_REQUIRED, 'Set description')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Set ID number');
+
+        $command->addExampleUsage('Rename a question category', '5 --name="Updated" --run');
+        $command->addExampleUsage('Update a question category description', '5 --info="New description" --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

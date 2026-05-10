@@ -31,6 +31,9 @@ class BackupInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'Path to the .mbz backup file',
         );
+
+        $command->addExampleUsage('Show details about a backup file', 'backup.mbz');
+        $command->addExampleUsage('Output backup metadata as JSON', '/tmp/course-backup.mbz -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

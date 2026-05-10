@@ -23,6 +23,10 @@ class ConfigImport52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::REQUIRED, 'Path to JSON file exported by config:export')
             ->addOption('ignore-existing', null, InputOption::VALUE_NONE, 'Skip settings that already have a value');
+
+        $command->addExampleUsage('Dry run — show what would be imported', 'settings.json');
+        $command->addExampleUsage('Import settings from a JSON file', 'settings.json --run');
+        $command->addExampleUsage('Import only new settings, preserve existing values', 'settings.json --ignore-existing --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

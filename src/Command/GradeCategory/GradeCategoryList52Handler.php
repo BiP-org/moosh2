@@ -27,6 +27,10 @@ class GradeCategoryList52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only');
+
+        $command->addExampleUsage('List grade categories in course 2', '2');
+        $command->addExampleUsage('List grade categories as CSV', '2 -o csv');
+        $command->addExampleUsage('List category IDs only', '2 --id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

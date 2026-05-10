@@ -25,6 +25,10 @@ class CompletionStatus52Handler extends BaseHandler
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('userid', null, InputOption::VALUE_REQUIRED, 'User ID (show single user)')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Show all enrolled users');
+
+        $command->addExampleUsage('Show completion status for user 3 in course 2', '2 --userid=3');
+        $command->addExampleUsage('Show completion status for all users in course 2', '2 --all');
+        $command->addExampleUsage('Export user 3 completion status as CSV', '2 --userid=3 -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

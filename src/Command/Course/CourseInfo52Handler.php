@@ -29,6 +29,9 @@ class CourseInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'The ID of the course to inspect',
         );
+
+        $command->addExampleUsage('Show information about course 2', '2');
+        $command->addExampleUsage('Show information about course 2 as JSON', '2 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -8,6 +8,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class SessionKill52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Destroy all user sessions', '--run');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         $runMode = $input->getOption('run');

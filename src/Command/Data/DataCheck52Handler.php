@@ -39,6 +39,10 @@ class DataCheck52Handler extends BaseHandler
                 'all',
             )
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Stop after this many issues found (0 = no limit)', '100');
+
+        $command->addExampleUsage('Run all data integrity checks', '');
+        $command->addExampleUsage('Run only the checksum check', 'checksum');
+        $command->addExampleUsage('Run db-to-disk check with a custom limit', 'db-to-disk --limit=50');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

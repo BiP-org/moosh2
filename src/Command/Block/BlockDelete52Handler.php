@@ -27,6 +27,9 @@ class BlockDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Block instance ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a single block instance', '5 --run');
+        $command->addExampleUsage('Delete multiple block instances', '5 6 7 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

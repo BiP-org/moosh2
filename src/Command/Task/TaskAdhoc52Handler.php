@@ -26,6 +26,13 @@ class TaskAdhoc52Handler extends BaseHandler
             ->addOption('execute', null, InputOption::VALUE_NONE, 'Execute pending adhoc tasks')
             ->addOption('clean', null, InputOption::VALUE_NONE, 'Delete old failed adhoc tasks')
             ->addOption('count', null, InputOption::VALUE_NONE, 'Show summary counts only');
+
+        $command->addExampleUsage('List all adhoc tasks', '');
+        $command->addExampleUsage('List only failed adhoc tasks', '--failed');
+        $command->addExampleUsage('Filter adhoc tasks by classname', '--classname="\\core\\task\\send_new_user_passwords_task"');
+        $command->addExampleUsage('Execute pending adhoc tasks', '--execute');
+        $command->addExampleUsage('Delete old failed adhoc tasks', '--clean');
+        $command->addExampleUsage('Show adhoc task summary counts', '--count');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

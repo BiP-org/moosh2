@@ -26,6 +26,9 @@ class CacheRebuild52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::OPTIONAL, 'Course ID to rebuild')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Rebuild all courses');
+
+        $command->addExampleUsage('Rebuild course cache for course ID 2', '2');
+        $command->addExampleUsage('Rebuild course cache for all courses', '--all');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

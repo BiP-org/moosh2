@@ -23,6 +23,11 @@ class UserOnline52Handler extends BaseHandler
         $command
             ->addOption('time', null, InputOption::VALUE_REQUIRED, 'Time window in seconds (default: 300)', '300')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Maximum users to show (0 = all)', '0');
+
+        $command->addExampleUsage('Show users active in the last 5 minutes', '');
+        $command->addExampleUsage('Show users active in the last 10 minutes', '--time=600');
+        $command->addExampleUsage('Limit output to 20 users', '--limit=20');
+        $command->addExampleUsage('CSV output', '-o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

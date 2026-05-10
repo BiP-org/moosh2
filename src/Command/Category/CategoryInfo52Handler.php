@@ -29,6 +29,9 @@ class CategoryInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'The ID of the category to inspect',
         );
+
+        $command->addExampleUsage('Show details for a category', '1');
+        $command->addExampleUsage('Show category details as JSON', '5 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

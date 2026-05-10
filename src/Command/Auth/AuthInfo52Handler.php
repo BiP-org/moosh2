@@ -29,6 +29,9 @@ class AuthInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'Auth plugin name (e.g. manual, email, ldap, oauth2)',
         );
+
+        $command->addExampleUsage('Show details about the manual auth plugin', 'manual');
+        $command->addExampleUsage('Output email auth plugin info as JSON', 'email -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

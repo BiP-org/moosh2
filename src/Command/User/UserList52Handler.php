@@ -86,6 +86,15 @@ class UserList52Handler extends BaseHandler
             ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read space-separated user IDs from stdin to filter results');
         $this->configureBooleanFilters($command);
         $this->configureNumericFilters($command);
+
+        $command->addExampleUsage('List all users', '');
+        $command->addExampleUsage('Filter using a SQL WHERE fragment', '"deleted=0"');
+        $command->addExampleUsage('Users enrolled in course 2', '--course=2');
+        $command->addExampleUsage('Students enrolled in course 2', '--course=2 --course-role=student');
+        $command->addExampleUsage('10 most recently active users', '--sort=lastaccess --descending --limit=10');
+        $command->addExampleUsage('JSON output', '-o json');
+        $command->addExampleUsage('IDs only (one line, space-separated)', '--id-only');
+        $command->addExampleUsage('Users active in the last 2 hours', '--sql "u.lastaccess > $(date -d \'2 hours ago\' +%s)"');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

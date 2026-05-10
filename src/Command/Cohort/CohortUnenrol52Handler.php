@@ -24,6 +24,9 @@ class CohortUnenrol52Handler extends BaseHandler
             ->addArgument('cohortid', InputArgument::REQUIRED, 'Cohort ID')
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('role', 'r', InputOption::VALUE_REQUIRED, 'Role shortname (match specific sync)');
+
+        $command->addExampleUsage('Remove cohort 5 sync from course 2', '5 2 --run');
+        $command->addExampleUsage('Remove only the editing-teacher sync', '5 2 --role=editingteacher --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

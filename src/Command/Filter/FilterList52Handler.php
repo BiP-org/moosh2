@@ -32,6 +32,11 @@ class FilterList52Handler extends BaseHandler
             ->addOption('enabled', null, InputOption::VALUE_NONE, 'Show only enabled (not disabled) filters')
             ->addOption('context', null, InputOption::VALUE_REQUIRED, 'Show filter states for a specific context ID')
             ->addOption('name-only', null, InputOption::VALUE_NONE, 'Show filter names only');
+
+        $command->addExampleUsage('List all installed text filters', '');
+        $command->addExampleUsage('List only enabled filters', '--enabled');
+        $command->addExampleUsage('Show filter states for a specific context', '--context=12');
+        $command->addExampleUsage('Output filter list as CSV', '-o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -26,6 +26,10 @@ class AuditPassword52Handler extends BaseHandler
         $command
             ->addOption('reveal', 'r', InputOption::VALUE_NONE, 'Show the matched password')
             ->addOption('userid', null, InputOption::VALUE_REQUIRED, 'Only check this user ID');
+
+        $command->addExampleUsage('Audit all users against the weak-password list', '');
+        $command->addExampleUsage('Reveal the matched weak password', '--reveal');
+        $command->addExampleUsage('Audit a single user', '--userid=5');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -27,6 +27,10 @@ class SqlRun52Handler extends BaseHandler
         $command
             ->addArgument('sql', InputArgument::REQUIRED, 'SQL query (use {tablename} for Moodle tables)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Maximum number of rows for SELECT queries', '0');
+
+        $command->addExampleUsage('Count users via SELECT', '"SELECT count(*) FROM {user}"');
+        $command->addExampleUsage('Run a SELECT with row limit', '"SELECT * FROM {course}" --limit=10');
+        $command->addExampleUsage('Run an UPDATE write query', "\"UPDATE {user} SET city='London' WHERE id=5\" --run");
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -63,6 +63,10 @@ class LogExport52Handler extends BaseHandler
             ->addOption('from', null, InputOption::VALUE_REQUIRED, 'From date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
             ->addOption('to', null, InputOption::VALUE_REQUIRED, 'To date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
             ->addOption('compact', null, InputOption::VALUE_NONE, 'Omit id column if IDs are consecutive; write metadata.json with first_id');
+
+        $command->addExampleUsage('Export all log entries to CSV', 'logs.csv');
+        $command->addExampleUsage('Export entries from a date range', 'logs.csv --from=2024-01-01 --to=2024-12-31');
+        $command->addExampleUsage('Export in compact mode with metadata.json', 'logs.csv --from="2024-01-01 08:00:00" --compact');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

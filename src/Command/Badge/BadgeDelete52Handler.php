@@ -27,6 +27,9 @@ class BadgeDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Badge ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a single badge by ID', '1 --run');
+        $command->addExampleUsage('Delete multiple badges at once', '1 2 3 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -28,6 +28,11 @@ class GradebookImport52Handler extends BaseHandler
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID (or idnumber with --course-idnumber)')
             ->addOption('map-users-by', null, InputOption::VALUE_REQUIRED, 'Map users by: email or idnumber', 'email')
             ->addOption('course-idnumber', null, InputOption::VALUE_NONE, 'Treat courseid argument as course idnumber');
+
+        $command->addExampleUsage('Dry run preview of import', 'grades.csv 2');
+        $command->addExampleUsage('Import grades from CSV by email', 'grades.csv 2 --run');
+        $command->addExampleUsage('Import grades mapping users by idnumber', 'grades.csv 2 --map-users-by=idnumber --run');
+        $command->addExampleUsage('Import grades using course idnumber instead of ID', 'grades.csv COURSE01 --course-idnumber --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

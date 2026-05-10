@@ -30,6 +30,10 @@ class CategoryCreate52Handler extends BaseHandler
             ->addOption('description', null, InputOption::VALUE_REQUIRED, 'Category description')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Category ID number')
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visibility (1 or 0)', '1');
+
+        $command->addExampleUsage('Create a top-level category', '"Science" --run');
+        $command->addExampleUsage('Create multiple categories under a parent', '"Physics" "Chemistry" --parent=5 --run');
+        $command->addExampleUsage('Create a hidden category', '"Hidden Category" --visible=0 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

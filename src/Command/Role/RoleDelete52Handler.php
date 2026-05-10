@@ -29,6 +29,10 @@ class RoleDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Role shortname(s) or ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a role by shortname', 'tutor --run');
+        $command->addExampleUsage('Delete a role by ID', '9 --run');
+        $command->addExampleUsage('Delete multiple roles at once', 'tutor reviewer --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

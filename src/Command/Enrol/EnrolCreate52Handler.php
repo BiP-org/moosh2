@@ -34,6 +34,11 @@ class EnrolCreate52Handler extends BaseHandler
                 'Plugin field as KEY=VALUE (repeatable). See Moodle docs for plugin-specific keys.',
             )
             ->addOption('status', null, InputOption::VALUE_REQUIRED, 'Instance status: enabled or disabled (default: enabled)');
+
+        $command->addExampleUsage('Add a meta enrolment linking a child course', '42 --method=meta --field metacoursename=CHILD-101 --run');
+        $command->addExampleUsage('Add a cohort enrolment with a specific role', '42 --method=cohort --field cohortidnumber=staff --field roleid=5 --run');
+        $command->addExampleUsage('Add self-enrolment with a password', '42 --method=self --field password=secret --run');
+        $command->addExampleUsage('Add a disabled meta enrolment with a target group', '42 --method=meta --field metacoursename=CHILD-101 --field addtogroup=1 --status=disabled --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

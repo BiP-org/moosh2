@@ -25,6 +25,11 @@ class PluginList52Handler extends BaseHandler
             ->addOption('name-only', null, InputOption::VALUE_NONE, 'Display only frankenstyle plugin names')
             ->addOption('refresh', null, InputOption::VALUE_NONE, 'Force re-download of the plugin cache')
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port)');
+
+        $command->addExampleUsage('List all available plugins', '');
+        $command->addExampleUsage('List only activity module plugins', '--type=mod');
+        $command->addExampleUsage('List plugin names only', '--name-only');
+        $command->addExampleUsage('Refresh cached plugin list', '--refresh');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

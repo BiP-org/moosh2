@@ -23,6 +23,10 @@ class FileStats52Handler extends BaseHandler
         $command
             ->addOption('by-component', null, InputOption::VALUE_NONE, 'Break down by component')
             ->addOption('top', null, InputOption::VALUE_REQUIRED, 'Show top N largest files', '0');
+
+        $command->addExampleUsage('Overall file storage statistics', '');
+        $command->addExampleUsage('Break down storage by component', '--by-component');
+        $command->addExampleUsage('Show top 20 largest files', '--top=20');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -24,6 +24,9 @@ class FontawesomeList52Handler extends BaseHandler
         $command
             ->addArgument('search', InputArgument::OPTIONAL, 'Filter icons by name (substring match)')
             ->addOption('style', null, InputOption::VALUE_REQUIRED, 'Filter by style: solid, brands');
+
+        $command->addExampleUsage('List all Font Awesome icons', '');
+        $command->addExampleUsage('List icons as CSV', '-o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

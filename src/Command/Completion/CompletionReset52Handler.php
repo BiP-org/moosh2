@@ -16,6 +16,9 @@ class CompletionReset52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('cmid', null, InputOption::VALUE_REQUIRED, 'Reset only this activity (course module ID)');
+
+        $command->addExampleUsage('Reset all completion data for course 2', '2 --run');
+        $command->addExampleUsage('Reset completion for activity 42 in course 2', '2 --cmid=42 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -17,6 +17,10 @@ class ContentReplace52Handler extends BaseHandler
             ->addArgument('search', InputArgument::REQUIRED, 'Text to search for')
             ->addArgument('replace', InputArgument::REQUIRED, 'Replacement text')
             ->addOption('skip-tables', null, InputOption::VALUE_REQUIRED, 'Comma-separated table names to skip');
+
+        $command->addExampleUsage('Dry run — preview the replacement', '"old-domain.com" "new-domain.com"');
+        $command->addExampleUsage('Replace text across the entire database', '"old-domain.com" "new-domain.com" --run');
+        $command->addExampleUsage('Replace, skipping the standard log table', '"old-domain.com" "new-domain.com" --skip-tables=mdl_logstore_standard_log --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

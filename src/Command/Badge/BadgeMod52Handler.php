@@ -29,6 +29,9 @@ class BadgeMod52Handler extends BaseHandler
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Set badge name')
             ->addOption('description', 'd', InputOption::VALUE_REQUIRED, 'Set badge description')
             ->addOption('status', null, InputOption::VALUE_REQUIRED, 'Set status: active or inactive');
+
+        $command->addExampleUsage('Rename a badge', '1 --name="Updated Badge" --run');
+        $command->addExampleUsage('Deactivate a badge', '1 --status=inactive --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

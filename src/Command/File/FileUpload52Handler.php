@@ -30,6 +30,9 @@ class FileUpload52Handler extends BaseHandler
             ->addOption('itemid', null, InputOption::VALUE_REQUIRED, 'Item ID', '0')
             ->addOption('storedpath', null, InputOption::VALUE_REQUIRED, 'Stored file path', '/')
             ->addOption('filename', null, InputOption::VALUE_REQUIRED, 'Override filename');
+
+        $command->addExampleUsage('Upload a PDF to a resource context', 'document.pdf --contextid=12 --component=mod_resource --filearea=content --run');
+        $command->addExampleUsage('Upload with a renamed filename', 'photo.jpg --contextid=12 --component=mod_resource --filearea=content --filename=renamed.jpg --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

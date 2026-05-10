@@ -14,6 +14,9 @@ class ContentHttpsReplace52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addOption('list', null, InputOption::VALUE_NONE, 'List HTTP domains found (do not replace)');
+
+        $command->addExampleUsage('List HTTP domains found in the database', '--list');
+        $command->addExampleUsage('Replace HTTP URLs with HTTPS across the database', '--run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -24,6 +24,9 @@ class GroupingList52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only');
+
+        $command->addExampleUsage('List groupings in course 2', '2');
+        $command->addExampleUsage('List groupings as CSV', '2 -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

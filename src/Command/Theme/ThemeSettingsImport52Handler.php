@@ -23,6 +23,9 @@ class ThemeSettingsImport52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::REQUIRED, 'Path to the .tar.gz settings archive')
             ->addOption('target-theme', null, InputOption::VALUE_REQUIRED, 'Import settings into a different theme');
+
+        $command->addExampleUsage('Import settings archive into its original theme', 'theme-boost.tar.gz --run');
+        $command->addExampleUsage('Import settings into a different target theme', 'theme-boost.tar.gz --target-theme=classic --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

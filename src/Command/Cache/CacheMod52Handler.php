@@ -29,6 +29,10 @@ class CacheMod52Handler extends BaseHandler
             ->addOption('request', null, InputOption::VALUE_REQUIRED, 'Set request mode store')
             ->addOption('definition', null, InputOption::VALUE_REQUIRED, 'Definition ID to map (component/area)')
             ->addOption('store', null, InputOption::VALUE_REQUIRED, 'Store name(s) for definition mapping');
+
+        $command->addExampleUsage('Set the application mode store', '--application=myredis --run');
+        $command->addExampleUsage('Set the session mode store', '--session=myredis --run');
+        $command->addExampleUsage('Map a specific definition to a store', '--definition=core/string --store=myredis --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

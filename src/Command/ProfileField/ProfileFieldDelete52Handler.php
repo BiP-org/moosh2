@@ -24,6 +24,9 @@ class ProfileFieldDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Profile field ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a single profile field', '5 --run');
+        $command->addExampleUsage('Delete several profile fields at once', '5 6 7 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

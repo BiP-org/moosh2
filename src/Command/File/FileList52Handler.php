@@ -28,6 +28,11 @@ class FileList52Handler extends BaseHandler
             ->addOption('courseid', null, InputOption::VALUE_REQUIRED, 'Filter by course ID (lists all files in course context)')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display file IDs only')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Limit results', '100');
+
+        $command->addExampleUsage('List files for a component', '--component=mod_resource');
+        $command->addExampleUsage('List files for a context', '--contextid=12');
+        $command->addExampleUsage('List files in a course', '--courseid=2');
+        $command->addExampleUsage('List file content as CSV', '--component=mod_resource --filearea=content -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

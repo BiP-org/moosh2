@@ -34,6 +34,11 @@ class GradeItemMod52Handler extends BaseHandler
             ->addOption('hidden', null, InputOption::VALUE_REQUIRED, 'Set hidden (1 or 0)')
             ->addOption('locked', null, InputOption::VALUE_REQUIRED, 'Set locked (1 or 0)')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Set ID number');
+
+        $command->addExampleUsage('Rename a grade item', '5 --name="Final Exam" --run');
+        $command->addExampleUsage('Update max grade and pass mark', '5 --grademax=200 --gradepass=120 --run');
+        $command->addExampleUsage('Hide a grade item', '5 --hidden=1 --run');
+        $command->addExampleUsage('Move grade item to another category', '5 --category=3 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

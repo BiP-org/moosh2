@@ -28,6 +28,13 @@ class TaskList52Handler extends BaseHandler
             ->addOption('running', null, InputOption::VALUE_NONE, 'Show only currently running tasks')
             ->addOption('failed', null, InputOption::VALUE_NONE, 'Show only tasks with fail delay')
             ->addOption('classname-only', null, InputOption::VALUE_NONE, 'Show classnames only');
+
+        $command->addExampleUsage('List all scheduled tasks', '');
+        $command->addExampleUsage('List tasks for a specific component', '--component=core');
+        $command->addExampleUsage('List only disabled tasks', '--disabled');
+        $command->addExampleUsage('List overdue tasks', '--overdue');
+        $command->addExampleUsage('List tasks with a fail delay', '--failed');
+        $command->addExampleUsage('List task classnames only', '--classname-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

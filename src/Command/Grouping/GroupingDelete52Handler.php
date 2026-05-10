@@ -27,6 +27,9 @@ class GroupingDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Grouping ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a grouping', '5 --run');
+        $command->addExampleUsage('Delete multiple groupings', '5 6 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

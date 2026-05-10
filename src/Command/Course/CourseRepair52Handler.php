@@ -16,6 +16,9 @@ class CourseRepair52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::OPTIONAL, 'Course ID to check/repair')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Check all courses');
+
+        $command->addExampleUsage('Check a single course for integrity issues', '2');
+        $command->addExampleUsage('Check every course in the site', '--all');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

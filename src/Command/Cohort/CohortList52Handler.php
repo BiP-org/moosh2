@@ -22,6 +22,10 @@ class CohortList52Handler extends BaseHandler
     {
         $command
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only');
+
+        $command->addExampleUsage('List all cohorts', '');
+        $command->addExampleUsage('List cohorts as CSV', '-o csv');
+        $command->addExampleUsage('List cohort IDs only (one line, space-separated)', '--id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

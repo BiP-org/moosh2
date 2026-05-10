@@ -27,6 +27,11 @@ class GroupCreate52Handler extends BaseHandler
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number')
             ->addOption('enrolmentkey', null, InputOption::VALUE_REQUIRED, 'Enrolment key')
             ->addOption('visibility', null, InputOption::VALUE_REQUIRED, 'Visibility: 0=all, 1=members, 2=own, 3=none', '0');
+
+        $command->addExampleUsage('Create a single group in course 2', '"Group A" 2 --run');
+        $command->addExampleUsage('Create multiple groups at once', '"Group A" "Group B" 2 --run');
+        $command->addExampleUsage('Create a group with ID number and enrolment key', '"Lab 1" 2 --idnumber=LAB1 --enrolmentkey=secret --run');
+        $command->addExampleUsage('Create a members-only visible group', '"Hidden Group" 2 --visibility=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

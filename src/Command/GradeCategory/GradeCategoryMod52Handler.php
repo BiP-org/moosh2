@@ -31,6 +31,10 @@ class GradeCategoryMod52Handler extends BaseHandler
             ->addOption('keephigh', null, InputOption::VALUE_REQUIRED, 'Keep only N highest')
             ->addOption('droplow', null, InputOption::VALUE_REQUIRED, 'Drop N lowest')
             ->addOption('hidden', null, InputOption::VALUE_REQUIRED, 'Set hidden (1 or 0)');
+
+        $command->addExampleUsage('Rename a grade category', '5 --name="New Name" --run');
+        $command->addExampleUsage('Change aggregation to mean', '5 --aggregation=0 --run');
+        $command->addExampleUsage('Hide a grade category', '5 --hidden=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

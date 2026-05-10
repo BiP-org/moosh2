@@ -32,6 +32,10 @@ class CourseCreate52Handler extends BaseHandler
             ->addOption('numsections', null, InputOption::VALUE_REQUIRED, 'Number of sections')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Course ID number')
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visibility (1 or 0)', '1');
+
+        $command->addExampleUsage('Dry run — show what would be created', 'CS101');
+        $command->addExampleUsage('Create two courses in category 3', 'CS101 CS102 --category=3 --run');
+        $command->addExampleUsage('Create course with custom full name', 'CS101 --fullname="Computer Science" --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

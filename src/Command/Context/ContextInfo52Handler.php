@@ -38,6 +38,9 @@ class ContextInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'The ID of the context to inspect (from mdl_context.id)',
         );
+
+        $command->addExampleUsage('Show details for a context', '42');
+        $command->addExampleUsage('Show context details as JSON', '42 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

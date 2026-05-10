@@ -22,7 +22,9 @@ class MaintenanceOffCommand extends BaseCommand
     protected function configure(): void
     {
         $this->setName('maintenance:off')
-            ->setDescription('Disable maintenance mode');
+            ->setDescription('Disable maintenance mode')
+            ->setHelp('Disables maintenance mode and clears any maintenance message.');
+        $this->handler->configureCommand($this);
     }
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }

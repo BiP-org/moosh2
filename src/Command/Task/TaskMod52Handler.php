@@ -31,6 +31,11 @@ class TaskMod52Handler extends BaseHandler
             ->addOption('enabled', null, InputOption::VALUE_REQUIRED, 'Enable (1) or disable (0)')
             ->addOption('reset', null, InputOption::VALUE_NONE, 'Reset to default schedule')
             ->addOption('clear-fail', null, InputOption::VALUE_NONE, 'Clear fail delay');
+
+        $command->addExampleUsage('Disable a scheduled task', '"\\core\\task\\send_new_user_passwords_task" --enabled=0 --run');
+        $command->addExampleUsage('Change task to run every 5 minutes', '"\\core\\task\\send_new_user_passwords_task" --minute=*/5 --run');
+        $command->addExampleUsage('Reset task schedule to defaults', '"\\core\\task\\send_new_user_passwords_task" --reset --run');
+        $command->addExampleUsage('Clear fail delay on a task', '"\\core\\task\\send_new_user_passwords_task" --clear-fail --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

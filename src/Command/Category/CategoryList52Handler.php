@@ -65,6 +65,12 @@ class CategoryList52Handler extends BaseHandler
             ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read space-separated category IDs from stdin to filter results');
         $this->configureBooleanFilters($command);
         $this->configureNumericFilters($command);
+
+        $command->addExampleUsage('List all categories', '');
+        $command->addExampleUsage('List top-level categories', '--parent=0');
+        $command->addExampleUsage('List visible top-level categories', '--visible=yes --top-level');
+        $command->addExampleUsage('List categories as JSON', '-o json');
+        $command->addExampleUsage('Output only category IDs', '--id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

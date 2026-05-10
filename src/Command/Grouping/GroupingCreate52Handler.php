@@ -26,6 +26,9 @@ class GroupingCreate52Handler extends BaseHandler
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('description', 'd', InputOption::VALUE_REQUIRED, 'Description', '')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number');
+
+        $command->addExampleUsage('Create a grouping in course 2', '"Lab Groups" 2 --run');
+        $command->addExampleUsage('Create a grouping with an ID number', '"Exam Groups" 2 --idnumber=EXAM --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

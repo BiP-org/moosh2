@@ -29,6 +29,9 @@ class UserInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'The ID of the user to inspect',
         );
+
+        $command->addExampleUsage('Show detailed info for user ID 2', '2');
+        $command->addExampleUsage('Show user info as JSON', '2 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

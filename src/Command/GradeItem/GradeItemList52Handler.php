@@ -29,6 +29,11 @@ class GradeItemList52Handler extends BaseHandler
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only')
             ->addOption('itemtype', null, InputOption::VALUE_REQUIRED, 'Filter by item type (manual, mod, course, category)')
             ->addOption('category', null, InputOption::VALUE_REQUIRED, 'Filter by grade category ID');
+
+        $command->addExampleUsage('List all grade items in course 2', '2');
+        $command->addExampleUsage('List only manual grade items', '2 --itemtype=manual');
+        $command->addExampleUsage('List grade items in a specific category', '2 --category=5');
+        $command->addExampleUsage('List grade item IDs only', '2 --id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

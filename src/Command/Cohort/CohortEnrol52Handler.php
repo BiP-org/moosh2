@@ -25,6 +25,9 @@ class CohortEnrol52Handler extends BaseHandler
             ->addArgument('cohortid', InputArgument::REQUIRED, 'Cohort ID')
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('role', 'r', InputOption::VALUE_REQUIRED, 'Role shortname for enrolled users', 'student');
+
+        $command->addExampleUsage('Sync cohort 5 to course 2 as students', '5 2 --run');
+        $command->addExampleUsage('Sync cohort 5 to course 2 as editing teachers', '5 2 --role=editingteacher --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

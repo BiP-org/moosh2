@@ -34,6 +34,10 @@ class GradeItemCreate52Handler extends BaseHandler
             ->addOption('gradepass', null, InputOption::VALUE_REQUIRED, 'Grade to pass', '0')
             ->addOption('scaleid', null, InputOption::VALUE_REQUIRED, 'Scale ID (when gradetype=2)')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number');
+
+        $command->addExampleUsage('Create a basic grade item in course 2', '"Homework 1" 2 --run');
+        $command->addExampleUsage('Create grade item in a specific category with custom max', '"Final Exam" 2 --category=5 --grademax=200 --run');
+        $command->addExampleUsage('Create scale-based grade item', '"Participation" 2 --gradetype=2 --scaleid=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

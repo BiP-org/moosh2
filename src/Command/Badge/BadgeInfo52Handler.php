@@ -29,6 +29,9 @@ class BadgeInfo52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'The ID of the badge to inspect',
         );
+
+        $command->addExampleUsage('Show details for a badge', '1');
+        $command->addExampleUsage('Show badge details as JSON', '1 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

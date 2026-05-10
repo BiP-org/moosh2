@@ -24,6 +24,11 @@ class FileCheck52Handler extends BaseHandler
             ->addOption('missing', null, InputOption::VALUE_NONE, 'Find DB records with missing files on disk')
             ->addOption('orphaned', null, InputOption::VALUE_NONE, 'Find files on disk not in database')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Limit results', '100');
+
+        $command->addExampleUsage('Default check (missing files)', '');
+        $command->addExampleUsage('Find DB records without files on disk', '--missing');
+        $command->addExampleUsage('Find files on disk not in database', '--orphaned');
+        $command->addExampleUsage('Find first 50 missing files', '--missing --limit=50');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

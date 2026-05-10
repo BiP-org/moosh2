@@ -13,6 +13,9 @@ class RecycleBinList52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('courseid', InputArgument::REQUIRED, 'Course ID');
+
+        $command->addExampleUsage('List recycle bin items in course 2', '2');
+        $command->addExampleUsage('List recycle bin items as JSON', '2 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -38,6 +38,12 @@ class CourseMod52Handler extends BaseHandler
             ->addOption('lang', null, InputOption::VALUE_REQUIRED, 'Force language')
             ->addOption('guest', null, InputOption::VALUE_REQUIRED, 'Enable/disable guest access (1 or 0)')
             ->addOption('selfenrol', null, InputOption::VALUE_REQUIRED, 'Enable/disable self-enrolment (1 or 0)');
+
+        $command->addExampleUsage('Update course full name', '2 --fullname="Updated Course" --run');
+        $command->addExampleUsage('Hide course from listings', '2 --visible=0 --run');
+        $command->addExampleUsage('Move course to a different category', '2 --category=5 --run');
+        $command->addExampleUsage('Enable guest access and self-enrolment', '2 --guest=1 --selfenrol=1 --run');
+        $command->addExampleUsage('Set course start and end dates', '2 --startdate="2025-09-01" --enddate="2026-06-30" --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

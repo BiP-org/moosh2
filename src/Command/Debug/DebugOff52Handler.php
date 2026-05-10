@@ -8,6 +8,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class DebugOff52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Disable developer debug mode', '');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         set_config('debug', 0);

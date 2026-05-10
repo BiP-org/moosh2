@@ -28,6 +28,10 @@ class GroupingMod52Handler extends BaseHandler
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'Set ID number')
             ->addOption('add-group', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Assign group ID to grouping')
             ->addOption('remove-group', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Unassign group ID from grouping');
+
+        $command->addExampleUsage('Rename a grouping', '5 --name="Renamed" --run');
+        $command->addExampleUsage('Assign groups to a grouping', '5 --add-group=10 --add-group=11 --run');
+        $command->addExampleUsage('Unassign a group from a grouping', '5 --remove-group=10 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

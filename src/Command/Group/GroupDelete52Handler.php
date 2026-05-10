@@ -27,6 +27,9 @@ class GroupDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Group ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a group', '5 --run');
+        $command->addExampleUsage('Delete multiple groups', '5 6 7 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

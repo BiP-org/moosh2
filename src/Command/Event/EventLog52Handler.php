@@ -30,6 +30,11 @@ class EventLog52Handler extends BaseHandler
             ->addOption('until', null, InputOption::VALUE_REQUIRED, 'Events before this time (strtotime-parseable)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max results', '50')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Show event IDs only');
+
+        $command->addExampleUsage('Show events for a course', '--courseid=2');
+        $command->addExampleUsage('Show recent events for a user', '--userid=2 --since="1 hour ago"');
+        $command->addExampleUsage('Show 20 most recent forum events', '--component=mod_forum --limit=20');
+        $command->addExampleUsage('Show created events since a date', '--action=created --since="2025-01-01"');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

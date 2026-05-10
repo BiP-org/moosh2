@@ -27,6 +27,10 @@ class SqlSelect52Handler extends BaseHandler
         $command
             ->addArgument('query', InputArgument::REQUIRED, 'SQL SELECT query (use {tablename} for Moodle tables)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Maximum number of rows to return', '0');
+
+        $command->addExampleUsage('Select active users with row limit', '"SELECT * FROM {user} WHERE deleted=0" --limit=10');
+        $command->addExampleUsage('Select course id and shortname', '"SELECT id, shortname FROM {course}"');
+        $command->addExampleUsage('Select log entries as JSON', '"SELECT * FROM {logstore_standard_log}" --limit=5 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

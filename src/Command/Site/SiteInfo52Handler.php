@@ -20,6 +20,9 @@ class SiteInfo52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         // No additional arguments or options — output format comes from global --output.
+
+        $command->addExampleUsage('Show Moodle site overview and statistics', '');
+        $command->addExampleUsage('Output site info as JSON', '-o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -9,6 +9,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class DatabaseCheck52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Verify the database schema is consistent', '');
+        $command->addExampleUsage('Output schema check results as JSON', '-o json');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         global $DB;

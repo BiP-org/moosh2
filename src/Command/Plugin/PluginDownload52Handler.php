@@ -33,6 +33,10 @@ class PluginDownload52Handler extends BaseHandler
             ->addOption('moodle-version', null, InputOption::VALUE_REQUIRED, 'Moodle major version for compatibility (e.g. 4.5). Auto-detected if inside a Moodle directory.')
             ->addOption('url', null, InputOption::VALUE_NONE, 'Only display the download URL, do not download')
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port)');
+
+        $command->addExampleUsage('Download a plugin (auto-detect Moodle version)', 'mod_attendance');
+        $command->addExampleUsage('Download a plugin for a specific Moodle version', 'mod_attendance --moodle-version=4.5');
+        $command->addExampleUsage('Show only the download URL', 'mod_attendance --url');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

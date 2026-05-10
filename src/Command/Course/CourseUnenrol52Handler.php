@@ -26,6 +26,12 @@ class CourseUnenrol52Handler extends BaseHandler
             ->addOption('id', null, InputOption::VALUE_NONE, 'Treat user arguments as numeric IDs instead of usernames')
             ->addOption('plugin', null, InputOption::VALUE_REQUIRED, 'Only unenrol from this enrolment plugin (e.g. manual)')
             ->addOption('role', 'r', InputOption::VALUE_REQUIRED, 'Remove only this role (shortname). If the user has additional roles in the course, they keep the enrolment; if it is the only role, the user is fully unenrolled.');
+
+        $command->addExampleUsage('Dry run — show what would be unenrolled', '2 student01');
+        $command->addExampleUsage('Unenrol multiple users by username', '2 student01 student02 --run');
+        $command->addExampleUsage('Unenrol by numeric user ID', '2 5 --id --run');
+        $command->addExampleUsage('Unenrol only from the manual enrolment plugin', '2 student01 --plugin=manual --run');
+        $command->addExampleUsage('Remove only the student role', '2 student01 -r student --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

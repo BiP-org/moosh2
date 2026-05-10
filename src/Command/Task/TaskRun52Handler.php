@@ -21,6 +21,9 @@ class TaskRun52Handler extends BaseHandler
     {
         $command
             ->addArgument('classname', InputArgument::REQUIRED, 'Task classname to execute');
+
+        $command->addExampleUsage('Run the new-user passwords task', '"\\core\\task\\send_new_user_passwords_task"');
+        $command->addExampleUsage('Run the cache cron task', '"\\core\\task\\cache_cron_task"');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

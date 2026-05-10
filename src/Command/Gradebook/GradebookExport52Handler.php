@@ -35,6 +35,11 @@ class GradebookExport52Handler extends BaseHandler
             ->addOption('decimal-points', null, InputOption::VALUE_REQUIRED, 'Number of decimal places', '2')
             ->addOption('separator', null, InputOption::VALUE_REQUIRED, 'CSV separator: comma, tab, semicolon', 'comma')
             ->addOption('format', 'f', InputOption::VALUE_REQUIRED, 'Export format: txt, ods, xls, xml', 'txt');
+
+        $command->addExampleUsage('Export full gradebook for course 2 (default txt)', '2');
+        $command->addExampleUsage('Export gradebook as XLS', '2 --format=xls');
+        $command->addExampleUsage('Export specific grade items as XLS', '2 1,2,3 --format=xls');
+        $command->addExampleUsage('Export active enrolments as percentages', '2 --only-active --display-type=2');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

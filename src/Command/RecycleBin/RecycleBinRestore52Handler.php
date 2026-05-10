@@ -15,6 +15,8 @@ class RecycleBinRestore52Handler extends BaseHandler
         $command
             ->addArgument('itemid', InputArgument::REQUIRED, 'Recycle bin item ID')
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID');
+
+        $command->addExampleUsage('Restore item 5 from recycle bin in course 2', '5 2 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

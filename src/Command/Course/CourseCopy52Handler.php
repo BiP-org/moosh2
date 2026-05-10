@@ -28,6 +28,10 @@ class CourseCopy52Handler extends BaseHandler
             ->addOption('visible', null, InputOption::VALUE_REQUIRED, 'Visibility (1/0, default: inherit from source)')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number for the new course')
             ->addOption('userdata', null, InputOption::VALUE_REQUIRED, 'Copy user data (1/0, default: 0)', '0');
+
+        $command->addExampleUsage('Copy course 2 into category 1', '2 "CS102 Copy" CS102-COPY 1 --run');
+        $command->addExampleUsage('Copy course 2 hidden in category 1', '2 "CS102 Copy" CS102-COPY 1 --visible=0 --run');
+        $command->addExampleUsage('Copy course 2 including user data', '2 "CS102 Copy" CS102-COPY 1 --userdata=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

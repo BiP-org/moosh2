@@ -26,6 +26,9 @@ class EventFire52Handler extends BaseHandler
             ->addOption('contextid', null, InputOption::VALUE_REQUIRED, 'Context ID')
             ->addOption('objectid', null, InputOption::VALUE_REQUIRED, 'Object ID')
             ->addOption('courseid', null, InputOption::VALUE_REQUIRED, 'Course ID');
+
+        $command->addExampleUsage('Fire course_viewed event for a course', '"\\core\\event\\course_viewed" --courseid=2 --run');
+        $command->addExampleUsage('Fire user_loggedin event with custom data', '"\\core\\event\\user_loggedin" --data=\'{"objectid":2}\' --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

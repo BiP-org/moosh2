@@ -27,6 +27,11 @@ class SqlCli52Handler extends BaseHandler
         return BootstrapLevel::Config;
     }
 
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Open the database CLI shell', '');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         $verbose = new VerboseLogger($output);

@@ -27,6 +27,11 @@ class CourseEnrol52Handler extends BaseHandler
             ->addOption('role', 'r', InputOption::VALUE_REQUIRED, 'Role shortname (default: student)', 'student')
             ->addOption('start-date', null, InputOption::VALUE_REQUIRED, 'Enrolment start date (strtotime-parseable)')
             ->addOption('end-date', null, InputOption::VALUE_REQUIRED, 'Enrolment end date (strtotime-parseable or duration in days)');
+
+        $command->addExampleUsage('Enrol admin into course 2', '2 admin --run');
+        $command->addExampleUsage('Enrol multiple students by username', '2 student1 student2 --role=student --run');
+        $command->addExampleUsage('Enrol by numeric user ID as editing teacher', '2 5 --id --role=editingteacher --run');
+        $command->addExampleUsage('Enrol with explicit start date and 30-day duration', '2 admin --start-date="2025-01-01" --end-date=30 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

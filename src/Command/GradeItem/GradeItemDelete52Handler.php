@@ -27,6 +27,9 @@ class GradeItemDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Grade item ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a single grade item', '5 --run');
+        $command->addExampleUsage('Delete multiple grade items', '5 6 7 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -23,6 +23,9 @@ class ThemeSettingsExport52Handler extends BaseHandler
         $command
             ->addArgument('theme', InputArgument::REQUIRED, 'Theme name to export (e.g. boost)')
             ->addOption('outputdir', null, InputOption::VALUE_REQUIRED, 'Directory for the output archive (default: current directory)');
+
+        $command->addExampleUsage('Export boost theme settings to current directory', 'boost');
+        $command->addExampleUsage('Export boost theme settings to /tmp', 'boost --outputdir=/tmp');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

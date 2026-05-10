@@ -21,6 +21,9 @@ class ProfileFieldExport52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addOption('file', null, InputOption::VALUE_REQUIRED, 'Write output to file instead of stdout');
+
+        $command->addExampleUsage('Export profile fields to stdout', '');
+        $command->addExampleUsage('Export profile fields to a CSV file', '--file=fields.csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

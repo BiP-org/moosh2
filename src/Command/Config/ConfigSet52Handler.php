@@ -23,6 +23,10 @@ class ConfigSet52Handler extends BaseHandler
             ->addArgument('name', InputArgument::REQUIRED, 'Setting name')
             ->addArgument('value', InputArgument::REQUIRED, 'Setting value')
             ->addOption('plugin', null, InputOption::VALUE_REQUIRED, 'Plugin component (e.g. mod_forum). Omit or use "core" for core settings.');
+
+        $command->addExampleUsage('Set the active site theme', 'theme boost --run');
+        $command->addExampleUsage('Enable course completion', 'enablecompletion 1 --run');
+        $command->addExampleUsage('Set a plugin setting', 'maxbytes 512000 --plugin=mod_forum --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

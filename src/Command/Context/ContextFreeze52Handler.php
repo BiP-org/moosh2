@@ -44,6 +44,10 @@ class ContextFreeze52Handler extends BaseHandler
             InputOption::VALUE_NONE,
             'Also freeze all child contexts',
         );
+
+        $command->addExampleUsage('Freeze a context by ID', '42 --run');
+        $command->addExampleUsage('Freeze multiple courses by course ID', '2 3 --level=course --run');
+        $command->addExampleUsage('Freeze a course and all its child contexts', '2 --level=course --children --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

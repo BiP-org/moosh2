@@ -12,6 +12,10 @@ class PhpEval52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('code', InputArgument::REQUIRED, 'PHP code to evaluate');
+
+        $command->addExampleUsage('Print the Moodle wwwroot', '"echo $CFG->wwwroot;"');
+        $command->addExampleUsage('Count user records', '"echo $DB->count_records(\'user\');"');
+        $command->addExampleUsage('Inspect a config value', '"print_r(get_config(\'core\', \'theme\'));"');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

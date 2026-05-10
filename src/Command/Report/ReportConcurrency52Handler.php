@@ -40,6 +40,12 @@ class ReportConcurrency52Handler extends BaseHandler
             ->addOption('work-hours-to', null, InputOption::VALUE_REQUIRED, 'End hour (0-23) for work-hours stats', '0')
             ->addOption('work-days', null, InputOption::VALUE_REQUIRED, 'Working days as digits 1-7 (Mon-Sun)', '1234567')
             ->addOption('timeseries', null, InputOption::VALUE_NONE, 'Output per-period time-series instead of summary');
+
+        $command->addExampleUsage('Report concurrency for the last month', '');
+        $command->addExampleUsage('Report concurrency over a specific date range', '--from=2024-01-01 --to=2024-12-31');
+        $command->addExampleUsage('Use a 15-minute period in a specific timezone', '--period=15 --timezone=Europe/London');
+        $command->addExampleUsage('Restrict work-hours stats to weekdays 8am-5pm', '--work-hours-from=8 --work-hours-to=17 --work-days=12345');
+        $command->addExampleUsage('Output time-series data as CSV', '--timeseries -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

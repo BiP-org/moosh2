@@ -29,6 +29,11 @@ class EnrolMod52Handler extends BaseHandler
             ->addOption('enabled', null, InputOption::VALUE_REQUIRED, 'Set status: 1=enable, 0=disable')
             ->addOption('roleid', null, InputOption::VALUE_REQUIRED, 'Set default role ID')
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Set instance name');
+
+        $command->addExampleUsage('Disable an enrolment instance', '5 --enabled=0 --run');
+        $command->addExampleUsage('Enable an enrolment instance', '5 --enabled=1 --run');
+        $command->addExampleUsage('Change default role on enrolment instance', '5 --roleid=3 --run');
+        $command->addExampleUsage('Rename an enrolment instance', '5 --name="Custom Name" --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

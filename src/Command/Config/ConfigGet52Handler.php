@@ -23,6 +23,11 @@ class ConfigGet52Handler extends BaseHandler
         $command
             ->addArgument('name', InputArgument::OPTIONAL, 'Setting name (omit to show all settings for the plugin)')
             ->addOption('plugin', null, InputOption::VALUE_REQUIRED, 'Plugin component (e.g. mod_forum, core). Omit or use "core" for core settings.');
+
+        $command->addExampleUsage('Show all core configuration settings', '');
+        $command->addExampleUsage('Get a single core setting', 'theme');
+        $command->addExampleUsage('Show all settings for a plugin', '--plugin=mod_forum');
+        $command->addExampleUsage('Get a specific setting from a plugin', 'version --plugin=mod_forum');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

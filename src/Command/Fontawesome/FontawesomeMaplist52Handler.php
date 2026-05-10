@@ -24,6 +24,9 @@ class FontawesomeMaplist52Handler extends BaseHandler
         $command
             ->addArgument('search', InputArgument::OPTIONAL, 'Search term to filter icons')
             ->addOption('component', null, InputOption::VALUE_REQUIRED, 'Filter by component (e.g. core, mod_forum, theme)');
+
+        $command->addExampleUsage('List Font Awesome icon mappings', '');
+        $command->addExampleUsage('List icon mappings as JSON', '-o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

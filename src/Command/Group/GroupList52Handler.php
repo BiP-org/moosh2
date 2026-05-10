@@ -25,6 +25,10 @@ class GroupList52Handler extends BaseHandler
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('grouping', null, InputOption::VALUE_REQUIRED, 'Filter by grouping ID')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only');
+
+        $command->addExampleUsage('List groups in course 2', '2');
+        $command->addExampleUsage('List groups belonging to grouping 5', '2 --grouping=5');
+        $command->addExampleUsage('List groups as CSV', '2 -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

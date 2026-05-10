@@ -23,6 +23,10 @@ class QuestionDelete52Handler extends BaseHandler
         $command
             ->addArgument('questionid', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'Question ID(s) to delete')
             ->addOption('orphaned', null, InputOption::VALUE_NONE, 'Find and delete orphaned questions (missing type records)');
+
+        $command->addExampleUsage('Delete a question by ID', '42 --run');
+        $command->addExampleUsage('Delete multiple questions', '42 43 44 --run');
+        $command->addExampleUsage('Clean up orphaned questions', '--orphaned --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

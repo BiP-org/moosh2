@@ -25,6 +25,10 @@ class CachePurge52Handler extends BaseHandler
         $command
             ->addOption('store', null, InputOption::VALUE_REQUIRED, 'Purge only this cache store')
             ->addOption('definition', null, InputOption::VALUE_REQUIRED, 'Purge only this definition (component/area)');
+
+        $command->addExampleUsage('Purge all caches', '');
+        $command->addExampleUsage('Purge a specific cache store', '--store=myredis');
+        $command->addExampleUsage('Purge a specific cache definition', '--definition=core/string');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

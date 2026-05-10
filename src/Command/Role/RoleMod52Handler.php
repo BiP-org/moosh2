@@ -76,6 +76,11 @@ class RoleMod52Handler extends BaseHandler
                 InputOption::VALUE_REQUIRED,
                 'Disable context levels (comma-separated): system, user, coursecat, course, module, block',
             );
+
+        $command->addExampleUsage('Rename a role', 'teacher --name="Lead Teacher" --run');
+        $command->addExampleUsage('Grant a capability', 'teacher --capability="moodle/course:update=allow" --run');
+        $command->addExampleUsage('Enable context levels for a role', 'teacher --context-on=system,coursecat --run');
+        $command->addExampleUsage('Disable a context level', 'teacher --context-off=block --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

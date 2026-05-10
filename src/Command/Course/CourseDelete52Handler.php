@@ -24,6 +24,9 @@ class CourseDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Course ID(s) to delete',
         );
+
+        $command->addExampleUsage('Dry run — show what would be deleted', '5');
+        $command->addExampleUsage('Delete multiple courses', '5 6 7 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

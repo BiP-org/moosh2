@@ -35,6 +35,11 @@ class BlockCreate52Handler extends BaseHandler
             ->addOption('pagetypepattern', null, InputOption::VALUE_REQUIRED, 'Page type pattern (e.g. course-view-*, mod-*, *)', '*')
             ->addOption('subpagepattern', null, InputOption::VALUE_REQUIRED, 'Subpage pattern (optional)')
             ->addOption('showinsubcontexts', null, InputOption::VALUE_REQUIRED, 'Set showinsubcontexts (1 or 0)');
+
+        $command->addExampleUsage('Add calendar block to course 2', 'calendar_month 2 --run');
+        $command->addExampleUsage('Add online users block to side-post region of course 2', 'online_users 2 --region=side-post --run');
+        $command->addExampleUsage('Add HTML block to all courses in category 5', 'html 5 --mode=category --run');
+        $command->addExampleUsage('Add calendar block to site front page', 'calendar_month 0 --mode=site --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

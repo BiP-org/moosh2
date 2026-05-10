@@ -25,6 +25,10 @@ class AuthList52Handler extends BaseHandler
     {
         $command
             ->addOption('enabled-only', null, InputOption::VALUE_NONE, 'Show only enabled auth plugins');
+
+        $command->addExampleUsage('List all installed auth plugins', '');
+        $command->addExampleUsage('List only enabled auth plugins', '--enabled-only');
+        $command->addExampleUsage('Output auth plugin list as CSV', '-o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

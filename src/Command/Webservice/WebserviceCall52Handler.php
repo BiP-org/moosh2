@@ -31,6 +31,11 @@ class WebserviceCall52Handler extends BaseHandler
             ->addOption('format', 'f', InputOption::VALUE_REQUIRED, 'Response format: json or xml', 'json')
             ->addOption('raw-params', null, InputOption::VALUE_REQUIRED, 'Raw query string parameters')
             ->addOption('pretty', null, InputOption::VALUE_NONE, 'Pretty-print JSON response');
+
+        $command->addExampleUsage('Call a basic site-info webservice', 'core_webservice_get_site_info --token=abc123');
+        $command->addExampleUsage('Pretty-print a course list response', 'core_course_get_courses --token=abc123 --pretty');
+        $command->addExampleUsage('Pass typed parameters as key=value pairs', 'core_user_get_users --token=abc123 "criteria[0][key]=username" "criteria[0][value]=admin"');
+        $command->addExampleUsage('POST with raw query string parameters', 'core_user_create_users --token=abc123 --post --raw-params="users[0][username]=newuser&users[0][password]=Test123!"');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

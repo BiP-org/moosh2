@@ -22,6 +22,9 @@ class ProfileFieldInfo52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('fieldid', InputArgument::REQUIRED, 'Profile field ID');
+
+        $command->addExampleUsage('Show details for profile field 5', '5');
+        $command->addExampleUsage('Show profile field details as JSON', '5 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -24,6 +24,10 @@ class QuestionCategoryList52Handler extends BaseHandler
         $command
             ->addArgument('courseid', InputArgument::REQUIRED, 'Course ID')
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only');
+
+        $command->addExampleUsage('List question categories in course 2', '2');
+        $command->addExampleUsage('List question categories as CSV', '2 -o csv');
+        $command->addExampleUsage('List question category IDs only', '2 --id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -39,6 +39,10 @@ class RoleCreate52Handler extends BaseHandler
             ->addOption('description', null, InputOption::VALUE_REQUIRED, 'Role description')
             ->addOption('archetype', null, InputOption::VALUE_REQUIRED, 'Role archetype (e.g. manager, teacher, student)')
             ->addOption('context', null, InputOption::VALUE_REQUIRED, 'Comma-separated context levels: system,user,coursecat,course,module,block');
+
+        $command->addExampleUsage('Create a basic role', 'tutor --run');
+        $command->addExampleUsage('Create role from teacher archetype', 'tutor --name="Tutor" --archetype=teacher --run');
+        $command->addExampleUsage('Create role with explicit context levels', 'reviewer --name="Reviewer" --context=course,module --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

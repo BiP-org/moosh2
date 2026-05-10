@@ -24,6 +24,9 @@ class PluginReinstall52Handler extends BaseHandler
             InputArgument::REQUIRED,
             'Frankenstyle plugin name (e.g. mod_attendance)',
         );
+
+        $command->addExampleUsage('Reinstall a standard activity module', 'mod_forum');
+        $command->addExampleUsage('Reinstall a local plugin', 'local_myplugin');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

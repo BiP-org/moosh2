@@ -26,6 +26,10 @@ class QuestionImport52Handler extends BaseHandler
             ->addArgument('file', InputArgument::REQUIRED, 'Path to import file')
             ->addArgument('categoryid', InputArgument::REQUIRED, 'Target question category ID')
             ->addOption('format', 'f', InputOption::VALUE_REQUIRED, 'Import format: xml, gift, or aiken', 'xml');
+
+        $command->addExampleUsage('Import questions from Moodle XML', 'questions.xml 1');
+        $command->addExampleUsage('Import questions from a GIFT file', 'questions.gift 1 --format=gift');
+        $command->addExampleUsage('Import questions from an Aiken file', 'quiz.aiken 1 --format=aiken');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

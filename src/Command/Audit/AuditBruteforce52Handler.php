@@ -31,6 +31,12 @@ class AuditBruteforce52Handler extends BaseHandler
             ->addOption('ip', null, InputOption::VALUE_REQUIRED, 'Filter by IP address(es), comma-separated')
             ->addOption('password-policy', null, InputOption::VALUE_NONE, 'Show current password policy settings')
             ->addOption('targeted-users', null, InputOption::VALUE_NONE, 'Show usernames that were targeted by failed logins');
+
+        $command->addExampleUsage('Detect brute-force attempts in the last 30 days', '');
+        $command->addExampleUsage('Use a 90-day window with a lower threshold', '--days=90 --min-attempts=5');
+        $command->addExampleUsage('Filter by a specific IP address', '--ip=192.168.1.100');
+        $command->addExampleUsage('Show current password policy settings', '--password-policy');
+        $command->addExampleUsage('List targeted usernames as CSV', '--targeted-users -o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

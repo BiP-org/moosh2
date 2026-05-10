@@ -24,6 +24,7 @@ class SessionKillCommand extends BaseCommand
         $this->setName('session:kill')
             ->setDescription('Destroy all user sessions')
             ->setHelp('Destroys all active sessions, forcing all users to re-login. Requires --run.');
+        $this->handler->configureCommand($this);
     }
 
     protected function getActiveHandler(): BaseHandler { return $this->handler; }

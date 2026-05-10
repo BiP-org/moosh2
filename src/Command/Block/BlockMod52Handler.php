@@ -30,6 +30,10 @@ class BlockMod52Handler extends BaseHandler
             ->addOption('weight', null, InputOption::VALUE_REQUIRED, 'Set weight/position')
             ->addOption('pagetypepattern', null, InputOption::VALUE_REQUIRED, 'Change page type pattern')
             ->addOption('showinsubcontexts', null, InputOption::VALUE_REQUIRED, 'Set showinsubcontexts (1 or 0)');
+
+        $command->addExampleUsage('Move block instance 5 to side-post region', '5 --region=side-post --run');
+        $command->addExampleUsage('Set weight/position of block instance 5', '5 --weight=3 --run');
+        $command->addExampleUsage('Enable showinsubcontexts on multiple block instances', '5 6 --showinsubcontexts=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

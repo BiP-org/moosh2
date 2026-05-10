@@ -24,6 +24,9 @@ class SearchQuestionId52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addArgument('questionid', InputArgument::REQUIRED, 'Question ID to search for');
+
+        $command->addExampleUsage('Find all references to a question ID', '42');
+        $command->addExampleUsage('Output search results as JSON', '42 -o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

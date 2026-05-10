@@ -24,6 +24,9 @@ class EventDiscover52Handler extends BaseHandler
     {
         $command
             ->addArgument('path', InputArgument::REQUIRED, 'Path to the Moodle source directory');
+
+        $command->addExampleUsage('Scan a Moodle source tree for event classes', '/path/to/moodle');
+        $command->addExampleUsage('Scan a local Moodle clone', '~/git/moodle/public');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

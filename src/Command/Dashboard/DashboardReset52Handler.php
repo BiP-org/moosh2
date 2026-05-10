@@ -8,6 +8,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class DashboardReset52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Reset all user dashboards to the default layout', '--run');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         global $CFG;

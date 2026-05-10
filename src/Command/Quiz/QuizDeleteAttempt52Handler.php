@@ -27,6 +27,9 @@ class QuizDeleteAttempt52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Quiz course module ID(s)',
         );
+
+        $command->addExampleUsage('Delete all attempts for one quiz', '42 --run');
+        $command->addExampleUsage('Delete attempts for several quizzes', '42 43 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

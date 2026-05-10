@@ -28,6 +28,10 @@ class BackupEmptyFiles52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::REQUIRED, 'Path to the .mbz backup file')
             ->addOption('output-file', null, InputOption::VALUE_REQUIRED, 'Write to a different file instead of overwriting the original');
+
+        $command->addExampleUsage('Dry-run preview of files that would be emptied', 'backup.mbz');
+        $command->addExampleUsage('Truncate data files in place', '--run backup.mbz');
+        $command->addExampleUsage('Write a slimmed copy to a new file', '--run --output-file=slim.mbz backup.mbz');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -8,6 +8,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class MaintenanceOff52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Disable maintenance mode', '');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         set_config('maintenance_message', '');

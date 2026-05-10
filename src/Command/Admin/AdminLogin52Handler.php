@@ -20,6 +20,12 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class AdminLogin52Handler extends BaseHandler
 {
+    public function configureCommand(Command $command): void
+    {
+        $command->addExampleUsage('Create an admin session locally', '');
+        $command->addExampleUsage('Create the session via the web server', '--web-login');
+    }
+
     public function handle(InputInterface $input, OutputInterface $output): int
     {
         global $CFG;

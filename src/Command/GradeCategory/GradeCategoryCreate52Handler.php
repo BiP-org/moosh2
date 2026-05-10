@@ -31,6 +31,9 @@ class GradeCategoryCreate52Handler extends BaseHandler
             ->addOption('aggregation', null, InputOption::VALUE_REQUIRED, 'Aggregation type (0=mean, 2=median, 4=min, 6=max, 10=weighted, 13=sum)', '13')
             ->addOption('keephigh', null, InputOption::VALUE_REQUIRED, 'Keep only N highest grades', '0')
             ->addOption('droplow', null, InputOption::VALUE_REQUIRED, 'Drop N lowest grades', '0');
+
+        $command->addExampleUsage('Create a grade category in course 2', '"Assignments" 2 --run');
+        $command->addExampleUsage('Create nested category with mean aggregation', '"Exams" 2 --parent=3 --aggregation=0 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -14,6 +14,10 @@ class SystemCheck52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command->addOption('status', null, InputOption::VALUE_REQUIRED, 'Filter by status: ok, info, warning, critical, error, unknown');
+
+        $command->addExampleUsage('Run all system health and security checks', '');
+        $command->addExampleUsage('Show only checks at warning level', '--status=warning');
+        $command->addExampleUsage('Show only critical-level checks', '--status=critical');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

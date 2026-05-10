@@ -30,6 +30,11 @@ class CohortMod52Handler extends BaseHandler
             ->addOption('add-member', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Add member by username or user ID')
             ->addOption('remove-member', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Remove member by username or user ID')
             ->addOption('import', null, InputOption::VALUE_REQUIRED, 'Import members from CSV file (username or email column)');
+
+        $command->addExampleUsage('Rename a cohort', '5 --name="New Name" --run');
+        $command->addExampleUsage('Add multiple members to a cohort', '5 --add-member=admin --add-member=student01 --run');
+        $command->addExampleUsage('Remove a member from a cohort', '5 --remove-member=student01 --run');
+        $command->addExampleUsage('Import cohort members from a CSV file', '5 --import=members.csv --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

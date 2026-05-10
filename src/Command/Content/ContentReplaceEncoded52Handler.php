@@ -24,6 +24,9 @@ class ContentReplaceEncoded52Handler extends BaseHandler
             ->addArgument('replace', InputArgument::REQUIRED, 'Replacement text')
             ->addArgument('table', InputArgument::REQUIRED, 'Database table name (without prefix)')
             ->addArgument('column', InputArgument::REQUIRED, 'Column containing base64-encoded serialized data');
+
+        $command->addExampleUsage('Dry run — preview replacement in block_instances.configdata', '"old-domain.com" "new-domain.com" block_instances configdata');
+        $command->addExampleUsage('Replace text in block_instances.configdata', '"old-domain.com" "new-domain.com" block_instances configdata --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

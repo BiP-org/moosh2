@@ -44,7 +44,16 @@ class UserListCommand extends BaseCommand
         $this
             ->setName('user:list')
             ->setDescription('List Moodle users')
-            ->setHelp('Lists users matching optional search criteria with configurable output fields and format.');
+            ->setHelp(<<<'HELP'
+                Lists Moodle users with optional filtering and configurable output.
+
+                Filter by SQL fragments (positional arguments or --sql), course enrolment
+                (--course plus --course-role, --course-enrol-plugin, or --course-inactive),
+                boolean flags (--is / --is-not for suspended, confirmed, deleted), or numeric
+                metrics (--number courses-enrolled>10).
+
+                Customize output with --fields, --sort, --limit, and --id-only.
+                HELP);
 
         $this->handler->configureCommand($this);
     }

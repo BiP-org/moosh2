@@ -26,6 +26,10 @@ class ThemeInfo52Handler extends BaseHandler
             InputArgument::OPTIONAL,
             'Theme name to show detailed info for (e.g. boost). If omitted, shows an overview.',
         );
+
+        $command->addExampleUsage('Show site-wide theme overview', '');
+        $command->addExampleUsage('Show detailed info for the boost theme', 'boost');
+        $command->addExampleUsage('Output overview as JSON', '-o json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -31,6 +31,8 @@ class ContextRebuild52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         // No arguments or options needed.
+
+        $command->addExampleUsage('Rebuild all context paths and clean up orphaned instances', '');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

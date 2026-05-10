@@ -40,6 +40,10 @@ class RoleList52Handler extends BaseHandler
             InputOption::VALUE_NONE,
             'Output only role IDs, space-separated',
         );
+
+        $command->addExampleUsage('List all roles as a table', '');
+        $command->addExampleUsage('List all roles as CSV', '-o csv');
+        $command->addExampleUsage('Output only role IDs', '--id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

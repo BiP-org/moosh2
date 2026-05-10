@@ -26,6 +26,11 @@ class QuestionList52Handler extends BaseHandler
             ->addOption('id-only', 'i', InputOption::VALUE_NONE, 'Display IDs only')
             ->addOption('category', null, InputOption::VALUE_REQUIRED, 'Filter by question category ID')
             ->addOption('qtype', null, InputOption::VALUE_REQUIRED, 'Filter by question type (multichoice, truefalse, etc.)');
+
+        $command->addExampleUsage('List questions in course 2', '2');
+        $command->addExampleUsage('List questions in a specific category', '2 --category=5');
+        $command->addExampleUsage('List multiple-choice questions only', '2 --qtype=multichoice');
+        $command->addExampleUsage('Print question IDs only', '2 --id-only');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

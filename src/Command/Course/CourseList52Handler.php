@@ -138,6 +138,14 @@ class CourseList52Handler extends BaseHandler
             ->addOption('stdin', null, InputOption::VALUE_NONE, 'Read space-separated course IDs from stdin to filter results');
         $this->configureBooleanFilters($command);
         $this->configureNumericFilters($command);
+
+        $command->addExampleUsage('List all courses', '');
+        $command->addExampleUsage('List visible non-empty courses', '--visible=yes --empty=no');
+        $command->addExampleUsage('List courses in a category (and subcategories)', '--category=5');
+        $command->addExampleUsage('Output as JSON', '-o json');
+        $command->addExampleUsage('Show only course IDs', '--id-only');
+        $command->addExampleUsage('Show specific fields', '--fields=id,shortname,fullname');
+        $command->addExampleUsage('Filter by SQL WHERE fragment', "--sql=\"shortname LIKE 'MATH%'\"");
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

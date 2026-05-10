@@ -27,6 +27,9 @@ class QuestionCategoryDelete52Handler extends BaseHandler
             InputArgument::REQUIRED | InputArgument::IS_ARRAY,
             'Question category ID(s) to delete',
         );
+
+        $command->addExampleUsage('Delete a question category', '5 --run');
+        $command->addExampleUsage('Delete multiple question categories', '5 6 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

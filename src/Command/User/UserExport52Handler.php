@@ -31,6 +31,11 @@ class UserExport52Handler extends BaseHandler
             ->addOption('userid', null, InputOption::VALUE_REQUIRED, 'Export single user by username (or by ID with --by-id)')
             ->addOption('by-id', null, InputOption::VALUE_NONE, 'Treat --userid value as numeric ID')
             ->addOption('course', null, InputOption::VALUE_REQUIRED, 'Export users enrolled in this course ID');
+
+        $command->addExampleUsage('Export all users to stdout as CSV', '');
+        $command->addExampleUsage('Export all users to a CSV file', 'users.csv');
+        $command->addExampleUsage('Export a single user by username', '--userid=admin');
+        $command->addExampleUsage('Export users enrolled in course 2', '--course=2');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

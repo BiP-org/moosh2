@@ -24,6 +24,10 @@ class UserLogin52Handler extends BaseHandler
         $command
             ->addArgument('username', InputArgument::REQUIRED, 'Username or user ID (with --id)')
             ->addOption('id', null, InputOption::VALUE_NONE, 'Treat argument as numeric user ID');
+
+        $command->addExampleUsage('Login as the admin user', 'admin');
+        $command->addExampleUsage('Login as a regular user by username', 'student01');
+        $command->addExampleUsage('Login by numeric user ID', '5 --id');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

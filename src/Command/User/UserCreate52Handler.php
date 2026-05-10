@@ -34,6 +34,10 @@ class UserCreate52Handler extends BaseHandler
             ->addOption('city', null, InputOption::VALUE_REQUIRED, 'City')
             ->addOption('country', null, InputOption::VALUE_REQUIRED, 'Country code')
             ->addOption('idnumber', null, InputOption::VALUE_REQUIRED, 'ID number');
+
+        $command->addExampleUsage('Create a single user with default password', 'john --run');
+        $command->addExampleUsage('Create a user with full profile details', 'john --email=john@example.com --firstname=John --lastname=Doe --run');
+        $command->addExampleUsage('Create multiple users with a shared password', 'student01 student02 student03 --password=Test123! --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

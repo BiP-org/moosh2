@@ -23,6 +23,11 @@ class CourseTop52Handler extends BaseHandler
         $command
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Number of top courses to show', '10')
             ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Look back this many days', '30');
+
+        $command->addExampleUsage('Top 10 courses over the last 30 days', '');
+        $command->addExampleUsage('Top 20 courses', '--limit=20');
+        $command->addExampleUsage('Top 5 courses over the last week', '--days=7 --limit=5');
+        $command->addExampleUsage('Output as CSV', '-o csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

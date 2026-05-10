@@ -36,6 +36,12 @@ class UserImportPictures52Handler extends BaseHandler
             ->addOption('csv', null, InputOption::VALUE_REQUIRED, 'CSV file mapping filenames to user identifiers')
             ->addOption('report', null, InputOption::VALUE_NONE, 'List all users and their picture status')
             ->addOption('report-missing', null, InputOption::VALUE_NONE, 'List only users without a profile picture');
+
+        $command->addExampleUsage('Import pictures matched by username', '/path/to/pictures --run');
+        $command->addExampleUsage('Match filenames against email addresses', '/path/to/pictures --match=email --run');
+        $command->addExampleUsage('Overwrite existing user pictures', '/path/to/pictures --overwrite --run');
+        $command->addExampleUsage('Report picture status for all users', '--report');
+        $command->addExampleUsage('List only users without a picture', '--report-missing');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

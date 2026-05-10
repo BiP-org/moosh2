@@ -32,6 +32,9 @@ class CategoryDelete52Handler extends BaseHandler
                 InputOption::VALUE_REQUIRED,
                 'Move courses and subcategories to this category ID instead of deleting them',
             );
+
+        $command->addExampleUsage('Delete a category and its contents', '5 --run');
+        $command->addExampleUsage('Delete categories, moving courses elsewhere', '5 6 --move-to=1 --run');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

@@ -34,6 +34,11 @@ class CacheInfo52Handler extends BaseHandler
             ->addOption('definitions', null, InputOption::VALUE_NONE, 'Show cache definitions')
             ->addOption('mappings', null, InputOption::VALUE_NONE, 'Show mode and definition mappings')
             ->addOption('locks', null, InputOption::VALUE_NONE, 'Show lock configuration');
+
+        $command->addExampleUsage('Show all cache configuration', '');
+        $command->addExampleUsage('Show only configured cache stores', '--stores');
+        $command->addExampleUsage('Show cache definitions as JSON', '--definitions -o json');
+        $command->addExampleUsage('Show only mode and definition mappings', '--mappings');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

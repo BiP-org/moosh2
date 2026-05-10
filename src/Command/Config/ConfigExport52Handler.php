@@ -23,6 +23,11 @@ class ConfigExport52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::OPTIONAL, 'Output file path (default: stdout)')
             ->addOption('plugin', null, InputOption::VALUE_REQUIRED, 'Plugin component (e.g. mod_forum) or "all" for all plugins');
+
+        $command->addExampleUsage('Export core configuration to stdout', '');
+        $command->addExampleUsage('Export core configuration to a file', 'settings.json');
+        $command->addExampleUsage('Export configuration for a single plugin', '--plugin=mod_forum');
+        $command->addExampleUsage('Export all core and plugin configuration to a file', '--plugin=all all.json');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

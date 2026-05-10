@@ -25,6 +25,8 @@ class LogUnpack52Handler extends BaseHandler
         $command
             ->addArgument('file', InputArgument::REQUIRED, 'Path to the compact CSV file (without id column)')
             ->addArgument('output', InputArgument::REQUIRED, 'Path to the output CSV file (with restored IDs)');
+
+        $command->addExampleUsage('Restore IDs from a compact log export', 'compact-logs.csv full-logs.csv');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int

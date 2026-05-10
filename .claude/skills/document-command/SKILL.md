@@ -1,7 +1,6 @@
 ---
 name: document-command
 description: Document a moosh command — update the PHP Command/Handler classes and the HTML docs data file. Use when adding or editing command help text, examples, or command metadata.
-paths: src/Command/**, documentation/src/data/commands.ts
 ---
 
 # document-command
