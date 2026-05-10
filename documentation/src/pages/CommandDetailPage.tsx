@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -5,6 +6,38 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbS
 import { CodeBlock } from '@/components/CodeBlock';
 import { commands } from '@/data/commands';
 import { categories } from '@/data/categories';
+
+/**
+ * Render help-text as ReactNodes, turning URLs into clickable links.
+ * Whitespace (including newlines) is preserved by the surrounding
+ * `whitespace-pre-wrap` class on the wrapping element.
+ */
+function renderHelp(text: string): ReactNode[] {
+  const parts = text.split(/(https?:\/\/\S+)/g);
+  return parts.map((part, i) => {
+    if (!/^https?:\/\//.test(part)) {
+      return <Fragment key={i}>{part}</Fragment>;
+    }
+    // Strip a single trailing punctuation character so end-of-sentence
+    // periods, commas etc. don't get sucked into the URL.
+    const m = part.match(/^(.*?)([.,;:!?)\]]?)$/);
+    const url = m ? m[1] : part;
+    const trailing = m ? m[2] : '';
+    return (
+      <Fragment key={i}>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline break-all"
+        >
+          {url}
+        </a>
+        {trailing}
+      </Fragment>
+    );
+  });
+}
 
 export function CommandDetailPage() {
   const { category, command } = useParams<{ category: string; command: string }>();
@@ -60,7 +93,7 @@ export function CommandDetailPage() {
       {cmd.help && (
         <section className="space-y-2">
           <h2 className="text-xl font-semibold">Description</h2>
-          <p className="text-muted-foreground whitespace-pre-wrap">{cmd.help}</p>
+          <p className="text-muted-foreground whitespace-pre-wrap">{renderHelp(cmd.help)}</p>
         </section>
       )}
 
