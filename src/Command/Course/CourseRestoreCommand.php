@@ -32,7 +32,20 @@ class CourseRestoreCommand extends BaseCommand
         $this
             ->setName('course:restore')
             ->setDescription('Restore a course from a backup file')
-            ->setHelp('Restores a course from a .mbz backup file into a category or existing course. Requires --run to execute.');
+            ->setHelp(<<<'HELP'
+                Restores a course from a .mbz backup file into a category (creating a new
+                course) or into an existing course (adding to it, or overwriting it with
+                --overwrite).
+
+                Use --course-startdate to set a new start date when restoring. Provide an
+                ISO-8601 date or date-time (e.g. 2026-09-01 or 2026-09-01T00:00:00Z).
+                Moodle shifts every date in the course (assignments, due dates, calendar
+                events, quiz availabilities, etc.) by the difference between the original
+                start date and the value supplied — the same behaviour as the
+                "Start date" field on the restore wizard's schema step.
+
+                Requires --run to execute.
+                HELP);
         $this->handler->configureCommand($this);
     }
 

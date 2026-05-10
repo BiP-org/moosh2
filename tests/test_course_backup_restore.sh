@@ -97,6 +97,40 @@ run_moosh course:restore -p "$MOODLE_PATH" --existing "$BACKUP_FILE" 3
 assert_output_contains "Existing dry run" "add to existing" "$OUT"
 echo ""
 
+echo "--- Test: Dry run shows new start date ---"
+run_moosh course:restore -p "$MOODLE_PATH" --course-startdate=2030-06-01T00:00:00Z "$BACKUP_FILE" 2
+assert_output_contains "Shows dry run" "Dry run" "$OUT"
+assert_output_contains "Shows new start date" "New start date: 2030-06-01" "$OUT"
+echo ""
+
+echo "--- Test: Invalid ISO-8601 date is rejected ---"
+run_moosh course:restore -p "$MOODLE_PATH" --course-startdate=not-a-date "$BACKUP_FILE" 2
+EXIT_CODE=$?
+assert_exit_code "Exit code 1 for bad date" 1 "$EXIT_CODE"
+assert_output_contains "Invalid date error" "Invalid --course-startdate" "$OUT"
+echo ""
+
+echo "--- Test: Restore with new start date applies offset ---"
+NEW_START_ISO="2030-06-01T00:00:00Z"
+EXPECTED_TS=$(date -u -d "$NEW_START_ISO" +%s)
+run_moosh course:restore -p "$MOODLE_PATH" --run --course-startdate="$NEW_START_ISO" "$BACKUP_FILE" 2
+assert_output_contains "Shows restored" "Restored course" "$OUT"
+RESTORED_ID=$(echo "$OUT" | grep -oP 'Restored course ID=\K[0-9]+' | tail -1)
+if [ -n "$RESTORED_ID" ]; then
+    ACTUAL_TS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT startdate FROM mdl_course WHERE id=$RESTORED_ID;" 2>/dev/null)
+    if [ "$ACTUAL_TS" = "$EXPECTED_TS" ]; then
+        echo "  PASS: Course $RESTORED_ID startdate matches new value ($ACTUAL_TS = $EXPECTED_TS)"
+        ((PASS++))
+    else
+        echo "  FAIL: Course $RESTORED_ID startdate mismatch (got $ACTUAL_TS, expected $EXPECTED_TS)"
+        ((FAIL++))
+    fi
+else
+    echo "  FAIL: Could not extract restored course ID"
+    ((FAIL++))
+fi
+echo ""
+
 echo "--- Test: Nonexistent file ---"
 run_moosh course:restore -p "$MOODLE_PATH" /tmp/nonexistent.mbz 2
 EXIT_CODE=$?
@@ -109,6 +143,7 @@ run_moosh course:restore -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Restore a course" "$OUT"
 assert_output_contains "Help shows --existing" "--existing" "$OUT"
 assert_output_contains "Help shows --overwrite" "--overwrite" "$OUT"
+assert_output_contains "Help shows --course-startdate" "--course-startdate" "$OUT"
 echo ""
 
 

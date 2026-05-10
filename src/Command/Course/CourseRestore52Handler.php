@@ -24,7 +24,16 @@ class CourseRestore52Handler extends BaseHandler
             ->addArgument('file', InputArgument::REQUIRED, 'Path to .mbz backup file')
             ->addArgument('categoryid', InputArgument::REQUIRED, 'Target category ID (or course ID with --existing)')
             ->addOption('existing', 'e', InputOption::VALUE_NONE, 'Restore into existing course (second arg is course ID)')
-            ->addOption('overwrite', null, InputOption::VALUE_NONE, 'Overwrite existing course content (implies --existing)');
+            ->addOption('overwrite', null, InputOption::VALUE_NONE, 'Overwrite existing course content (implies --existing)')
+            ->addOption('course-startdate', null, InputOption::VALUE_REQUIRED,
+                'New course start date as ISO-8601 (e.g. 2026-09-01 or 2026-09-01T00:00:00Z). All course dates are shifted by the offset to the original start date.');
+
+        $command->addExampleUsage('Restore into category 1 as a new course', 'backup.mbz 1 --run');
+        $command->addExampleUsage('Restore into existing course 5 (add)', 'backup.mbz 5 --existing --run');
+        $command->addExampleUsage('Overwrite existing course 5', 'backup.mbz 5 --overwrite --run');
+        $command->addExampleUsage('Restore with new start date (date only)', 'backup.mbz 1 --course-startdate=2026-09-01 --run');
+        $command->addExampleUsage('Restore with new start date (full ISO-8601)', 'backup.mbz 1 --course-startdate=2026-09-01T08:00:00Z --run');
+        $command->addExampleUsage('Dry run — show what would happen', 'backup.mbz 1');
     }
 
     public function handle(InputInterface $input, OutputInterface $output): int
@@ -37,9 +46,20 @@ class CourseRestore52Handler extends BaseHandler
         $targetId = (int) $input->getArgument('categoryid');
         $existing = $input->getOption('existing');
         $overwrite = $input->getOption('overwrite');
+        $startdateRaw = $input->getOption('course-startdate');
 
         if ($overwrite) {
             $existing = true;
+        }
+
+        $newStartdate = null;
+        if ($startdateRaw !== null) {
+            try {
+                $newStartdate = (new \DateTimeImmutable($startdateRaw))->getTimestamp();
+            } catch (\Exception $e) {
+                $output->writeln("<error>Invalid --course-startdate value: $startdateRaw (expected ISO-8601 like 2026-09-01 or 2026-09-01T00:00:00Z)</error>");
+                return Command::FAILURE;
+            }
         }
 
         require_once $CFG->dirroot . '/backup/util/includes/backup_includes.php';
@@ -120,6 +140,9 @@ class CourseRestore52Handler extends BaseHandler
             } else {
                 $output->writeln("  Target: new course in category ID=$categoryId");
             }
+            if ($newStartdate !== null) {
+                $output->writeln('  New start date: ' . date('c', $newStartdate));
+            }
             // Cleanup temp
             \fulldelete($path);
             return Command::SUCCESS;
@@ -156,6 +179,20 @@ class CourseRestore52Handler extends BaseHandler
 
         if ($rc->get_status() == \backup::STATUS_REQUIRE_CONV) {
             $rc->convert();
+        }
+
+        if ($newStartdate !== null) {
+            $plan = $rc->get_plan();
+            if ($plan->setting_exists('course_startdate')) {
+                $setting = $plan->get_setting('course_startdate');
+                if ($setting->get_status() === \base_setting::LOCKED_BY_CONFIG) {
+                    $setting->set_status(\base_setting::NOT_LOCKED);
+                }
+                $setting->set_value($newStartdate);
+                $verbose->step('Set new course start date: ' . date('c', $newStartdate));
+            } else {
+                $output->writeln('<comment>Warning: backup has no course_startdate setting; --course-startdate ignored.</comment>');
+            }
         }
 
         $verbose->step('Running pre-check');
