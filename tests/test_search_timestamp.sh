@@ -21,6 +21,11 @@ echo ""
 # Get a known timestamp from student01
 KNOWN_TS=$($PHP -r "define('CLI_SCRIPT',true); require('$MOODLE_PATH/config.php'); global \$DB; \$r = \$DB->get_record_sql('SELECT timecreated FROM {user} WHERE username = ?', ['student01']); echo \$r->timecreated;" 2>/dev/null)
 echo "Known timestamp (student01 timecreated): $KNOWN_TS"
+
+# Get a timestamp shared by the course and enrol tables (test data drift means
+# these are typically a second or two before user creation timestamps).
+ENROL_TS=$($PHP -r "define('CLI_SCRIPT',true); require('$MOODLE_PATH/config.php'); global \$DB; \$r = \$DB->get_record_sql('SELECT timecreated FROM {enrol} ORDER BY id LIMIT 1'); echo \$r->timecreated;" 2>/dev/null)
+echo "Enrol/course timestamp: $ENROL_TS"
 echo ""
 
 # ── Exact timestamp search (CSV) ─────────────────────────────────
@@ -38,8 +43,8 @@ echo ""
 # ── Finds across multiple tables ──────────────────────────────────
 
 echo "--- Test: Finds across multiple tables ---"
-run_moosh search:timestamp -p "$MOODLE_PATH" $KNOWN_TS -o csv
-# Should find in user, course, enrol, etc.
+run_moosh search:timestamp -p "$MOODLE_PATH" $ENROL_TS -o csv
+# Should find in course, enrol, and related tables for this shared timestamp.
 assert_output_contains "Found in course table" "course," "$OUT"
 assert_output_contains "Found in enrol table" "enrol," "$OUT"
 echo ""
