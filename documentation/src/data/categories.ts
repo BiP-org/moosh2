@@ -40,7 +40,7 @@ export const categories: Category[] = [
   { slug: 'profilefield', label: 'Profile Field', description: 'Custom user profile field management' },
   { slug: 'question', label: 'Question', description: 'Question bank management' },
   { slug: 'questioncategory', label: 'Question Category', description: 'Question category management' },
-  { slug: 'quiz', label: 'Quiz', description: 'Quiz attempt management' },
+  { slug: 'quiz', label: 'Quiz', description: 'Quiz attempts, slot management, and export' },
   { slug: 'recyclebin', label: 'Recycle Bin', description: 'Recycle bin inspection and management' },
   { slug: 'report', label: 'Report', description: 'Usage and concurrency reports' },
   { slug: 'role', label: 'Role', description: 'Role creation, import/export, and management' },
