@@ -104,6 +104,16 @@ Handlers can override the command's bootstrap level by implementing `getBootstra
 - PHPDoc copyright/license headers on all files
 - No dev tooling (phpunit, phpcs) configured yet — keep changes manually consistent
 
+## Command naming
+
+Command names follow the pattern:
+category:command-name
+
+That is category, then : then command name with each word split with -
+For example:
+quiz:question-add
+
+
 ## Adding a New Command
 
 1. Create a directory under `src/Command/` for the command group (e.g., `User/`)

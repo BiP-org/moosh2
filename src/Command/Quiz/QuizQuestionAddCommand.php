@@ -34,7 +34,7 @@ class QuizQuestionAddCommand extends BaseCommand
     protected function configure(): void
     {
         $this
-            ->setName('quiz:question:add')
+            ->setName('quiz:question-add')
             ->setDescription('Add a question from the question bank to a quiz')
             ->setHelp(<<<'HELP'
                 Adds an existing question from the question bank to a quiz, creating a new
