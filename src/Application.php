@@ -87,6 +87,7 @@ use Moosh2\Command\Log\LogUnpackCommand;
 use Moosh2\Command\Make\MakeBuildCommand;
 use Moosh2\Command\Backup\BackupEmptyFilesCommand;
 use Moosh2\Command\Backup\BackupInfoCommand;
+use Moosh2\Command\Instance\InstanceInfoCommand;
 use Moosh2\Command\Group\GroupCreateCommand;
 use Moosh2\Command\Group\GroupDeleteCommand;
 use Moosh2\Command\Group\GroupListCommand;
@@ -408,6 +409,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new GradeItemDeleteCommand($this->moodleVersion));
         $this->addCommand(new GradeItemListCommand($this->moodleVersion));
         $this->addCommand(new GradeItemModCommand($this->moodleVersion));
+        $this->addCommand(new InstanceInfoCommand($this->moodleVersion));
         $this->addCommand(new GroupCreateCommand($this->moodleVersion));
         $this->addCommand(new GroupDeleteCommand($this->moodleVersion));
         $this->addCommand(new GroupListCommand($this->moodleVersion));

@@ -31,6 +31,7 @@ export const categories: Category[] = [
   { slug: 'gradeitem', label: 'Grade Item', description: 'Grade item management' },
   { slug: 'group', label: 'Group', description: 'Course group management' },
   { slug: 'grouping', label: 'Grouping', description: 'Course grouping management' },
+  { slug: 'instance', label: 'Instance', description: 'Activity instance lookup' },
   { slug: 'log', label: 'Log', description: 'Log export and unpacking' },
   { slug: 'maintenance', label: 'Maintenance', description: 'Maintenance mode toggle' },
   { slug: 'make', label: 'Make', description: 'Assemble a Moodle codebase from a manifest, like drush make' },
