@@ -184,6 +184,38 @@ else
 fi
 echo ""
 
+echo "--- Test: Dry run shows --without-users notice ---"
+run_moosh course:restore -p "$MOODLE_PATH" --without-users "$BACKUP_FILE" 2
+assert_output_contains "Shows dry run" "Dry run" "$OUT"
+assert_output_contains "Mentions excluding user data" "Excluding user data" "$OUT"
+echo ""
+
+echo "--- Test: Restore --without-users produces no user enrolments ---"
+# Sanity-check the backup file does contain enrolled users (so the negative result is meaningful).
+SRC_ENROLMENTS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = 2;" 2>/dev/null)
+if [ "${SRC_ENROLMENTS:-0}" -lt 1 ]; then
+    echo "  FAIL: source course 2 has no user_enrolments — backup wouldn't contain users either, skipping"
+    ((FAIL++))
+else
+    run_moosh course:restore -p "$MOODLE_PATH" --run --without-users "$BACKUP_FILE" 2
+    assert_output_contains "Shows restored" "Restored course" "$OUT"
+    RESTORED_ID=$(echo "$OUT" | grep -oP 'Restored course ID=\K[0-9]+' | tail -1)
+    if [ -n "$RESTORED_ID" ]; then
+        DST_ENROLMENTS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = $RESTORED_ID;" 2>/dev/null)
+        if [ "${DST_ENROLMENTS:-X}" = "0" ]; then
+            echo "  PASS: restored course $RESTORED_ID has 0 user enrolments (source had $SRC_ENROLMENTS)"
+            ((PASS++))
+        else
+            echo "  FAIL: expected 0 user enrolments in restored course $RESTORED_ID, got $DST_ENROLMENTS"
+            ((FAIL++))
+        fi
+    else
+        echo "  FAIL: Could not extract restored course ID"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
 echo "--- Test: Nonexistent file ---"
 run_moosh course:restore -p "$MOODLE_PATH" /tmp/nonexistent.mbz 2
 EXIT_CODE=$?
@@ -197,6 +229,7 @@ assert_output_contains "Help description" "Restore a course" "$OUT"
 assert_output_contains "Help shows --existing" "--existing" "$OUT"
 assert_output_contains "Help shows --overwrite" "--overwrite" "$OUT"
 assert_output_contains "Help shows --course-startdate" "--course-startdate" "$OUT"
+assert_output_contains "Help shows --without-users" "--without-users" "$OUT"
 echo ""
 
 

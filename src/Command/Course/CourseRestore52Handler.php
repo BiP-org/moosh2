@@ -26,11 +26,14 @@ class CourseRestore52Handler extends BaseHandler
             ->addOption('existing', 'e', InputOption::VALUE_NONE, 'Restore into existing course (second arg is course ID)')
             ->addOption('overwrite', null, InputOption::VALUE_NONE, 'Overwrite existing course content (implies --existing)')
             ->addOption('course-startdate', null, InputOption::VALUE_REQUIRED,
-                'New course start date as ISO-8601 (e.g. 2026-09-01 or 2026-09-01T00:00:00Z). All course dates are shifted by the offset to the original start date.');
+                'New course start date as ISO-8601 (e.g. 2026-09-01 or 2026-09-01T00:00:00Z). All course dates are shifted by the offset to the original start date.')
+            ->addOption('without-users', null, InputOption::VALUE_NONE,
+                'Exclude user data from the restore even when the backup contains it (no users, enrolments, role assignments, comments, badges, completion, logs, or grade histories)');
 
         $command->addExampleUsage('Restore into category 1 as a new course', 'backup.mbz 1 --run');
         $command->addExampleUsage('Restore into existing course 5 (add)', 'backup.mbz 5 --existing --run');
         $command->addExampleUsage('Overwrite existing course 5', 'backup.mbz 5 --overwrite --run');
+        $command->addExampleUsage('Restore without user data', 'backup.mbz 1 --without-users --run');
         $command->addExampleUsage('Restore with new start date (date only)', 'backup.mbz 1 --course-startdate=2026-09-01 --run');
         $command->addExampleUsage('Restore with new start date (full ISO-8601)', 'backup.mbz 1 --course-startdate=2026-09-01T08:00:00Z --run');
         $command->addExampleUsage('Dry run — show what would happen', 'backup.mbz 1');
@@ -47,6 +50,7 @@ class CourseRestore52Handler extends BaseHandler
         $existing = $input->getOption('existing');
         $overwrite = $input->getOption('overwrite');
         $startdateRaw = $input->getOption('course-startdate');
+        $withoutUsers = $input->getOption('without-users');
 
         if ($overwrite) {
             $existing = true;
@@ -143,6 +147,9 @@ class CourseRestore52Handler extends BaseHandler
             if ($newStartdate !== null) {
                 $output->writeln('  New start date: ' . date('c', $newStartdate));
             }
+            if ($withoutUsers) {
+                $output->writeln('  Excluding user data');
+            }
             // Cleanup temp
             \fulldelete($path);
             return Command::SUCCESS;
@@ -193,6 +200,25 @@ class CourseRestore52Handler extends BaseHandler
             } else {
                 $output->writeln('<comment>Warning: backup has no course_startdate setting; --course-startdate ignored.</comment>');
             }
+        }
+
+        if ($withoutUsers) {
+            $plan = $rc->get_plan();
+            if ($plan->setting_exists('users')) {
+                $setting = $plan->get_setting('users');
+                if ($setting->get_status() === \base_setting::LOCKED_BY_CONFIG) {
+                    $setting->set_status(\base_setting::NOT_LOCKED);
+                }
+                $setting->set_value(false);
+            }
+            if ($plan->setting_exists('enrolments')) {
+                $enrolments = $plan->get_setting('enrolments');
+                if ($enrolments->get_status() === \base_setting::LOCKED_BY_CONFIG) {
+                    $enrolments->set_status(\base_setting::NOT_LOCKED);
+                }
+                $enrolments->set_value(\backup::ENROL_NEVER);
+            }
+            $verbose->step('Excluding user data from restore');
         }
 
         $verbose->step('Running pre-check');

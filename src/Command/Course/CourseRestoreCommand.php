@@ -44,6 +44,11 @@ class CourseRestoreCommand extends BaseCommand
                 start date and the value supplied — the same behaviour as the
                 "Start date" field on the restore wizard's schema step.
 
+                Use --without-users to strip user data from the restore even when the
+                backup file contains it. This disables the "Include enrolled users" root
+                setting and forces enrolments to "never", which cascades to role
+                assignments, comments, badges, completion, logs, and grade histories.
+
                 Requires --run to execute.
                 HELP);
         $this->handler->configureCommand($this);
