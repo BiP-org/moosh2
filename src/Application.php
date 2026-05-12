@@ -177,6 +177,7 @@ use Moosh2\Command\Search\SearchQuestionIdCommand;
 use Moosh2\Command\Search\SearchTimestampCommand;
 use Moosh2\Command\Section\SectionCopyCommand;
 use Moosh2\Command\Sql\SqlCliCommand;
+use Moosh2\Command\Sql\SqlDropCommand;
 use Moosh2\Command\Sql\SqlDumpCommand;
 use Moosh2\Command\Sql\SqlRunCommand;
 use Moosh2\Command\Sql\SqlSelectCommand;
@@ -515,6 +516,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new SearchQuestionIdCommand($this->moodleVersion));
         $this->addCommand(new SearchTimestampCommand($this->moodleVersion));
         $this->addCommand(new SqlCliCommand($this->moodleVersion));
+        $this->addCommand(new SqlDropCommand($this->moodleVersion));
         $this->addCommand(new SqlDumpCommand($this->moodleVersion));
         $this->addCommand(new SqlRunCommand($this->moodleVersion));
         $this->addCommand(new SqlSelectCommand($this->moodleVersion));
