@@ -89,11 +89,15 @@ echo ""
 echo "========== course:delete =========="
 echo ""
 
-echo "--- Test: Dry run ---"
+# Ensure recycle bin is off for basic delete tests
+run_moosh config:set -p "$MOODLE_PATH" categorybinenable 0 --plugin=tool_recyclebin --run
+
+echo "--- Test: Dry run (recycle bin disabled) ---"
 run_moosh course:delete -p "$MOODLE_PATH" 2
 assert_output_contains "Shows dry run" "Dry run" "$OUT"
 assert_output_contains "Shows shortname" "algebrafundamentals" "$OUT"
 assert_output_contains "Shows fullname" "Algebra Fundamentals" "$OUT"
+assert_output_contains "Shows recycle bin disabled" "recycle bin is disabled" "$OUT"
 echo ""
 
 echo "--- Test: Dry run multiple ---"
@@ -135,6 +139,26 @@ echo ""
 echo "--- Test: Help ---"
 run_moosh course:delete -p "$MOODLE_PATH" --help
 assert_output_contains "Help description" "Delete courses" "$OUT"
+assert_output_contains "Help shows --force" "--force" "$OUT"
+echo ""
+
+echo "--- Test: Dry run shows recycle bin enabled notice ---"
+run_moosh config:set -p "$MOODLE_PATH" categorybinenable 1 --plugin=tool_recyclebin --run
+run_moosh course:delete -p "$MOODLE_PATH" 5
+assert_output_contains "Shows recycle bin warning" "recycle bin is enabled" "$OUT"
+echo ""
+
+echo "--- Test: Run blocked when recycle bin enabled ---"
+run_moosh course:delete -p "$MOODLE_PATH" --run 5
+EXIT_CODE=$?
+assert_exit_code "Blocked without --force" 1 "$EXIT_CODE"
+assert_output_contains "Shows recycle bin error" "recycle bin is enabled" "$OUT"
+echo ""
+
+echo "--- Test: Run succeeds with --force when recycle bin enabled ---"
+run_moosh course:delete -p "$MOODLE_PATH" --run --force 5
+assert_output_contains "Deleted with --force" "Deleted course" "$OUT"
+run_moosh config:set -p "$MOODLE_PATH" categorybinenable 0 --plugin=tool_recyclebin --run
 echo ""
 
 

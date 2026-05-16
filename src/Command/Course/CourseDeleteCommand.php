@@ -32,7 +32,18 @@ class CourseDeleteCommand extends BaseCommand
         $this
             ->setName('course:delete')
             ->setDescription('Delete courses')
-            ->setHelp('Deletes one or more courses by ID. Requires --run to execute.');
+            ->setHelp(<<<'HELP'
+                Deletes one or more courses by ID. Requires --run to execute.
+
+                Before running, moosh checks whether the Moodle course recycle bin
+                (tool_recyclebin) is enabled. If it is, Moodle would create a full
+                course backup before deletion — which is usually not what you want
+                when mass-deleting courses. In that case moosh refuses to proceed
+                unless you pass --force.
+
+                Dry-run mode (no --run) always reports whether a backup would be
+                created, so you can verify before committing.
+                HELP);
         $this->handler->configureCommand($this);
     }
 
