@@ -57,6 +57,33 @@ assert_output_contains "Help description" "Reset course data" "$OUT"
 assert_output_contains "Help shows --settings" "--settings" "$OUT"
 echo ""
 
+echo "--- Test: Date-shift regression — assignment duedate shifts by correct delta ---"
+echo "    (moosh1 bug: duedate became ~2070 instead of 1 year later)"
+run_moosh course:create -p "$MOODLE_PATH" --run date_shift_test -o csv
+DATE_COURSEID=$(echo "$OUT" | tail -1 | cut -d, -f1)
+echo "  Created course id=$DATE_COURSEID"
+run_moosh course:mod "$DATE_COURSEID" --startdate "2019-09-28" -p "$MOODLE_PATH" --run
+run_moosh activity:create -p "$MOODLE_PATH" --run --name "Date Shift Assign" assign "$DATE_COURSEID" -o csv
+DATE_ASSIGN_CMID=$(echo "$OUT" | tail -1 | cut -d, -f1)
+echo "  Created assign cmid=$DATE_ASSIGN_CMID"
+run_moosh sql:select -p "$MOODLE_PATH" "SELECT startdate FROM {course} WHERE id = $DATE_COURSEID" -o csv
+OLD_START=$(echo "$OUT" | tail -1 | tr -d '\r')
+OLD_DUEDATE=$((OLD_START + 43200))
+run_moosh activity:mod -p "$MOODLE_PATH" --run --set "duedate=$OLD_DUEDATE" "$DATE_ASSIGN_CMID"
+echo "  old_start=$OLD_START  old_duedate=$OLD_DUEDATE (startdate + 12h)"
+YEAR_DELTA=31536000
+NEW_START=$((OLD_START + YEAR_DELTA))
+EXPECTED_DUEDATE=$((OLD_DUEDATE + YEAR_DELTA))
+BUGGY_DUEDATE=$((OLD_DUEDATE + NEW_START))
+run_moosh course:reset -p "$MOODLE_PATH" --run -s "reset_start_date=$NEW_START" "$DATE_COURSEID"
+assert_output_contains "Reset with new start date succeeds" "has been reset" "$OUT"
+run_moosh sql:select -p "$MOODLE_PATH" "SELECT duedate FROM {assign} WHERE course = $DATE_COURSEID" -o csv
+ACTUAL_DUEDATE=$(echo "$OUT" | tail -1 | tr -d '\r')
+echo "  new_start=$NEW_START  expected=$EXPECTED_DUEDATE  actual=$ACTUAL_DUEDATE  buggy=$BUGGY_DUEDATE"
+assert_output_contains "Assignment duedate shifts by the correct 1-year delta" "$EXPECTED_DUEDATE" "$ACTUAL_DUEDATE"
+assert_output_not_contains "Assignment duedate is not the inflated 2070 buggy value" "$BUGGY_DUEDATE" "$ACTUAL_DUEDATE"
+echo ""
+
 
 # ═══════════════════════════════════════════════════════════════════
 # course:copy
