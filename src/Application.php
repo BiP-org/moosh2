@@ -68,6 +68,7 @@ use Moosh2\Command\Cohort\CohortModCommand;
 use Moosh2\Command\Cohort\CohortUnenrolCommand;
 use Moosh2\Command\Context\ContextFreezeCommand;
 use Moosh2\Command\Context\ContextRebuildCommand;
+use Moosh2\Command\Context\ContextSearchCommand;
 use Moosh2\Command\Context\ContextUnfreezeCommand;
 use Moosh2\Command\File\FileCheckCommand;
 use Moosh2\Command\File\FileDeleteCommand;
@@ -449,6 +450,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new ContextFreezeCommand($this->moodleVersion));
         $this->addCommand(new ContextUnfreezeCommand($this->moodleVersion));
         $this->addCommand(new ContextRebuildCommand($this->moodleVersion));
+        $this->addCommand(new ContextSearchCommand($this->moodleVersion));
         $this->addCommand(new DataCheckCommand($this->moodleVersion));
         $this->addCommand(new EventDiscoverCommand($this->moodleVersion));
         $this->addCommand(new EventFireCommand($this->moodleVersion));

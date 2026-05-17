@@ -49,6 +49,39 @@ moosh cache:purge --run`}</CodeBlock>
         </p>
       </section>
 
+      <section className="space-y-4" id="create-resource-with-pdf">
+        <h2 className="text-xl font-semibold">Create a File resource with a PDF attached</h2>
+        <p className="text-muted-foreground">
+          Moodle&apos;s <code className="bg-muted px-1.5 py-0.5 rounded text-sm">resource</code> activity
+          stores its file in the module context, so you need to know the context ID before you can
+          upload. Use <code className="bg-muted px-1.5 py-0.5 rounded text-sm">activity:create</code> to
+          create the empty resource, then{' '}
+          <code className="bg-muted px-1.5 py-0.5 rounded text-sm">context:search</code> to resolve the
+          module context ID from the returned cmid, then{' '}
+          <code className="bg-muted px-1.5 py-0.5 rounded text-sm">file:upload</code> to attach the PDF.
+        </p>
+
+        <CodeBlock>{`# Step 1 — create the resource activity (note the cmid in the output)
+moosh activity:create resource 5 --name="Course Guide" --section=1 --run
+# → cmid | module   | instance | course | section
+#   42   | resource | 7        | 5      | 1
+
+# Step 2 — resolve the module context ID from the cmid
+CTXID=$(moosh context:search --level=module --instanceid=42 -o csv \\
+  | tail -n +2 | cut -d, -f1)
+
+# Step 3 — upload the PDF into the resource's content file area
+moosh file:upload course-guide.pdf \\
+  --contextid=\${CTXID} --component=mod_resource --filearea=content --run`}</CodeBlock>
+
+        <p className="text-muted-foreground">
+          The file area for <code className="bg-muted px-1.5 py-0.5 rounded text-sm">mod_resource</code> is
+          always <code className="bg-muted px-1.5 py-0.5 rounded text-sm">content</code> with item
+          ID <code className="bg-muted px-1.5 py-0.5 rounded text-sm">0</code>.
+          After the upload the resource will display and serve the PDF to enrolled users.
+        </p>
+      </section>
+
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Archive all files for a course</h2>
         <p className="text-muted-foreground">
