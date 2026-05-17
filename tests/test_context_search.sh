@@ -71,7 +71,7 @@ run_moosh context:search -p "$MOODLE_PATH" --level=module -o csv
 assert_output_contains "Header present" 'id,contextlevel,instanceid,depth,path' "$OUT"
 assert_output_contains "Module level 70 in output" ',70,' "$OUT"
 assert_output_not_contains "Course level 50 not in output" ',50,' "$OUT"
-assert_output_not_contains "System level 10 not in output" ',10,' "$OUT"
+assert_output_not_contains "System level 10 not in output" ',10,0,' "$OUT"
 echo ""
 
 echo "--- Test: Filter by level=course (named) ---"

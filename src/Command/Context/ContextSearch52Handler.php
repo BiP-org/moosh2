@@ -22,7 +22,7 @@ class ContextSearch52Handler extends BaseHandler
     public function configureCommand(Command $command): void
     {
         $command
-            ->addOption('level', 'l', InputOption::VALUE_REQUIRED, 'Context level: system, user, coursecat, course, module, block (or numeric)')
+            ->addOption('level', null, InputOption::VALUE_REQUIRED, 'Context level: system, user, coursecat, course, module, block (or numeric)')
             ->addOption('instanceid', 'i', InputOption::VALUE_REQUIRED, 'Filter by instance ID (cmid for module, courseid for course, etc.)')
             ->addOption('path-contains', null, InputOption::VALUE_REQUIRED, 'Filter by path prefix (e.g. /1/3/ returns all descendants of context 3)');
 
