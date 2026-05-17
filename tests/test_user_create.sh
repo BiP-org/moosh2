@@ -114,5 +114,17 @@ echo ""
 
 # ── user-create alias ────────────────────────────────────────────
 
+# ── --notify: generate password and send welcome email ───────────
+
+echo "--- Test: --notify generates password and sends welcome email ---"
+run_moosh user:create -p "$MOODLE_PATH" --run --notify --email "notifyuser@example.com" notifyuser -o csv
+assert_output_contains "CSV has 4 columns header" "id,username,email,generated_password" "$OUT"
+assert_output_contains "notifyuser in output" "notifyuser" "$OUT"
+GENERATED_PW=$(echo "$OUT" | tail -1 | cut -d, -f4)
+assert_output_not_empty "Generated password column is non-empty" "$GENERATED_PW"
+# Verify user exists in Moodle
+run_moosh user:list -p "$MOODLE_PATH" --sql "u.username = 'notifyuser'" -o csv
+assert_output_contains "User exists after notify create" "notifyuser" "$OUT"
+echo ""
 
 print_summary
