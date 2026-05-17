@@ -25,18 +25,18 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
 
     output=$(bash "$test_file" 2>&1)
     exit_code=$?
-    pass_count=$(echo "$output" | grep -c '  PASS:')
-    fail_count=$(echo "$output" | grep -c '  FAIL:')
+    pass_count=$(echo "$output" | grep -oP 'Results: \K[0-9]+(?= passed)' || echo 0)
+    fail_count=$(echo "$output" | grep -oP 'Results: [0-9]+ passed, \K[0-9]+(?= failed)' || echo 0)
 
     # Retry once on errors — the test DB occasionally returns transient errors
     # (orphan InnoDB tablespaces after restore). Discard the first run's output.
-    if [ "$exit_code" -ne 0 ] || [ "$fail_count" -gt 0 ]; then
-        echo "# First run had errors (exit=$exit_code, fail=$fail_count); retrying after 1s..."
+    if [ "$exit_code" -ne 0 ] || [ "${fail_count:-0}" -gt 0 ]; then
+        echo "# First run had errors (exit=$exit_code, fail=${fail_count:-0}); retrying after 1s..."
         sleep 1
         output=$(bash "$test_file" 2>&1)
         exit_code=$?
-        pass_count=$(echo "$output" | grep -c '  PASS:')
-        fail_count=$(echo "$output" | grep -c '  FAIL:')
+        pass_count=$(echo "$output" | grep -oP 'Results: \K[0-9]+(?= passed)' || echo 0)
+        fail_count=$(echo "$output" | grep -oP 'Results: [0-9]+ passed, \K[0-9]+(?= failed)' || echo 0)
     fi
 
     echo "$output"

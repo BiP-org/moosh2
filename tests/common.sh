@@ -34,6 +34,7 @@ MOODLE_PATH="$MOODLE_DIR/public"
 PHP="${PHP:-/usr/bin/php}"
 PASS=0
 FAIL=0
+LAST_CMD=""
 
 # ── Test-run lock ──────────────────────────────────────────────────
 # Prevent two test runs from racing on the same Moodle dataroot/database.
@@ -82,18 +83,16 @@ _moosh_test_release_lock() {
 trap _moosh_test_release_lock EXIT
 
 run_moosh() {
-    local cmd="  > $PHP $MOOSH"
+    LAST_CMD="$PHP $MOOSH"
     for arg in "$@"; do
         if [[ "$arg" == *' '* || "$arg" == *'"'* ]]; then
-            cmd+=" \"$arg\""
+            LAST_CMD+=" \"$arg\""
         else
-            cmd+=" $arg"
+            LAST_CMD+=" $arg"
         fi
     done
-    echo "$cmd"
     OUT=$($PHP $MOOSH "$@" 2>&1)
     local rc=$?
-    echo "$OUT"
     return $rc
 }
 
@@ -102,10 +101,10 @@ assert_output_contains() {
     local expected="$2"
     local actual="$3"
     if grep -qF -- "$expected" <<< "$actual"; then
-        echo "  PASS: $description"
         ((PASS++))
     else
         echo "  FAIL: $description"
+        echo "    Command: $LAST_CMD"
         echo "    Expected to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
@@ -118,11 +117,11 @@ assert_output_not_contains() {
     local actual="$3"
     if grep -qF -- "$expected" <<< "$actual"; then
         echo "  FAIL: $description"
+        echo "    Command: $LAST_CMD"
         echo "    Expected NOT to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
     else
-        echo "  PASS: $description"
         ((PASS++))
     fi
 }
@@ -131,10 +130,10 @@ assert_output_not_empty() {
     local description="$1"
     local actual="$2"
     if [ -n "$actual" ]; then
-        echo "  PASS: $description"
         ((PASS++))
     else
         echo "  FAIL: $description (output was empty)"
+        echo "    Command: $LAST_CMD"
         ((FAIL++))
     fi
 }
@@ -144,10 +143,10 @@ assert_exit_code() {
     local expected="$2"
     local actual="$3"
     if [ "$actual" -eq "$expected" ]; then
-        echo "  PASS: $description"
         ((PASS++))
     else
         echo "  FAIL: $description"
+        echo "    Command: $LAST_CMD"
         echo "    Expected exit code: $expected"
         echo "    Got: $actual"
         ((FAIL++))
