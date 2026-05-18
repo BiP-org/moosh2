@@ -283,7 +283,7 @@ class SiteInfo52Handler extends BaseHandler
             return null;
         }
 
-        $result = @exec("du -sb " . escapeshellarg($path) . " 2>/dev/null", $outputLines, $exitCode);
+        $result = @exec("du -s -B 1 " . escapeshellarg($path) . " 2>/dev/null", $outputLines, $exitCode);
         if ($exitCode === 0 && !empty($outputLines)) {
             $parts = preg_split('/\s+/', trim($outputLines[0]), 2);
             if (isset($parts[0]) && is_numeric($parts[0])) {
