@@ -1,0 +1,3 @@
+# Ignore local working-tree files that are not part of the upstream tarball,
+# so dpkg-source does not report them as unexpected upstream changes.
+extend-diff-ignore = "(^|/)(\.claude|\.idea|\.github)(/|$)|^bin/moosh\.phar$|^tests(/|$)"

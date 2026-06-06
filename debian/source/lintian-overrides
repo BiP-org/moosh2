@@ -1,0 +1,7 @@
+# The ~ubuntu24.04.1 suffix is the version scheme recommended by Launchpad
+# for per-series PPA uploads; it is not a binNMU revision.
+moosh2 source: binary-nmu-debian-revision-in-source *
+
+# hiddeninput.exe ships with upstream symfony/console (vendored in vendor/);
+# it is never installed — only the built phar is, and it is unused on Linux.
+moosh2 source: source-contains-prebuilt-windows-binary [vendor/symfony/console/Resources/bin/hiddeninput.exe]

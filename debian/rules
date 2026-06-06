@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+# Build moosh2 as a single self-contained PHAR installed as /usr/bin/moosh2.
+# The phar is compiled offline on the Launchpad builders: all composer
+# dependencies (vendor/) are shipped inside the .orig.tar.gz.
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	php -d phar.readonly=0 bin/build-phar.php
+	# Smoke test: the phar must at least report its version.
+	php bin/moosh.phar --version
+
+override_dh_auto_install:
+	install -D -m 0755 bin/moosh.phar debian/moosh2/usr/bin/moosh2
+
+override_dh_auto_clean:
+	rm -f bin/moosh.phar
+
+# No test suite to run at package build time.
+override_dh_auto_test:

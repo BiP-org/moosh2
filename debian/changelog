@@ -1,0 +1,6 @@
+moosh2 (2.0-1ppa1~ubuntu24.04.1) noble; urgency=medium
+
+  * Initial release of moosh2 packaged for the Launchpad PPA.
+  * Single-file package: installs moosh.phar as /usr/bin/moosh2.
+
+ -- Tomek Muras <tomek.muras@enovation.ie>  Fri, 05 Jun 2026 17:13:27 +0200

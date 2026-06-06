@@ -1,0 +1,20 @@
+Source: moosh2
+Section: utils
+Priority: optional
+Maintainer: Tomek Muras <tomek.muras@enovation.ie>
+Build-Depends: debhelper-compat (= 13), php-cli
+Standards-Version: 4.6.2
+Homepage: https://github.com/tmuras2/moosh
+Rules-Requires-Root: no
+
+Package: moosh2
+Architecture: all
+Depends: ${misc:Depends}, php-cli (>= 2:8.3), php-zip
+Description: Moodle Shell - command-line tool for Moodle administration
+ moosh2 (MOOdle SHell) is a command-line tool that allows you to perform
+ most common Moodle administration tasks: managing courses, users,
+ plugins and more. It is inspired by Drush, a similar tool for Drupal.
+ .
+ This is a rewrite of moosh based on Symfony Console, targeting
+ Moodle 5.2 and later. It is shipped as a single self-contained
+ PHAR executable installed as /usr/bin/moosh2.
