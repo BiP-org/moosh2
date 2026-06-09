@@ -203,7 +203,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 final class Application extends SymfonyApplication {
-    public const VERSION = '2.1';
+    public const VERSION = '2.2';
 
     private ?string $moodlePath = null;
     private ?MoodleVersion $moodleVersion = null;

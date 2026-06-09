@@ -1,4 +1,10 @@
-moosh2 (2.1-1) UNRELEASED; urgency=medium
+moosh2 (2.2-1) noble; urgency=medium
+
+  * Upstream release 2.2
+
+ -- Tomasz Muras <nexor1984@gmail.com>  Tue, 09 Jun 2026 13:16:50 +0200
+
+moosh2 (2.1-1) noble; urgency=medium
 
   * Upstream 2.1 release
 
