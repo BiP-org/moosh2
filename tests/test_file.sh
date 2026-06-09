@@ -42,6 +42,55 @@ assert_output_contains "Shows by component" "By Component" "$OUT"
 assert_output_contains "Shows a component" "component" "$OUT"
 echo ""
 
+echo "--- Test: By file area ---"
+run_moosh file:stats --by-filearea -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "By filearea exit code 0" 0 $EC
+assert_output_contains "Shows by file area" "By File Area" "$OUT"
+assert_output_contains "Shows filearea header" "filearea" "$OUT"
+echo ""
+
+echo "--- Test: By file area and component ---"
+run_moosh file:stats --by-area-component -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "By area+component exit code 0" 0 $EC
+assert_output_contains "Shows area+component" "By File Area and Component" "$OUT"
+echo ""
+
+echo "--- Test: By course ---"
+run_moosh file:stats --by-course -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "By course exit code 0" 0 $EC
+assert_output_contains "Shows by course" "Courses by Storage" "$OUT"
+assert_output_contains "Shows freed-if-deleted column" "freed if deleted" "$OUT"
+echo ""
+
+echo "--- Test: Backups ---"
+run_moosh file:stats --backups -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "Backups exit code 0" 0 $EC
+assert_output_contains "Shows backups section" "Backup Storage by User" "$OUT"
+echo ""
+
+echo "--- Test: Disk usage ---"
+run_moosh file:stats --disk-usage -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "Disk usage exit code 0" 0 $EC
+assert_output_contains "Shows disk usage" "Disk Usage" "$OUT"
+assert_output_contains "Shows filedir" "filedir" "$OUT"
+echo ""
+
+echo "--- Test: All sections ---"
+run_moosh file:stats --all -p "$MOODLE_PATH"
+EC=$?
+assert_exit_code "All exit code 0" 0 $EC
+assert_output_contains "All shows by component" "By Component" "$OUT"
+assert_output_contains "All shows by file area" "By File Area" "$OUT"
+assert_output_contains "All shows courses" "Courses by Storage" "$OUT"
+assert_output_contains "All shows backups" "Backup Storage by User" "$OUT"
+assert_output_contains "All shows disk usage" "Disk Usage" "$OUT"
+echo ""
+
 echo "--- Test: Top largest ---"
 run_moosh file:stats --top 5 -p "$MOODLE_PATH"
 assert_output_contains "Shows top files" "Top 5 Largest" "$OUT"

@@ -32,11 +32,27 @@ class FileStatsCommand extends BaseCommand
             ->setName('file:stats')
             ->setDescription('Show file storage statistics')
             ->setHelp(<<<'HELP'
-                Show storage stats.
+                Show file storage statistics.
+
+                By default only the overall totals are shown. Add flags to
+                include extra breakdowns, or --all to show every section.
+
+                On installations with a very large {files} table some sections
+                are inherently heavy: --top sorts on the unindexed filesize
+                column, --by-area-component deduplicates the whole table, and
+                --disk-usage walks the entire filedir with du. Enable them
+                individually rather than relying on --all on such sites.
 
                 Examples:
                   file:stats
                   file:stats --by-component
+                  file:stats --by-filearea
+                  file:stats --by-area-component
+                  file:stats --by-course
+                  file:stats --backups
+                  file:stats --disk-usage
+                  file:stats --all
+                  file:stats --top=20
                 HELP);
         $this->handler->configureCommand($this);
     }
