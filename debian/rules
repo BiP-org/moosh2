@@ -13,6 +13,8 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	install -D -m 0755 bin/moosh.phar debian/moosh2/usr/bin/moosh2
+	install -D -m 0755 stand_alone_scripts/log-export.php debian/moosh2/usr/bin/moosh2-log-export
+	install -D -m 0755 stand_alone_scripts/file-stats.php debian/moosh2/usr/bin/moosh2-file-stats
 
 override_dh_auto_clean:
 	rm -f bin/moosh.phar
