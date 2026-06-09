@@ -1,3 +1,9 @@
+moosh2 (2.1-1) UNRELEASED; urgency=medium
+
+  * Upstream 2.1 release
+
+ -- Tomek Muras <nexor1984@gmail.com>  Tue, 09 Jun 2026 10:56:37 +0200
+
 moosh2 (2.0-1) noble; urgency=medium
 
   * Initial release of moosh2 packaged for the Launchpad PPA.
