@@ -95,7 +95,7 @@ final class MoodleReleaseResolver
         }
 
         if (!preg_match(
-            '|https://download\.moodle\.org/download\.php/stable(\d+)/moodle-latest-\d+\.tgz|',
+            '|https://download\.moodle\.org/download\.php/stable(\d+)/moodle-|',
             $page,
             $m,
         )) {
