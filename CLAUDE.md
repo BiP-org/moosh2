@@ -147,3 +147,7 @@ Always run the relevant test script after making changes to verify no regression
 ## Bash Command Style
 
 Never chain commands with && or ; operators. Run them as separate bash calls instead.
+
+
+## Releasing new version
+
