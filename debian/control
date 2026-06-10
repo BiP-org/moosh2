@@ -9,7 +9,7 @@ Rules-Requires-Root: no
 
 Package: moosh2
 Architecture: all
-Depends: ${misc:Depends}, php-cli (>= 2:8.3), php-zip
+Depends: ${misc:Depends}, php-cli (>= 2:8.1)
 Description: Moodle Shell - command-line tool for Moodle administration
  moosh2 (MOOdle SHell) is a command-line tool that allows you to perform
  most common Moodle administration tasks: managing courses, users,
