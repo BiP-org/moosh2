@@ -57,6 +57,19 @@ class SiteInfo52Handler extends BaseHandler
         $data['Users (active)'] = $DB->count_records_select('user', 'deleted = 0 AND suspended = 0');
         $data['Users (suspended)'] = $DB->count_records_select('user', 'deleted = 0 AND suspended = 1');
         $data['Enrolments'] = $DB->count_records('user_enrolments');
+
+        // Distinct users with a teacher role (editing or non-editing) assigned in any course context.
+        $teachers = $DB->get_record_sql(
+            'SELECT COUNT(DISTINCT ra.userid) AS cnt
+               FROM {role_assignments} ra
+               JOIN {context} ctx ON ctx.id = ra.contextid
+               JOIN {role} r ON r.id = ra.roleid
+              WHERE ctx.contextlevel = ?
+                AND r.shortname IN (?, ?)',
+            [CONTEXT_COURSE, 'editingteacher', 'teacher'],
+        );
+        $data['Teachers (in courses)'] = $teachers->cnt ?? 0;
+
         $data['Activities'] = $DB->count_records('course_modules');
         $data['Roles'] = $DB->count_records('role');
         $data['Cohorts'] = $DB->count_records('cohort');
