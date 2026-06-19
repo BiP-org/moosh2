@@ -70,6 +70,22 @@ class SiteInfo52Handler extends BaseHandler
         );
         $data['Teachers (in courses)'] = $teachers->cnt ?? 0;
 
+        // Distinct users whose only role assignment is the student role (no other role anywhere).
+        $studentsOnly = $DB->get_record_sql(
+            'SELECT COUNT(DISTINCT ra.userid) AS cnt
+               FROM {role_assignments} ra
+               JOIN {role} r ON r.id = ra.roleid
+              WHERE r.shortname = ?
+                AND ra.userid NOT IN (
+                    SELECT ra2.userid
+                      FROM {role_assignments} ra2
+                      JOIN {role} r2 ON r2.id = ra2.roleid
+                     WHERE r2.shortname <> ?
+                )',
+            ['student', 'student'],
+        );
+        $data['Students (only student role)'] = $studentsOnly->cnt ?? 0;
+
         $data['Activities'] = $DB->count_records('course_modules');
         $data['Roles'] = $DB->count_records('role');
         $data['Cohorts'] = $DB->count_records('cohort');
