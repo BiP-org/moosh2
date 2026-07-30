@@ -45,8 +45,6 @@ jobs:
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}-cli-alpine
     services:
-# 1. Spin up the MySQL container service
-    services:
       mysql:
         image: mysql:8.0
         env:
