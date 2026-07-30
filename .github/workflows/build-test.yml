@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MOODLE_DIR: "/github/workspace/moodle"
+  MOODLE_DIR: "moodle"
   MOODLE_REPOSITORY: "moodle/moodle"
 
 jobs:
