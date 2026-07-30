@@ -1,0 +1,373 @@
+name: Publish Debian Package to APT repository and documentation on GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 2.x
+    paths:
+      - '.github/workflows/publish-github-pages.yml'
+  workflow_run:
+    workflows: ["Build Debian package"]
+    types:
+      - completed
+    branches:
+      - 2.x
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  REPO_NAME: moosh2
+  CODENAME: bookworm
+  COMPONENTS: main
+  ARCHITECTURES: amd64
+  PAGES_URL: ${{ vars.PAGES_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+
+jobs:
+  build:
+    # Restricts workflow_dispatch executions to the 2.x branch as well
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.ref_name == '2.x') &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Distribution Directory
+        run: |
+          mkdir -p dist
+
+      - name: Download Debian package artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: dist
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id || github.run_id }}
+
+      - name: Install package publishing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+      # ----------------------------------------------------------------
+      # Build the documentation site FIRST. Vite empties its outDir
+      # (documentation/dist) before writing, so anything placed in the
+      # final `public` dir earlier would be safe either way, but the .deb
+      # still gets copied in AFTER this step for consistency with the
+      # moosh 1.x workflow this is adapted from.
+      # ----------------------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: documentation/package-lock.json
+
+      - name: Install documentation dependencies
+        run: npm ci
+        working-directory: documentation
+
+      - name: Build documentation
+        run: npm run build
+        working-directory: documentation
+
+      - name: Prepare public directory
+        run: |
+          mkdir -p public
+          cp -r documentation/dist/. public/
+
+      # ----------------------------------------------------------------
+      # Now that the docs build is done writing, drop the .deb in.
+      # ----------------------------------------------------------------
+      - name: Add Debian package to public directory
+        run: |
+          mkdir -p public
+          find dist -maxdepth 1 -type f -name '*.deb' -exec cp -v {} public/ \;
+
+      - name: Debug - list public directory contents after documentation build
+        run: |
+          if [ -d public ]; then
+            echo "::group::Directory contents of public/"
+            find public -type f
+            echo "::endgroup::"
+          else
+            echo "Directory 'public' does not exist yet."
+          fi
+
+      # ----------------------------------------------------------------
+      # Generate APT Repository (writes dists/pool/gpg.key to its own
+      # temp output dir - NOT into `public` - so it must be copied in)
+      # ----------------------------------------------------------------
+      - name: Create apt repository
+        uses: morph027/apt-repo-action@v3
+        id: create-apt-repo
+        with:
+          scan-dir: public
+          maintainer: georg-bip-bot-bildung.gv.at@glas.eu.org
+          repo-name: ${{ env.REPO_NAME }}
+          signing-key: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          signing-key-passphrase: ${{ secrets.APT_GPG_PASSPHRASE || '' }}
+          codename: ${{ env.CODENAME }}
+          components: ${{ env.COMPONENTS }}
+          architectures: ${{ env.ARCHITECTURES }}
+
+      - name: Merge apt repository output into public directory
+        run: |
+          mkdir -p public
+          cp -rv "${{ steps.create-apt-repo.outputs.dir }}"/. public/
+
+      - name: Debug - list public directory contents after APT repository
+        run: |
+          if [ -d public ]; then
+            echo "::group::Directory contents of public/"
+            find public -type f
+            echo "::endgroup::"
+          else
+            echo "Directory 'public' does not exist yet."
+          fi
+
+      - name: Create INSTALL.md with installation instructions
+        run: |
+          cat > public/INSTALL.md << 'EOF'
+          # ${{ env.REPO_NAME }} Debian Repository
+
+          This repository provides Debian packages for ${{ env.REPO_NAME }}.
+
+          ## Installation
+
+          ### 1. Add the GPG key
+
+          ```bash
+          curl -sfLo /tmp/${{ env.REPO_NAME }}.asc ${{ env.PAGES_URL }}gpg.key
+          sudo mv /tmp/${{ env.REPO_NAME }}.asc /etc/apt/keyrings/${{ env.REPO_NAME }}.asc
+          ```
+
+          ### 2. Add the repository
+
+          ```bash
+          echo "deb [signed-by=/etc/apt/keyrings/${{ env.REPO_NAME }}.asc] ${{ env.PAGES_URL }} ${{ env.CODENAME }} ${{ env.COMPONENTS }}" | \
+            sudo tee /etc/apt/sources.list.d/${{ env.REPO_NAME }}.list
+          ```
+
+          ### 3. Update and install
+
+          ```bash
+          sudo apt update
+          sudo apt install moosh2
+          ```
+
+          ## Verification
+
+          To verify the package signature:
+
+          ```bash
+          apt-key adv --keyserver keyserver.ubuntu.com --recv-keys <KEY_ID>
+          ```
+
+          EOF
+          cat public/INSTALL.md
+
+      - name: Create install.html
+        run: |
+          cat > public/install.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${{ env.REPO_NAME }} Debian Repository</title>
+              <style>
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      min-height: 100vh;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 20px;
+                  }
+                  .container {
+                      background: white;
+                      border-radius: 10px;
+                      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                      max-width: 600px;
+                      padding: 40px;
+                  }
+                  h1 {
+                      color: #333;
+                      margin-bottom: 10px;
+                      font-size: 2.5em;
+                  }
+                  .subtitle {
+                      color: #666;
+                      margin-bottom: 30px;
+                      font-size: 1.1em;
+                  }
+                  .info-box {
+                      background: #f5f5f5;
+                      border-left: 4px solid #667eea;
+                      padding: 15px;
+                      margin: 20px 0;
+                      border-radius: 5px;
+                  }
+                  .info-box strong {
+                      color: #667eea;
+                  }
+                  .section {
+                      margin: 30px 0;
+                  }
+                  .section h2 {
+                      color: #333;
+                      margin-bottom: 15px;
+                      font-size: 1.3em;
+                  }
+                  code {
+                      background: #f0f0f0;
+                      padding: 2px 6px;
+                      border-radius: 3px;
+                      font-family: 'Courier New', monospace;
+                      color: #d63384;
+                  }
+                  .code-block {
+                      background: #2d2d2d;
+                      color: #f8f8f2;
+                      padding: 15px;
+                      border-radius: 5px;
+                      overflow-x: auto;
+                      margin: 10px 0;
+                      font-family: 'Courier New', monospace;
+                      font-size: 0.9em;
+                      line-height: 1.4;
+                  }
+                  .links {
+                      display: flex;
+                      gap: 10px;
+                      margin: 20px 0;
+                      flex-wrap: wrap;
+                  }
+                  .btn {
+                      display: inline-block;
+                      padding: 10px 20px;
+                      background: #667eea;
+                      color: white;
+                      text-decoration: none;
+                      border-radius: 5px;
+                      transition: background 0.3s;
+                      border: none;
+                      cursor: pointer;
+                      font-size: 1em;
+                  }
+                  .btn:hover {
+                      background: #764ba2;
+                  }
+                  .btn-secondary {
+                      background: #6c757d;
+                  }
+                  .btn-secondary:hover {
+                      background: #5a6268;
+                  }
+                  footer {
+                      margin-top: 40px;
+                      padding-top: 20px;
+                      border-top: 1px solid #eee;
+                      color: #999;
+                      text-align: center;
+                      font-size: 0.9em;
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>📦 ${{ env.REPO_NAME }}</h1>
+                  <p class="subtitle">Debian Repository</p>
+
+                  <div class="info-box">
+                      <strong>Repository URL:</strong><br>
+                      <code>${{ env.PAGES_URL }}</code>
+                  </div>
+
+                  <div class="section">
+                      <h2>Quick Start</h2>
+                      <p>Add the GPG key and repository to your system:</p>
+                      <div class="code-block">
+          curl -sfLo /tmp/${{ env.REPO_NAME }}.asc ${{ env.PAGES_URL }}gpg.key<br>
+          sudo mv /tmp/${{ env.REPO_NAME }}.asc /etc/apt/keyrings/${{ env.REPO_NAME }}.asc<br>
+          echo "deb [signed-by=/etc/apt/keyrings/${{ env.REPO_NAME }}.asc] ${{ env.PAGES_URL }} ${{ env.CODENAME }} ${{ env.COMPONENTS }}" | \<br>
+          &nbsp;&nbsp;sudo tee /etc/apt/sources.list.d/${{ env.REPO_NAME }}.list<br>
+          sudo apt update<br>
+          sudo apt install ${{ env.REPO_NAME }}
+                      </div>
+                  </div>
+
+                  <div class="section">
+                      <h2>Documentation</h2>
+                      <p>The full documentation is available at the root of this site.</p>
+                      <div class="links">
+                          <a href="./" class="btn">📚 Documentation</a>
+                          <a href="INSTALL.md" class="btn btn-secondary">📖 Installation Guide</a>
+                      </div>
+                  </div>
+
+                  <footer>
+                      <p>Generated by GitHub Actions - ${{ github.repository }}</p>
+                  </footer>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Debug - list public directory contents after static file generation
+        run: |
+          if [ -d public ]; then
+            echo "::group::Directory contents of public/"
+            find public -type f
+            echo "::endgroup::"
+          else
+            echo "Directory 'public' does not exist yet."
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages
+          path: public
+
+  publish:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Adding summary
+        run: |
+          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
+          :rocket:
+
+          ```bash
+          curl -sfLo /tmp/${{ env.REPO_NAME }}.asc ${{ steps.deployment.outputs.page_url }}gpg.key
+          sudo mv /tmp/${{ env.REPO_NAME }}.asc /etc/apt/keyrings/${{ env.REPO_NAME }}.asc
+          echo "deb [signed-by=/etc/apt/keyrings/${{ env.REPO_NAME }}.asc] ${{ steps.deployment.outputs.page_url }}${{ env.CODENAME }} ${{ env.COMPONENTS }}" \vert{} sudo tee /etc/apt/sources.list.d/${{ env.REPO_NAME }}.list
+          sudo apt-get update
+          sudo apt-get install ${{ env.REPO_NAME }}
+          ```
+          EOF

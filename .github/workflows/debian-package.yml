@@ -1,0 +1,79 @@
+name: Build Debian package
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/debian-package.yml'
+  workflow_run:
+    workflows: ["Build and Test"]
+    types:
+      - completed
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == '2.x'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          ini-values: phar.readonly=0
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y devscripts debhelper build-essential
+
+      - name: Install composer dependencies
+        # The phar (built by debian/rules via bin/build-phar.php) bundles
+        # vendor/ into itself, so it must already be installed before
+        # dpkg-buildpackage runs - unlike moosh 1.x, which didn't need this.
+        run: composer install --no-dev --optimize-autoloader
+
+      - name: Build Debian package
+        run: |
+          # Prepare an isolated build directory (vendor/ included, unlike
+          # a plain git checkout, since it's not tracked in the repo).
+          mkdir -p .build
+          tmpdir="$(mktemp -d -p "$PWD/.build" moosh2-deb-XXXXXX)"
+          mkdir -p "$tmpdir/src"
+          find . -mindepth 1 -maxdepth 1 \( ! -name '.build' ! -name '.git' ! -name '.github' \) -exec cp -a {} "$tmpdir/src/" \;
+          cd "$tmpdir/src"
+
+          # Extract base version the same way bin/build-deb-source.sh does.
+          BASE_VERSION=$(grep -oP "const VERSION = '\K[^']+" src/Application.php)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: could not detect version from src/Application.php" >&2
+            exit 1
+          fi
+
+          # Build dynamic version string for this snapshot build. This
+          # intentionally discards the committed debian/changelog (which is
+          # for formal Launchpad releases via bin/build-deb-source.sh) in
+          # favour of a fresh, ephemeral entry tied to this commit - this
+          # workflow produces dev/snapshot builds, not tagged releases.
+          TIMESTAMP=$(date -u +'%Y%m%d%H%M%S')
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          PKG_VERSION="${BASE_VERSION}+git${TIMESTAMP}.${SHORT_SHA}-1"
+
+          rm -f debian/changelog
+          export DEBFULLNAME="GitHub Actions"
+          export DEBEMAIL="actions@github.com"
+          dch --create --package moosh2 -v "$PKG_VERSION" --distribution unstable "Automated build for commit ${SHORT_SHA}"
+
+          chmod +x debian/rules
+          dpkg-buildpackage -us -uc -b -d
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp "$tmpdir"/moosh2_*.deb "$GITHUB_WORKSPACE/dist/"
+
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: |
+            dist/*.deb
