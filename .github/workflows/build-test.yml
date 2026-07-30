@@ -89,7 +89,7 @@ jobs:
 
       - name: Install dependencies & PHP extensions
         run: |
-          apk add --no-cache bash git unzip zip grep mysql-client
+          apk add --no-cache bash git unzip zip grep mysql-client coreutils
           ADD_EXT_PATH=/usr/local/bin/install-php-extensions
           curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
           chmod +x $ADD_EXT_PATH
