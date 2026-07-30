@@ -7,6 +7,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  MOODLE_DIR: "/github/workspace/moodle"
+  MOODLE_REPOSITORY: "moodle/moodle"
+  PHP_ENV: mysqli, pdo_mysql, gd, intl, mbstring, xml, zip, curl
+
 jobs:
 
   build:
@@ -39,6 +44,23 @@ jobs:
         moodle_branch: ["MOODLE_502_STABLE"]
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}-cli-alpine
+    services:
+# 1. Spin up the MySQL container service
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: moodle_password
+          MYSQL_DATABASE: moodledb
+          MYSQL_USER: moodleuser
+          MYSQL_PASSWORD: moodle_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     needs: build
     steps:
       - name: Checkout code
@@ -60,8 +82,38 @@ jobs:
       - name: Lint files
         run: |
           ls    
-          find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l        
-      - name: Setup Moodle for Testing
-        uses: catalyst/catalyst-moodle-workflows/.github/workflows/ci.yml@main
+          find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-            moodle_branches: ${{ matrix.moodle_branch }}
+          extensions: ${{ env.PHP_ENV }}
+      - name: Checkout Moodle Repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.MOODLE_REPO }}
+          path: ${{ env.MOODLE_DIR }}
+          ref: ${{ matrix.moodle_branch }}
+          fetch-depth: 1
+      - name: Install Moodle Instance
+        run: |
+          mkdir -p $HOME/moodledata
+          chmod 777 $HOME/moodledata
+
+          php $MOODLE_DIR/admin/cli/install.php \
+            --non-interactive \
+            --lang=en \
+            --wwwroot="http://localhost:8000" \
+            --dataroot="$HOME/moodledata" \
+            --dbtype=mysqli \
+            --dbhost=127.0.0.1 \
+            --dbname=moodledb \
+            --dbuser=moodleuser \
+            --dbpass=moodle_password \
+            --fullname="Moosh Test Moodle" \
+            --shortname="moodle_test" \
+            --adminuser=admin \
+            --adminpass=Admin123! \
+            --agree-license
+      - name: Populating test data
+        run: |
+            php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
