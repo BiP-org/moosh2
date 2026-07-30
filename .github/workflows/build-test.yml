@@ -10,7 +10,6 @@ concurrency:
 env:
   MOODLE_DIR: "/github/workspace/moodle"
   MOODLE_REPOSITORY: "moodle/moodle"
-  PHP_ENV: mysqli, pdo_mysql, gd, intl, mbstring, xml, zip, curl
 
 jobs:
 
@@ -81,10 +80,10 @@ jobs:
         run: |
           ls    
           find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          extensions: ${{ env.PHP_ENV }}
+      - name: Install dependencies & PHP extensions
+        run: |
+          apk add --no-cache bash git unzip zip libpng-dev icu-dev libxml2-dev libzip-dev
+          docker-php-ext-install mysqli pdo_mysql gd intl mbstring xml zip
       - name: Checkout Moodle Repository
         uses: actions/checkout@v7
         with:
