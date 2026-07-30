@@ -133,6 +133,8 @@ jobs:
             php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
 
       - name: Run all Test
+        env:
+          MOODLE_DIR: ${{ env.MOODLE_DIR }}
         run: |
              chmod +x tests/run_all_tests.sh
              ./tests/run_all_tests.sh
