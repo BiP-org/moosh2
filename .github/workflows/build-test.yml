@@ -114,7 +114,7 @@ jobs:
             --wwwroot="http://localhost:8000" \
             --dataroot="$HOME/moodledata" \
             --dbtype=mysqli \
-            --dbhost=127.0.0.1 \
+            --dbhost=mysql \
             --dbname=moodledb \
             --dbuser=moodleuser \
             --dbpass=moodle_password \
