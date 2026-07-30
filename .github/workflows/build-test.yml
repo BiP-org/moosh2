@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["8.3", "8.2", "8.1"]
+        image: ["8.3", "8.4", "8.5"]
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}-cli-alpine
     needs: build
@@ -50,8 +50,12 @@ jobs:
           name: moosh-vendor
       - name: Unzip build
         run: unzip vendor.zip
-      - name: Run prelimitary test
-        run: php moosh.php -V|grep -E "moosh 2\."
+      - name: Run preliminary test
+        id: prelim_test
+        run: php moosh.php -V | grep -E "moosh 2\."
+      - name: Run diagnostic
+        if: failure() && steps.prelim_test.outcome == 'failure'
+        run: php moosh.php
       - name: Setup Moodle for Testing
         run: test/test_data_setup_moodle52/fully_reinstall.sh
       - name: Lint files
