@@ -132,7 +132,7 @@ jobs:
         run: |
             php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
 
-- name: Run all Test
+      - name: Run all Test
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
           BASH_ENV: ${{ runner.temp }}/mariadb_aliases.sh
