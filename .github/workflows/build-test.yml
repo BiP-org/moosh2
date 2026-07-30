@@ -36,6 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         image: ["8.3", "8.4", "8.5"]
+        moodle_branch: ["MOODLE_502_STABLE"]
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}-cli-alpine
     needs: build
@@ -61,5 +62,6 @@ jobs:
           ls    
           find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l        
       - name: Setup Moodle for Testing
-        run: tests/test_data_setup_moodle52/fully_reinstall.sh
-
+        uses: catalyst/catalyst-moodle-workflows/.github/workflows/ci.yml@main
+        with:
+            moodle_branches: ${{ matrix.moodle_branch }}
