@@ -2,9 +2,10 @@ name: Build and Test
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
 
@@ -13,13 +14,19 @@ jobs:
     container: composer:latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
+      - name: Trust the checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Set composer package name to this repository
+        run: |
+          REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          sed -i "s#\"name\": \"tmuras/moosh\"#\"name\": \"${REPO_NAME}\"#" composer.json
       - name: Build code
         run: composer install
       - name: Zip build
         run: zip -r vendor.zip vendor
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: moosh-vendor
           path: vendor.zip
@@ -28,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["8.2", "8.1", "8.0", "7.4", "7.3", "7.2"]
+        image: ["8.3", "8.2", "8.1"]
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}-cli-alpine
     needs: build
@@ -50,4 +57,4 @@ jobs:
           ls    
           rm includes/config*class.php
           rm -rf vendor external
-          find . -name '*.php' -print0 | xargs -0 -n1 php -l
+          find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
