@@ -45,7 +45,7 @@ jobs:
     container: php:${{ matrix.image }}-cli-alpine
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: moodle_password
           MYSQL_DATABASE: moodledb
@@ -94,6 +94,10 @@ jobs:
           curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
           chmod +x $ADD_EXT_PATH
           install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
+
+      - name: Configure PHP settings
+        run: |
+          echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini
 
       - name: Checkout Moodle Repository
         uses: actions/checkout@v7
