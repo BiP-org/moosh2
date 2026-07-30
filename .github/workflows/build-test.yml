@@ -130,7 +130,7 @@ jobs:
 
       - name: Populating test data
         run: |
-            php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
+            php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
 
       - name: Run all Test
         env:
@@ -153,11 +153,6 @@ jobs:
 
           # Start PHP built-in web server in the background
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
-
-          # Store the process ID to kill it later if needed
-          SERVER_PID=$!
-
-          # Wait 2 seconds for the server to spin up
           sleep 2
 
           # 2. Run your test suite as normal
