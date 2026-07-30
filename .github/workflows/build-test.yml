@@ -34,11 +34,11 @@ jobs:
     needs: build
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v8
       - name: Remove vendor folder
         run:  rm -rf vendor
       - name: Download build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: moosh-vendor
       - name: Unzip build
