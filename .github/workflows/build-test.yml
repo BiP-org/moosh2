@@ -156,6 +156,7 @@ jobs:
           sleep 2
 
           # 2. Run your test suite as normal
-          export PHP="$(which php)"
+          PHP="$(which php)"
+          export PHP
           chmod +x tests/run_all_tests.sh
           ./tests/run_all_tests.sh
