@@ -98,7 +98,7 @@ jobs:
       - name: Checkout Moodle Repository
         uses: actions/checkout@v7
         with:
-          repository: ${{ env.MOODLE_REPO }}
+          repository: ${{ env.MOODLE_REPOSITORY }}
           path: ${{ env.MOODLE_DIR }}
           ref: ${{ matrix.moodle_branch }}
           fetch-depth: 1
