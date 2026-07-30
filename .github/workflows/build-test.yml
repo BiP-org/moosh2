@@ -89,7 +89,7 @@ jobs:
 
       - name: Install dependencies & PHP extensions
         run: |
-          apk add --no-cache bash git unzip zip grep mysql-client coreutils
+          apk add --no-cache bash git unzip zip grep mysql-client coreutils sudo
           ADD_EXT_PATH=/usr/local/bin/install-php-extensions
           curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
           chmod +x $ADD_EXT_PATH
@@ -132,10 +132,36 @@ jobs:
         run: |
             php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
 
-      - name: Run all Test
+- name: Run all Test
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
+          BASH_ENV: ${{ runner.temp }}/mariadb_aliases.sh
         run: |
-             export PHP="$(which php)"
-             chmod +x tests/run_all_tests.sh
-             ./tests/run_all_tests.sh
+          # 1. Create the alias setup file in the runner's temporary directory
+          cat << 'EOF' > "${{ runner.temp }}/mariadb_aliases.sh"
+          shopt -s expand_aliases
+          # Append flags to disable certificate verification for CLI tools
+          alias mysql='mariadb --skip-ssl-verify-server-cert'
+          alias mysqldump='mariadb-dump --skip-ssl-verify-server-cert'
+          alias mysqladmin='mariadb-admin --skip-ssl-verify-server-cert'
+          alias mysqlcheck='mariadb-check'
+          alias mysqlimport='mariadb-import'
+          alias mysqlshow='mariadb-show'
+          alias mysqlslap='mariadb-slap'
+          alias mysqlbinlog='mariadb-binlog'
+          alias mysql_upgrade='mariadb-upgrade'
+          EOF
+
+          # Start PHP built-in web server in the background
+          php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
+
+          # Store the process ID to kill it later if needed
+          SERVER_PID=$!
+
+          # Wait 2 seconds for the server to spin up
+          sleep 2
+
+          # 2. Run your test suite as normal
+          export PHP="$(which php)"
+          chmod +x tests/run_all_tests.sh
+          ./tests/run_all_tests.sh
