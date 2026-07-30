@@ -76,7 +76,7 @@ jobs:
 
       - name: Run preliminary test
         id: prelim_test
-        run: php moosh.php -V | grep -E "moosh 2\."
+        run: php moosh.php -V | grep -Eq "moosh 2\."
 
       - name: Run diagnostic
         if: failure() && steps.prelim_test.outcome == 'failure'
@@ -135,10 +135,10 @@ jobs:
       - name: Run all Test
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
-          BASH_ENV: ${{ runner.temp }}/mariadb_aliases.sh
+          BASH_ENV: /tmp/mariadb_aliases.sh
         run: |
           # 1. Create the alias setup file in the runner's temporary directory
-          cat << 'EOF' > "${{ runner.temp }}/mariadb_aliases.sh"
+          cat << 'EOF' > "/tmp/mariadb_aliases.sh"
           shopt -s expand_aliases
           # Append flags to disable certificate verification for CLI tools
           alias mysql='mariadb --skip-ssl-verify-server-cert'
