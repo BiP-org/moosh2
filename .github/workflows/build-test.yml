@@ -107,12 +107,12 @@ jobs:
           ref: ${{ matrix.moodle_branch }}
           fetch-depth: 1
 
-      - name: Install Moodle Instance
+- name: Install Moodle Instance
         run: |
-          mkdir -p $HOME/moodledata
-          chmod 777 $HOME/moodledata
+          mkdir -p "$HOME/moodledata"
+          chmod 777 "$HOME/moodledata"
 
-          php $MOODLE_DIR/admin/cli/install.php \
+          php "$MOODLE_DIR/admin/cli/install.php" \
             --non-interactive \
             --lang=en \
             --wwwroot="http://localhost:8000" \
@@ -137,10 +137,9 @@ jobs:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
           BASH_ENV: /tmp/mariadb_aliases.sh
         run: |
-          # 1. Create the alias setup file in the runner's temporary directory
-          cat << 'EOF' > "/tmp/mariadb_aliases.sh"
+          # 1. Create the alias setup file
+          cat << 'EOF' > /tmp/mariadb_aliases.sh
           shopt -s expand_aliases
-          # Append flags to disable certificate verification for CLI tools
           alias mysql='mariadb --skip-ssl-verify-server-cert'
           alias mysqldump='mariadb-dump --skip-ssl-verify-server-cert'
           alias mysqladmin='mariadb-admin --skip-ssl-verify-server-cert'
