@@ -107,7 +107,7 @@ jobs:
           ref: ${{ matrix.moodle_branch }}
           fetch-depth: 1
 
-- name: Install Moodle Instance
+      - name: Install Moodle Instance
         run: |
           mkdir -p "$HOME/moodledata"
           chmod 777 "$HOME/moodledata"
