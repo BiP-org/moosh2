@@ -131,3 +131,7 @@ jobs:
       - name: Populating test data
         run: |
             php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
+
+      - name: Run all Test
+        run: |
+            php "tests/run_all_tests.sh
