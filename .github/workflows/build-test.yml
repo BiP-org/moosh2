@@ -50,8 +50,10 @@ jobs:
           name: moosh-vendor
       - name: Unzip build
         run: unzip vendor.zip
-      - name: Run test
-        run: php moosh.php | grep "moosh version"
+      - name: Run prelimitary test
+        run: php moosh.php -V|grep -E "moosh 2\."
+      - name: Setup Moodle for Testing
+        run: test/test_data_setup_moodle52/fully_reinstall.sh
       - name: Lint files
         run: |
           ls    
