@@ -134,4 +134,4 @@ jobs:
 
       - name: Run all Test
         run: |
-            php "tests/run_all_tests.sh
+            php "tests/run_all_tests.sh"
