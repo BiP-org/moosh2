@@ -41,7 +41,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout code
-        uses: actions/checkout@v8
+        uses: actions/checkout@v7
       - name: Remove vendor folder
         run:  rm -rf vendor
       - name: Download build
