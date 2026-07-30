@@ -62,28 +62,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
       - name: Remove vendor folder
         run:  rm -rf vendor
+
       - name: Download build
         uses: actions/download-artifact@v8
         with:
           name: moosh-vendor
+
       - name: Unzip build
         run: unzip vendor.zip
+
       - name: Run preliminary test
         id: prelim_test
         run: php moosh.php -V | grep -E "moosh 2\."
+
       - name: Run diagnostic
         if: failure() && steps.prelim_test.outcome == 'failure'
         run: php moosh.php
+
       - name: Lint files
         run: |
           ls    
           find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
+
       - name: Install dependencies & PHP extensions
         run: |
-          apk add --no-cache bash git unzip zip libpng-dev icu-dev libxml2-dev libzip-dev
-          docker-php-ext-install mysqli pdo_mysql gd intl mbstring xml zip
+          apk add --no-cache bash git unzip zip
+          ADD_EXT_PATH=/usr/local/bin/install-php-extensions
+          curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+          chmod +x $ADD_EXT_PATH
+          install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
+
       - name: Checkout Moodle Repository
         uses: actions/checkout@v7
         with:
@@ -91,6 +102,7 @@ jobs:
           path: ${{ env.MOODLE_DIR }}
           ref: ${{ matrix.moodle_branch }}
           fetch-depth: 1
+
       - name: Install Moodle Instance
         run: |
           mkdir -p $HOME/moodledata
@@ -111,6 +123,7 @@ jobs:
             --adminuser=admin \
             --adminpass=Admin123! \
             --agree-license
+
       - name: Populating test data
         run: |
             php "tests/test_data_setup_moodle52/setup_testdata.php" $MOODLE_DIR
