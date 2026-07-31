@@ -169,13 +169,20 @@ jobs:
           echo "MYSQL_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
           echo "export MYSQLDUMP_OPTS MYSQL_OPTS" >> /tmp/override_env.sh
 
+
           if [ -n "$PHP" ]; then
             echo "PHP='${PHP}'" >> /tmp/override_env.sh
             echo "export PHP" >> /tmp/override_env.sh
           fi
 
+          echo "--- /tmp/override_env.sh content"
+          cat /tmp/override_env.sh
+
+
           # Source the file using POSIX dot command
           . /tmp/override_env.sh
+
+          echo "MYSQL_OPTS: $MYSQL_OPTS" 
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
