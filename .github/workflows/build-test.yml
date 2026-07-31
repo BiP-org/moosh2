@@ -124,14 +124,14 @@ jobs:
 
       - name: Install Moodle Instance
         run: |
-          mkdir -p "$HOME/moodledata"
-          chmod 777 "$HOME/moodledata"
+          mkdir -vp "${DATAROOT}"
+          chmod -v 777 "${DATAROOT}"
 
           php "$MOODLE_DIR/admin/cli/install.php" \
             --non-interactive \
             --lang=en \
             --wwwroot="http://localhost:8000" \
-            --dataroot="$HOME/moodledata" \
+            --dataroot="${DATAROOT}" \
             --dbtype=mysqli \
             --dbhost=mysql \
             --dbname=moodledb \
@@ -145,9 +145,7 @@ jobs:
 
       - name: Populating test data and saving database and moodledata snapshots for tests
         env:
-          MOODLE_DIR: ${{ env.MOODLE_DIR }}
           BASH_ENV: /tmp/aliases.sh
-          DATAROOT: "${{ github.workspace }}/moodledata"
         run: |
           echo "-- creating aliases"
           # 1. Create the alias setup file
