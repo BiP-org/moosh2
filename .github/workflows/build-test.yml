@@ -157,62 +157,29 @@ jobs:
           fi
 
       - name: Populating test data and saving database and moodledata snapshots for tests
-        env:
-          BASH_ENV: /tmp/aliases.sh
+        # Default is sh, so no shell: bash needed
         run: |
           echo "-- creating aliases"
           
-          # Resolve paths safely. Only set variable if binary is found.
-          # Using 'command -v' is more portable and ShellCheck-safe than 'which'.
+          # Resolve paths
           MYSQL_BIN=$(command -v mysql 2>/dev/null) || true
           MYSQLDUMP_BIN=$(command -v mysqldump 2>/dev/null) || true
-          MYSQLADMIN_BIN=$(command -v mysqladmin 2>/dev/null) || true
-          MYSQLCHECK_BIN=$(command -v mysqlcheck 2>/dev/null) || true
-          MYSQLIMPORT_BIN=$(command -v mysqlimport 2>/dev/null) || true
-          MYSQLSHOW_BIN=$(command -v mysqlshow 2>/dev/null) || true
-          MYSQLSLAP_BIN=$(command -v mysqlslap 2>/dev/null) || true
-          MYSQLBINLOG_BIN=$(command -v mysqlbinlog 2>/dev/null) || true
-          MYSQL_UPGRADE_BIN=$(command -v mysql_upgrade 2>/dev/null) || true
+          PHP=$(command -v php 2>/dev/null) || true
 
-          # Start building the alias file content
-          # We use a variable to accumulate lines to avoid partial file writes if something fails
-          ALIAS_CONTENT="shopt -s expand_aliases"
+          # Build file line by line (POSIX safe)
+          echo "shopt -s expand_aliases" > /tmp/aliases.sh
 
-          # Helper function to add alias if binary exists
-          add_alias() {
-            local cmd=$1
-            local bin=$2
-            local flags=$3
-            if [ -n "$bin" ]; then
-              ALIAS_CONTENT+="
-            alias ${cmd}='${bin} ${flags}'"
-            fi
-          }
-
-          # Add aliases only if the binary was found
-          add_alias "mysql" "$MYSQL_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqldump" "$MYSQLDUMP_BIN" "--ssl-mode=DISABLED"
-          add_alias "mysqladmin" "$MYSQLADMIN_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqlcheck" "$MYSQLCHECK_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqlimport" "$MYSQLIMPORT_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqlshow" "$MYSQLSHOW_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqlslap" "$MYSQLSLAP_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysqlbinlog" "$MYSQLBINLOG_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-          add_alias "mysql_upgrade" "$MYSQL_UPGRADE_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
-
-          # Write the final content to the file
-          echo "$ALIAS_CONTENT" > /tmp/aliases.sh
-
-          # Verify the file was created and has content
-          if [ ! -s /tmp/aliases.sh ]; then
-            echo "Warning: No aliases were created. Check if MySQL binaries are installed."
-          else
-            echo "Aliases created successfully."
-            # Debug: show what was written (optional, remove in production if verbose)
-            # cat /tmp/aliases.sh
+          if [ -n "$MYSQL_BIN" ]; then
+            echo "alias mysql='${MYSQL_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'" >> /tmp/aliases.sh
+          fi
+          if [ -n "$MYSQLDUMP_BIN" ]; then
+            echo "alias mysqldump='${MYSQLDUMP_BIN} --ssl-mode=DISABLED'" >> /tmp/aliases.sh
+          fi
+          if [ -n "$PHP" ]; then
+            echo "PHP='${PHP}' >> /tmp/aliases.sh
+            echo "export PHP >> /tmp/aliases.sh
           fi
 
-          # Source the aliases
           source /tmp/aliases.sh
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
@@ -226,15 +193,15 @@ jobs:
       - name: Run all Test
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
-          BASH_ENV: /tmp/aliases.sh
           DATAROOT: "${{ github.workspace }}/moodledata"
         run: |
           # Start PHP built-in web server in the background
+
+          source /tmp/aliases.sh
+
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
           sleep 2
 
           # 2. Run your test suite as normal
-          PHP="$(which php)"
-          export PHP
           chmod +x tests/run_all_tests.sh
           ./tests/run_all_tests.sh
