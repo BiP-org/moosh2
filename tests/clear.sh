@@ -94,8 +94,30 @@ echo "Dataroot cleared. ($((SECONDS - STEP_START))s)"
 # Restore dataroot from archive.
 echo "Restoring dataroot from data.tar.gz..."
 STEP_START=$SECONDS
-sudo tar -xzf "$DATA_FILE" -C "$(dirname "$DATAROOT")"
-sudo chown -R $USER $DATAROOT
+# data.tar.gz was created with `tar -C "$(dirname DATAROOT)" "$(basename DATAROOT)"`
+# at dump time, so it contains a single top-level directory named whatever
+# DATAROOT's basename was back then (eg. "moodle52") - which does not
+# necessarily match this restore's $DATAROOT (eg. CI's ".../moodledata").
+# Extract into a scratch directory and use the archive's own top-level
+# entry name, rather than assuming it matches $(basename "$DATAROOT").
+RESTORE_TMP="$(mktemp -d)"
+trap 'rm -rf "$RESTORE_TMP"' EXIT
+
+sudo tar -xzf "$DATA_FILE" -C "$RESTORE_TMP"
+
+ARCHIVE_TOP=$(find "$RESTORE_TMP" -mindepth 1 -maxdepth 1 -type d | head -n1)
+if [ -z "$ARCHIVE_TOP" ]; then
+    echo "ERROR: $DATA_FILE did not contain a top-level directory as expected."
+    exit 1
+fi
+
+mkdir -p "$(dirname "$DATAROOT")"
+sudo rm -rf "$DATAROOT"
+sudo mv "$ARCHIVE_TOP" "$DATAROOT"
+rm -rf "$RESTORE_TMP"
+trap - EXIT
+
+sudo chown -R "$USER" "$DATAROOT"
 echo "Dataroot restored. ($((SECONDS - STEP_START))s)"
 
 echo "=== Done in $((SECONDS - TOTAL_START))s ==="

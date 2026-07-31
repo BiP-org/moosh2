@@ -59,4 +59,44 @@ assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
 rm -rf "$CWDDIR"
 echo ""
 
+echo "--- Test: Custom database (-d) detects a planted signature -> exit 1 ---"
+SCANDIR=$(mktemp -d)
+RULEDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$SCANDIR/version.php"
+cat > "$SCANDIR/backdoor.php" << 'EOF'
+<?php
+// MOOSH2_TEST_MALWARE_MARKER
+eval($_GET['x']);
+EOF
+MARKER_HEX=$(printf 'MOOSH2_TEST_MALWARE_MARKER' | od -An -tx1 | tr -d ' \n')
+echo "Test.Moosh2.Marker:0:*:${MARKER_HEX}" > "$RULEDIR/custom.ndb"
+LOGFILE=$(mktemp)
+OUT=$(cd "$SCANDIR" && $PHP $MOOSH plugin:clamscan -d "$RULEDIR" -i --log="$LOGFILE" 2>&1)
+EC=$?
+assert_exit_code "Exit code 1 when a signature matches" 1 "$EC"
+assert_output_contains "Reports the infected file" "backdoor.php" "$OUT"
+assert_output_contains "Reports the matched rule" "Test.Moosh2.Marker" "$OUT"
+if [ -s "$LOGFILE" ]; then
+    echo "  PASS: --log wrote a non-empty report file"
+    ((PASS++))
+else
+    echo "  FAIL: --log file is missing or empty"
+    ((FAIL++))
+fi
+rm -rf "$SCANDIR" "$RULEDIR"
+rm -f "$LOGFILE"
+echo ""
+
+echo "--- Test: Custom database (-d) with no match still exits 0 ---"
+CLEANDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$CLEANDIR/version.php"
+echo '<?php echo "nothing suspicious here";' > "$CLEANDIR/lib.php"
+RULEDIR2=$(mktemp -d)
+echo "Test.Moosh2.Marker:0:*:${MARKER_HEX}" > "$RULEDIR2/custom.ndb"
+OUT=$(cd "$CLEANDIR" && $PHP $MOOSH plugin:clamscan -d "$RULEDIR2" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0 when the signature is absent" 0 "$EC"
+rm -rf "$CLEANDIR" "$RULEDIR2"
+echo ""
+
 print_summary
