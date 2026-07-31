@@ -165,8 +165,8 @@ jobs:
           # Remove 'shopt -s expand_aliases' as it is Bash-specific
           echo "# override environment" > /tmp/override_env.sh
 
-          echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert"
-          echo "MYSQL_OPTS=--skip-ssl-verify-server-cert"
+          echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
+          echo "MYSQL_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
 
           if [ -n "$PHP" ]; then
             echo "PHP='${PHP}'" >> /tmp/override_env.sh

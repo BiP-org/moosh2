@@ -6,6 +6,7 @@
 
 set -euo pipefail
 
+MYSQLDUMP_OPTS="${MYSQLDUMP_OPTS:-}"
 DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
 
@@ -14,6 +15,7 @@ echo "=== Moodle backup ==="
 echo "MOODLE_DIR: $MOODLE_DIR"
 echo "DATAROOT: $DATAROOT"
 echo "CONFIG_FILE: $CONFIG_FILE"
+echo "MYSQLDUMP_OPTS: $MYSQLDUMP_OPTS"
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."

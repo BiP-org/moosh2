@@ -6,6 +6,7 @@
 
 set -euo pipefail
 
+MYSQLDUMP_OPTS="${MYSQLDUMP_OPTS:-}"
 CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."

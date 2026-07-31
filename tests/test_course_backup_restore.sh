@@ -19,6 +19,7 @@ bash "$SCRIPT_DIR/clear.sh"
 echo ""
 
 BACKUP_DIR=$(mktemp -d)
+MYSQL_OPTS=
 
 # ═══════════════════════════════════════════════════════════════════
 # course:backup

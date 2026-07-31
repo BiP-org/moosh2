@@ -15,6 +15,7 @@ echo ""
 
 echo "--- Resetting Moodle to known state ---"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 bash "$SCRIPT_DIR/clear.sh"
 echo ""
 

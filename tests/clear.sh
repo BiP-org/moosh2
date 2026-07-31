@@ -49,7 +49,7 @@ DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 SETUP_DIR="$SCRIPT_DIR/test_data_setup_${MOODLE_VERSION}"
 DUMP_FILE="$SETUP_DIR/dump.sql.gz"
 DATA_FILE="$SETUP_DIR/data.tar.gz"
