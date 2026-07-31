@@ -63,6 +63,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Install dependencies & PHP extensions
+        run: |
+          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo
+          ADD_EXT_PATH=/usr/local/bin/install-php-extensions
+          curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+          chmod +x $ADD_EXT_PATH
+          install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
+
       - name: Remove vendor folder
         run:  rm -rf vendor
 
@@ -86,14 +94,6 @@ jobs:
         run: |
           ls    
           find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
-
-      - name: Install dependencies & PHP extensions
-        run: |
-          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo
-          ADD_EXT_PATH=/usr/local/bin/install-php-extensions
-          curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
-          chmod +x $ADD_EXT_PATH
-          install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
 
       - name: Configure PHP settings
         run: |
@@ -140,15 +140,15 @@ jobs:
           # 1. Create the alias setup file
           cat << 'EOF' > /tmp/mariadb_aliases.sh
           shopt -s expand_aliases
-          alias mysql='mariadb --skip-ssl-verify-server-cert'
-          alias mysqldump='mariadb-dump --skip-ssl-verify-server-cert'
-          alias mysqladmin='mariadb-admin --skip-ssl-verify-server-cert'
-          alias mysqlcheck='mariadb-check'
-          alias mysqlimport='mariadb-import'
-          alias mysqlshow='mariadb-show'
-          alias mysqlslap='mariadb-slap'
-          alias mysqlbinlog='mariadb-binlog'
-          alias mysql_upgrade='mariadb-upgrade'
+          alias mysql='mysql --skip-ssl-verify-server-cert'
+          alias mysqldump='mysqldump --skip-ssl-verify-server-cert'
+          alias mysqladmin='mysqladmin --skip-ssl-verify-server-cert'
+          alias mysqlcheck='mysqlcheck'
+          alias mysqlimport='mysqlimport'
+          alias mysqlshow='mysqlshow'
+          alias mysqlslap='mysqlslap'
+          alias mysqlbinlog='mysqlbinlog'
+          alias mysql_upgrade='mysql_upgrade'
           EOF
 
           # Start PHP built-in web server in the background
