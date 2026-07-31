@@ -158,21 +158,18 @@ jobs:
           echo "-- creating environment"
           PHP=$(command -v php 2>/dev/null) || true
 
-          # Build file line by line (POSIX safe, NO shopt)
-          # Remove 'shopt -s expand_aliases' as it is Bash-specific
-          echo "# override environment" > /tmp/override_env.sh
+          # Build file line by line using a single grouped redirect (POSIX safe)
+          {
+            echo "# override environment"
+            echo "MYSQLDUMP_OPTS='--skip-ssl-verify-server-cert --no-tablespaces'"
+            echo "MYSQL_OPTS='--skip-ssl-verify-server-cert'"
+            echo "export MYSQLDUMP_OPTS MYSQL_OPTS"
 
-          echo "MYSQLDUMP_OPTS='--skip-ssl-verify-server-cert --no-tablespaces'" >> /tmp/override_env.sh
-          echo "MYSQL_OPTS='--skip-ssl-verify-server-cert'" >> /tmp/override_env.sh
-          echo "export MYSQLDUMP_OPTS MYSQL_OPTS" >> /tmp/override_env.sh
-
-          if [ -n "$PHP" ]; then
-            echo "PHP='${PHP}'" >> /tmp/override_env.sh
-            echo "export PHP" >> /tmp/override_env.sh
-          fi
-
-          echo "--- /tmp/override_env.sh content"
-          cat /tmp/override_env.sh
+            if [ -n "$PHP" ]; then
+              echo "PHP='${PHP}'"
+              echo "export PHP"
+            fi
+          } > /tmp/override_env.sh
 
           # Source the file using POSIX dot command
           # shellcheck source=/dev/null
