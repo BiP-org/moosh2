@@ -167,6 +167,7 @@ jobs:
 
           echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
           echo "MYSQL_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
+          echo "export MYSQLDUMP_OPTS MYSQL_OPTS" >> /tmp/override_env.sh
 
           if [ -n "$PHP" ]; then
             echo "PHP='${PHP}'" >> /tmp/override_env.sh
