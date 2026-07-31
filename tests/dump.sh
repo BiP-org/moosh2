@@ -6,11 +6,17 @@
 
 set -euo pipefail
 
-DB_NAME="moodle51"
-DB_USER="root"
-DB_PASS="a"
-DB_HOST="localhost"
-DATAROOT="/opt/data/moodle51"
+CONFIG_FILE="$MOODLE_DIR/config.php"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: $CONFIG_FILE not found."
+    exit 1
+fi
+
+DB_NAME=$(grep -oP "\\\$CFG->dbname\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 
 echo "=== Moodle 5.2 backup ==="
 

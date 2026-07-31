@@ -128,11 +128,7 @@ jobs:
             --adminpass=Admin123! \
             --agree-license
 
-      - name: Populating test data
-        run: |
-            php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
-
-      - name: Run all Test
+      - name: Populating test data and saving database and moodledata snapshots for tests
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
           BASH_ENV: /tmp/mariadb_aliases.sh
@@ -152,6 +148,19 @@ jobs:
           alias mysql_upgrade='mysql_upgrade'
           EOF
 
+          php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
+          cd "tests/test_data_setup_moodle52/"
+          echo "clearing existing snapshots"
+          rm -v data.tar.gz dump.sql.gz
+          echo "creating snapshots"
+          dump.sh
+
+      - name: Run all Test
+        env:
+          MOODLE_DIR: ${{ env.MOODLE_DIR }}
+          BASH_ENV: /tmp/mariadb_aliases.sh
+          DATAROOT: "${{ github.workspace }}/moodledata"
+        run: |
           # Start PHP built-in web server in the background
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
           sleep 2
