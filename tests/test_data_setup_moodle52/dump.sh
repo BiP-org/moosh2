@@ -6,7 +6,14 @@
 
 set -euo pipefail
 
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 CONFIG_FILE="$MOODLE_DIR/config.php"
+
+echo "=== Moodle backup ==="
+
+echo "MOODLE_DIR: $MOODLE_DIR"
+echo "DATAROOT: $DATAROOT"
+
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."
     exit 1
@@ -16,9 +23,7 @@ DB_NAME=$(grep -oP "\\\$CFG->dbname\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
-DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 
-echo "=== Moodle 5.2 backup ==="
 
 echo "Dumping database '$DB_NAME'..."
 mysqldump -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME" | gzip > dump.sql.gz
