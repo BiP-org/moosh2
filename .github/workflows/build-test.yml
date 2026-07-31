@@ -64,8 +64,8 @@ jobs:
 
       - name: Set Absolute MOODLE_DIR & DATAROOT
         run: |
-          echo "MOODLE_DIR=${{ github.workspace }}/moodle" >> $GITHUB_ENV
-          echo "DATAROOT=${{ github.workspace }}/moodledata" >> $GITHUB_ENV
+          echo "MOODLE_DIR=\"${{ github.workspace }}/moodle\"" >> $GITHUB_ENV
+          echo "DATAROOT=\"${{ github.workspace }}/moodledata\"" >> $GITHUB_ENV
 
       - name: Install dependencies & PHP extensions
         run: |
