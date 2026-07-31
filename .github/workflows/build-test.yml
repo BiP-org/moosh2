@@ -131,9 +131,10 @@ jobs:
       - name: Populating test data and saving database and moodledata snapshots for tests
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
-          BASH_ENV: /tmp/mariadb_aliases.sh
+          BASH_ENV: /tmp/aliases.sh
           DATAROOT: "${{ github.workspace }}/moodledata"
         run: |
+          echo "-- creating aliases"
           # 1. Create the alias setup file
           cat << 'EOF' > /tmp/mariadb_aliases.sh
           shopt -s expand_aliases
@@ -150,15 +151,16 @@ jobs:
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
-          echo "clearing existing snapshots"
+          echo "--- clearing existing snapshots"
           rm -v data.tar.gz dump.sql.gz
-          echo "creating snapshots"
-          dump.sh
+          echo "--- creating snapshots"
+          chmod -v a+xr dump.sh
+          ./dump.sh
 
       - name: Run all Test
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
-          BASH_ENV: /tmp/mariadb_aliases.sh
+          BASH_ENV: /tmp/aliases.sh
           DATAROOT: "${{ github.workspace }}/moodledata"
         run: |
           # Start PHP built-in web server in the background
