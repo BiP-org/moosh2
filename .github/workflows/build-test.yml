@@ -161,19 +161,34 @@ jobs:
           BASH_ENV: /tmp/aliases.sh
         run: |
           echo "-- creating aliases"
-          # 1. Create the alias setup file
-          cat << 'EOF' > /tmp/mariadb_aliases.sh
+          
+          # Resolve absolute paths first
+          MYSQL_BIN=$(which mysql)
+          MYSQLDUMP_BIN=$(which mysqldump)
+          MYSQLADMIN_BIN=$(which mysqladmin)
+          MYSQLCHECK_BIN=$(which mysqlcheck)
+          MYSQLIMPORT_BIN=$(which mysqlimport)
+          MYSQLSHOW_BIN=$(which mysqlshow)
+          MYSQLSLAP_BIN=$(which mysqlslap)
+          MYSQLBINLOG_BIN=$(which mysqlbinlog)
+          MYSQL_UPGRADE_BIN=$(which mysql_upgrade)
+
+          # Write the alias file using echo to ensure paths are expanded
+          cat > /tmp/aliases.sh << EOF
           shopt -s expand_aliases
-          alias mysql='mysql --skip-ssl-verify-server-cert'
-          alias mysqldump='mysqldump --skip-ssl-verify-server-cert'
-          alias mysqladmin='mysqladmin --skip-ssl-verify-server-cert'
-          alias mysqlcheck='mysqlcheck'
-          alias mysqlimport='mysqlimport'
-          alias mysqlshow='mysqlshow'
-          alias mysqlslap='mysqlslap'
-          alias mysqlbinlog='mysqlbinlog'
-          alias mysql_upgrade='mysql_upgrade'
+          alias mysql='${MYSQL_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqldump='${MYSQLDUMP_BIN} --ssl-mode=DISABLED'
+          alias mysqladmin='${MYSQLADMIN_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqlcheck='${MYSQLCHECK_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqlimport='${MYSQLIMPORT_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqlshow='${MYSQLSHOW_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqlslap='${MYSQLSLAP_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysqlbinlog='${MYSQLBINLOG_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
+          alias mysql_upgrade='${MYSQL_UPGRADE_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
           EOF
+
+          # Source the aliases
+          source /tmp/aliases.sh
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
