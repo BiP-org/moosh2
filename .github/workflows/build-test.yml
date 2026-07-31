@@ -200,7 +200,7 @@ jobs:
 
           . /tmp/override_env.sh
 
-          php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
+          php -S 127.0.0.1:8000 -t "$MOODLE_DIR/public" > /dev/null 2>&1 &
           sleep 2
 
           # 2. Run your test suite as normal
