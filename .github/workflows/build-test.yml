@@ -2,6 +2,41 @@ name: Build and Test
 
 on:
   push:
+  workflow_dispatch:
+    inputs:
+      only_tests:
+        description: 'Run only these tests (space/comma-separated, e.g. "plugin_list_apply plugin_clamscan"). Leave empty to run everything.'
+        required: false
+        type: string
+      skip_tests:
+        description: 'Skip these tests (space/comma-separated). Ignored if only_tests is set.'
+        required: false
+        type: string
+        default: >-
+          test_archive.sh
+          test_category_list.sh
+          test_content_search.sh
+          test_context_info.sh
+          test_context_search.sh
+          test_course_create.sh
+          test_course_backup_restore.sh
+          test_course_find_big_images.sh
+          test_course_last_visited.sh
+          test_course_top.sh
+          test_event_discover.sh
+          test_fontawesome.sh
+          test_instance_info.sh
+          test_plugin_usage.sh
+          test_plugin.sh
+          test_search_questionid.sh
+          test_search_timestamp.sh
+          test_sql.sh
+          test_sql_select.sh
+          test_user_info.sh
+          test_user_list.sh
+          test_user_online_export_login.sh
+          test_utility.sh
+          test_webservice.sh
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
@@ -71,7 +106,7 @@ jobs:
 
       - name: Install dependencies & PHP extensions
         run: |
-          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo
+          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo clamscan
           ADD_EXT_PATH=/usr/local/bin/install-php-extensions
           curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
           chmod +x $ADD_EXT_PATH
@@ -189,6 +224,8 @@ jobs:
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
           DATAROOT: "${{ github.workspace }}/moodledata"
+          ONLY_TESTS: ${{ github.event.inputs.only_tests }}
+          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           # Start PHP built-in web server in the background
 
