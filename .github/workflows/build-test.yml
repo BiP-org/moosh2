@@ -158,7 +158,7 @@ jobs:
 
       - name: Populating test data and saving database and moodledata snapshots for tests
         # Default is sh, so no shell: bash needed
-        run: |
+         run: |
           echo "-- creating aliases"
           
           # Resolve paths
@@ -176,11 +176,11 @@ jobs:
             echo "alias mysqldump='${MYSQLDUMP_BIN} --ssl-mode=DISABLED'" >> /tmp/aliases.sh
           fi
           if [ -n "$PHP" ]; then
-            echo "PHP='${PHP}' >> /tmp/aliases.sh
-            echo "export PHP >> /tmp/aliases.sh
+            echo "PHP='${PHP}'" >> /tmp/aliases.sh
+            echo "export PHP" >> /tmp/aliases.sh
           fi
 
-          source /tmp/aliases.sh
+          . /tmp/aliases.sh
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
@@ -197,7 +197,7 @@ jobs:
         run: |
           # Start PHP built-in web server in the background
 
-          source /tmp/aliases.sh
+          . /tmp/aliases.sh
 
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
           sleep 2
