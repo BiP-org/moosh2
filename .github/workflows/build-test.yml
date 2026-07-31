@@ -142,15 +142,20 @@ jobs:
             --adminuser=admin \
             --adminpass=Admin123! \
             --agree-license
-          
+
           echo "Checking for config.php" 
           # Find the first config.php containing $CFG->dbname
           # Use grep -F for fixed string matching to avoid regex issues with $
-          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF 'CFG->dbname' {} + | head -n 1)
+          # Use 'readlink -f' or just trust the path from find, but ensure no quotes
+          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF '$CFG->dbname' {} + | head -n 1)
           
           if [ -n "$FOUND_FILE" ]; then
             echo "Found config.php: $FOUND_FILE"
-            echo "CONFIG_FILE=$FOUND_FILE" >> "$GITHUB_ENV"
+            # CRITICAL: Ensure no extra quotes or newlines are included
+            # Use printf to avoid trailing newline issues, and strip any quotes
+            CLEAN_PATH=$(echo "$FOUND_FILE" | tr -d '"')
+            echo "CONFIG_FILE=${CLEAN_PATH}" >> "$GITHUB_ENV"
+            echo "Exported CONFIG_FILE as: $CLEAN_PATH"
           else
             echo "Error: No config.php containing \$CFG->dbname found in $MOODLE_DIR"
             exit 1
