@@ -27,7 +27,7 @@ DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
 
 
 echo "Dumping database '$DB_NAME'..."
-mysqldump -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME" | gzip > dump.sql.gz
+mysqldump $MYSQLDUMP_OPTS -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME" | gzip > dump.sql.gz
 echo "Created dump.sql.gz ($(du -h dump.sql.gz | cut -f1))"
 
 echo "Archiving dataroot '$DATAROOT'..."

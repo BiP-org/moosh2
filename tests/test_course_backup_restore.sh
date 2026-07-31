@@ -170,7 +170,7 @@ run_moosh course:restore -p "$MOODLE_PATH" --run --course-startdate="$NEW_START_
 assert_output_contains "Shows restored" "Restored course" "$OUT"
 RESTORED_ID=$(echo "$OUT" | grep -oP 'Restored course ID=\K[0-9]+' | tail -1)
 if [ -n "$RESTORED_ID" ]; then
-    ACTUAL_TS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT startdate FROM mdl_course WHERE id=$RESTORED_ID;" 2>/dev/null)
+    ACTUAL_TS=$(mysql $MYSQL_OPTS -uroot -pa -N -B moodle52 -e "SELECT startdate FROM mdl_course WHERE id=$RESTORED_ID;" 2>/dev/null)
     if [ "$ACTUAL_TS" = "$EXPECTED_TS" ]; then
         echo "  PASS: Course $RESTORED_ID startdate matches new value ($ACTUAL_TS = $EXPECTED_TS)"
         ((PASS++))
@@ -192,7 +192,7 @@ echo ""
 
 echo "--- Test: Restore --without-users produces no user enrolments ---"
 # Sanity-check the backup file does contain enrolled users (so the negative result is meaningful).
-SRC_ENROLMENTS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = 2;" 2>/dev/null)
+SRC_ENROLMENTS=$(mysql $MYSQL_OPTS -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = 2;" 2>/dev/null)
 if [ "${SRC_ENROLMENTS:-0}" -lt 1 ]; then
     echo "  FAIL: source course 2 has no user_enrolments — backup wouldn't contain users either, skipping"
     ((FAIL++))
@@ -201,7 +201,7 @@ else
     assert_output_contains "Shows restored" "Restored course" "$OUT"
     RESTORED_ID=$(echo "$OUT" | grep -oP 'Restored course ID=\K[0-9]+' | tail -1)
     if [ -n "$RESTORED_ID" ]; then
-        DST_ENROLMENTS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = $RESTORED_ID;" 2>/dev/null)
+        DST_ENROLMENTS=$(mysql $MYSQL_OPTS -uroot -pa -N -B moodle52 -e "SELECT COUNT(*) FROM mdl_user_enrolments ue JOIN mdl_enrol e ON e.id = ue.enrolid WHERE e.courseid = $RESTORED_ID;" 2>/dev/null)
         if [ "${DST_ENROLMENTS:-X}" = "0" ]; then
             echo "  PASS: restored course $RESTORED_ID has 0 user enrolments (source had $SRC_ENROLMENTS)"
             ((PASS++))

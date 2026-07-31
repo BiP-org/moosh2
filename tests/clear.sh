@@ -73,7 +73,7 @@ echo "=== $MOODLE_VERSION clear & restore ==="
 # Drop and recreate database.
 echo "Dropping and recreating database '$DB_NAME'..."
 STEP_START=$SECONDS
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
+mysql $MYSQL_OPTS -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
 DROP DATABASE IF EXISTS \`$DB_NAME\`;
 CREATE DATABASE \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SQL
@@ -82,7 +82,7 @@ echo "Database recreated. ($((SECONDS - STEP_START))s)"
 # Restore database from dump.
 echo "Restoring database from dump.sql.gz..."
 STEP_START=$SECONDS
-gunzip -c "$DUMP_FILE" | mysql --abort-source-on-error -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME"
+gunzip -c "$DUMP_FILE" | mysql $MYSQL_OPTS --abort-source-on-error -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME"
 echo "Database restored. ($((SECONDS - STEP_START))s)"
 
 # Clear dataroot.

@@ -25,7 +25,7 @@ echo "=== Moodle 5.2 full reinstall ==="
 
 # Drop and recreate database.
 echo "Dropping and recreating database '$DB_NAME'..."
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
+mysql $MYSQL_OPTS -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
 DROP DATABASE IF EXISTS \`$DB_NAME\`;
 CREATE DATABASE \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SQL

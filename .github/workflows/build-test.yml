@@ -158,30 +158,23 @@ jobs:
 
       - name: Populating test data and saving database and moodledata snapshots for tests
         run: |
-          echo "-- creating aliases"
-          
-          # Resolve paths
-          MYSQL_BIN=$(command -v mysql 2>/dev/null) || true
-          MYSQLDUMP_BIN=$(command -v mysqldump 2>/dev/null) || true
+          echo "-- creating environment"
           PHP=$(command -v php 2>/dev/null) || true
 
           # Build file line by line (POSIX safe, NO shopt)
           # Remove 'shopt -s expand_aliases' as it is Bash-specific
-          echo "# Aliases for MySQL tools" > /tmp/aliases.sh
+          echo "# override environment" > /tmp/override_env.sh
 
-          if [ -n "$MYSQL_BIN" ]; then
-            echo "alias mysql='${MYSQL_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'" >> /tmp/aliases.sh
-          fi
-          if [ -n "$MYSQLDUMP_BIN" ]; then
-            echo "alias mysqldump='${MYSQLDUMP_BIN} --ssl-mode=DISABLED'" >> /tmp/aliases.sh
-          fi
+          echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert"
+          echo "MYSQL_OPTS=--skip-ssl-verify-server-cert"
+
           if [ -n "$PHP" ]; then
-            echo "PHP='${PHP}'" >> /tmp/aliases.sh
-            echo "export PHP" >> /tmp/aliases.sh
+            echo "PHP='${PHP}'" >> /tmp/override_env.sh
+            echo "export PHP" >> /tmp/override_env.sh
           fi
 
           # Source the file using POSIX dot command
-          . /tmp/aliases.sh
+          . /tmp/override_env.sh
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
@@ -198,7 +191,7 @@ jobs:
         run: |
           # Start PHP built-in web server in the background
 
-          . /tmp/aliases.sh
+          . /tmp/override_env.sh
 
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR" > /dev/null 2>&1 &
           sleep 2
