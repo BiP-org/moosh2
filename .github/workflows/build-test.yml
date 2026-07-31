@@ -157,8 +157,7 @@ jobs:
           fi
 
       - name: Populating test data and saving database and moodledata snapshots for tests
-        # Default is sh, so no shell: bash needed
-         run: |
+        run: |
           echo "-- creating aliases"
           
           # Resolve paths
