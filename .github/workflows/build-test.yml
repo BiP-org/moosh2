@@ -165,7 +165,7 @@ jobs:
           # Remove 'shopt -s expand_aliases' as it is Bash-specific
           echo "# override environment" > /tmp/override_env.sh
 
-          echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
+          echo "MYSQLDUMP_OPTS=--skip-ssl-verify-server-cert --no-tablespaces" >> /tmp/override_env.sh
           echo "MYSQL_OPTS=--skip-ssl-verify-server-cert" >> /tmp/override_env.sh
           echo "export MYSQLDUMP_OPTS MYSQL_OPTS" >> /tmp/override_env.sh
 
@@ -181,8 +181,6 @@ jobs:
 
           # Source the file using POSIX dot command
           . /tmp/override_env.sh
-
-          echo "MYSQL_OPTS: $MYSQL_OPTS" 
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
           cd "tests/test_data_setup_moodle52/"
