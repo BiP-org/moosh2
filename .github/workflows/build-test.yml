@@ -144,16 +144,15 @@ jobs:
             --agree-license
 
           echo "Checking for config.php" 
-          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF '\$CFG->dbname' {} + | head -n 1)
+          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF 'CFG->dbname' {} + | head -n 1)
           
           if [ -n "$FOUND_FILE" ]; then
             echo "Found config.php: $FOUND_FILE"
-            # Ensure the path is clean (remove any accidental quotes just in case)
             CLEAN_PATH=$(printf '%s' "$FOUND_FILE" | tr -d '"')
             echo "CONFIG_FILE=$CLEAN_PATH" >> "$GITHUB_ENV"
             echo "Exported CONFIG_FILE as: $CLEAN_PATH"
           else
-            echo "Error: No config.php found."
+            echo "Error: No config.php containing 'CFG->dbname' found."
             exit 1
           fi
 
