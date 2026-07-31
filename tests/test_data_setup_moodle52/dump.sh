@@ -13,6 +13,7 @@ echo "=== Moodle backup ==="
 
 echo "MOODLE_DIR: $MOODLE_DIR"
 echo "DATAROOT: $DATAROOT"
+echo "CONFIG_FILE: $CONFIG_FILE"
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."
