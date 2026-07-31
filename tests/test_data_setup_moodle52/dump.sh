@@ -10,7 +10,7 @@ DB_NAME="moodle52"
 DB_USER="root"
 DB_PASS="a"
 DB_HOST="localhost"
-DATAROOT="/opt/data/moodle52"
+DATAROOT="${DATAROOT:-/opt/data/moodle52}"
 
 echo "=== Moodle 5.2 backup ==="
 

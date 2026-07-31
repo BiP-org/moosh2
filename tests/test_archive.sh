@@ -9,7 +9,7 @@
 source "$(dirname "$0")/common.sh"
 
 MOODLE_BASENAME="$(basename "${MOODLE_DIR}")"
-DATAROOT="/opt/data/$MOODLE_BASENAME"
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_BASENAME}"
 
 echo "=== moosh2 archive:dump / archive:restore integration tests ==="
 echo "Moodle path: $MOODLE_PATH"

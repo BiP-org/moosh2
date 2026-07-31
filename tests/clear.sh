@@ -47,7 +47,7 @@ DB_NAME=$(grep -oP "\\\$CFG->dbname\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
 DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
-DATAROOT="/opt/data/$MOODLE_VERSION"
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 SETUP_DIR="$SCRIPT_DIR/test_data_setup_${MOODLE_VERSION}"

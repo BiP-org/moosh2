@@ -136,6 +136,7 @@ jobs:
         env:
           MOODLE_DIR: ${{ env.MOODLE_DIR }}
           BASH_ENV: /tmp/mariadb_aliases.sh
+          DATAROOT: "${{ github.workspace }}/moodledata"
         run: |
           # 1. Create the alias setup file
           cat << 'EOF' > /tmp/mariadb_aliases.sh
