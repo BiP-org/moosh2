@@ -162,30 +162,55 @@ jobs:
         run: |
           echo "-- creating aliases"
           
-          # Resolve absolute paths first
-          MYSQL_BIN=$(which mysql)
-          MYSQLDUMP_BIN=$(which mysqldump)
-          MYSQLADMIN_BIN=$(which mysqladmin)
-          MYSQLCHECK_BIN=$(which mysqlcheck)
-          MYSQLIMPORT_BIN=$(which mysqlimport)
-          MYSQLSHOW_BIN=$(which mysqlshow)
-          MYSQLSLAP_BIN=$(which mysqlslap)
-          MYSQLBINLOG_BIN=$(which mysqlbinlog)
-          MYSQL_UPGRADE_BIN=$(which mysql_upgrade)
+          # Resolve paths safely. Only set variable if binary is found.
+          # Using 'command -v' is more portable and ShellCheck-safe than 'which'.
+          MYSQL_BIN=$(command -v mysql 2>/dev/null) || true
+          MYSQLDUMP_BIN=$(command -v mysqldump 2>/dev/null) || true
+          MYSQLADMIN_BIN=$(command -v mysqladmin 2>/dev/null) || true
+          MYSQLCHECK_BIN=$(command -v mysqlcheck 2>/dev/null) || true
+          MYSQLIMPORT_BIN=$(command -v mysqlimport 2>/dev/null) || true
+          MYSQLSHOW_BIN=$(command -v mysqlshow 2>/dev/null) || true
+          MYSQLSLAP_BIN=$(command -v mysqlslap 2>/dev/null) || true
+          MYSQLBINLOG_BIN=$(command -v mysqlbinlog 2>/dev/null) || true
+          MYSQL_UPGRADE_BIN=$(command -v mysql_upgrade 2>/dev/null) || true
 
-          # Write the alias file using echo to ensure paths are expanded
-          cat > /tmp/aliases.sh << EOF
-          shopt -s expand_aliases
-          alias mysql='${MYSQL_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqldump='${MYSQLDUMP_BIN} --ssl-mode=DISABLED'
-          alias mysqladmin='${MYSQLADMIN_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqlcheck='${MYSQLCHECK_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqlimport='${MYSQLIMPORT_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqlshow='${MYSQLSHOW_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqlslap='${MYSQLSLAP_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysqlbinlog='${MYSQLBINLOG_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          alias mysql_upgrade='${MYSQL_UPGRADE_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'
-          EOF
+          # Start building the alias file content
+          # We use a variable to accumulate lines to avoid partial file writes if something fails
+          ALIAS_CONTENT="shopt -s expand_aliases"
+
+          # Helper function to add alias if binary exists
+          add_alias() {
+            local cmd=$1
+            local bin=$2
+            local flags=$3
+            if [ -n "$bin" ]; then
+              ALIAS_CONTENT+="
+alias ${cmd}='${bin} ${flags}'"
+            fi
+          }
+
+          # Add aliases only if the binary was found
+          add_alias "mysql" "$MYSQL_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqldump" "$MYSQLDUMP_BIN" "--ssl-mode=DISABLED"
+          add_alias "mysqladmin" "$MYSQLADMIN_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqlcheck" "$MYSQLCHECK_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqlimport" "$MYSQLIMPORT_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqlshow" "$MYSQLSHOW_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqlslap" "$MYSQLSLAP_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysqlbinlog" "$MYSQLBINLOG_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+          add_alias "mysql_upgrade" "$MYSQL_UPGRADE_BIN" "--skip-ssl-verify-server-cert --ssl-mode=DISABLED"
+
+          # Write the final content to the file
+          echo "$ALIAS_CONTENT" > /tmp/aliases.sh
+
+          # Verify the file was created and has content
+          if [ ! -s /tmp/aliases.sh ]; then
+            echo "Warning: No aliases were created. Check if MySQL binaries are installed."
+          else
+            echo "Aliases created successfully."
+            # Debug: show what was written (optional, remove in production if verbose)
+            # cat /tmp/aliases.sh
+          fi
 
           # Source the aliases
           source /tmp/aliases.sh
