@@ -7,7 +7,7 @@
 set -euo pipefail
 
 DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
-CONFIG_FILE="$MOODLE_DIR/config.php"
+CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
 
 echo "=== Moodle backup ==="
 
