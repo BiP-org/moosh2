@@ -142,6 +142,9 @@ jobs:
             --adminuser=admin \
             --adminpass=Admin123! \
             --agree-license
+          
+          echo "Checking for config.php" 
+          find "$MOODLE_DIR" -type f -name config.php
 
       - name: Populating test data and saving database and moodledata snapshots for tests
         env:
