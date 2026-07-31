@@ -75,6 +75,12 @@ jobs:
           chmod +x $ADD_EXT_PATH
           install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
 
+      - name: Extract the certificate from mysql chain and save the first certificate (usually the CA) to the trust store
+        run: |
+          echo | openssl s_client -connect your_db_host:3306 -showcerts 2>/dev/null | \
+          awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{ if(/BEGIN CERTIFICATE/){n++}; if(n==1) print }' > /usr/local/share/ca-certificates/mysql-ca.crt
+          sudo update-ca-certificates
+
       - name: Remove vendor folder
         run:  rm -rf vendor
 
