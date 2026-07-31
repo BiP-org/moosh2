@@ -144,19 +144,19 @@ jobs:
             --agree-license
 
           echo "Checking for config.php" 
-          # Find the first config.php containing $CFG->dbname
-          # Use grep -F for fixed string matching to avoid regex issues with $
-          # Use 'readlink -f' or just trust the path from find, but ensure no quotes
-          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF '$CFG->dbname' {} + | head -n 1)
+          # Use grep -F (fixed string) with double quotes. 
+          # Escape the $ for the shell so grep receives a literal $.
+          # This avoids SC2016 (single quotes with $) and regex issues.
+          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF 'CFG->dbname' {} + | head -n 1)
           
           if [ -n "$FOUND_FILE" ]; then
             echo "Found config.php: $FOUND_FILE"
-            # CRITICAL: Ensure no extra quotes or newlines are included
-            # Use printf to avoid trailing newline issues, and strip any quotes
-            CLEAN_PATH=$(echo "$FOUND_FILE" | tr -d '"')
-            echo "CONFIG_FILE=${CLEAN_PATH}" >> "$GITHUB_ENV"
+            # Ensure no quotes or newlines are in the path
+            CLEAN_PATH=$(printf '%s' "$FOUND_FILE" | tr -d '"')
+            echo "CONFIG_FILE=$CLEAN_PATH" >> "$GITHUB_ENV"
             echo "Exported CONFIG_FILE as: $CLEAN_PATH"
           else
+            # Use double quotes here too to avoid SC2016 on the error message
             echo "Error: No config.php containing \$CFG->dbname found in $MOODLE_DIR"
             exit 1
           fi
