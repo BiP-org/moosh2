@@ -165,8 +165,9 @@ jobs:
           MYSQLDUMP_BIN=$(command -v mysqldump 2>/dev/null) || true
           PHP=$(command -v php 2>/dev/null) || true
 
-          # Build file line by line (POSIX safe)
-          echo "shopt -s expand_aliases" > /tmp/aliases.sh
+          # Build file line by line (POSIX safe, NO shopt)
+          # Remove 'shopt -s expand_aliases' as it is Bash-specific
+          echo "# Aliases for MySQL tools" > /tmp/aliases.sh
 
           if [ -n "$MYSQL_BIN" ]; then
             echo "alias mysql='${MYSQL_BIN} --skip-ssl-verify-server-cert --ssl-mode=DISABLED'" >> /tmp/aliases.sh
@@ -179,6 +180,7 @@ jobs:
             echo "export PHP" >> /tmp/aliases.sh
           fi
 
+          # Source the file using POSIX dot command
           . /tmp/aliases.sh
 
           php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
