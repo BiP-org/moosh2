@@ -94,7 +94,7 @@ echo "Dataroot cleared. ($((SECONDS - STEP_START))s)"
 # Restore dataroot from archive.
 echo "Restoring dataroot from data.tar.gz..."
 STEP_START=$SECONDS
-sudo tar -xzvf "$DATA_FILE" -C "$(dirname "$DATAROOT")"
+sudo tar -xzf "$DATA_FILE" -C "$(dirname "$DATAROOT")"
 sudo chown -R $USER $DATAROOT
 echo "Dataroot restored. ($((SECONDS - STEP_START))s)"
 
