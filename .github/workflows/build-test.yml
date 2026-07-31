@@ -42,7 +42,7 @@ jobs:
         image: ["8.3", "8.4", "8.5"]
         moodle_branch: ["MOODLE_502_STABLE"]
     runs-on: ubuntu-latest
-    container: php:${{ matrix.image }}-cli-alpine
+    container: php:${{ matrix.image }}
     services:
       mysql:
         image: mysql:8.4
@@ -89,7 +89,7 @@ jobs:
 
       - name: Install dependencies & PHP extensions
         run: |
-          apk add --no-cache bash git unzip zip grep mysql-client coreutils sudo
+          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo
           ADD_EXT_PATH=/usr/local/bin/install-php-extensions
           curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
           chmod +x $ADD_EXT_PATH
