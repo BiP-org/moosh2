@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-CONFIG_FILE="$MOODLE_DIR/config.php"
+CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."
     exit 1

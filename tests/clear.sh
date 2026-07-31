@@ -37,7 +37,7 @@ MOODLE_MAJOR="${BRANCH:0:1}"
 MOODLE_MINOR="${BRANCH:2:1}"
 MOODLE_VERSION="moodle${MOODLE_MAJOR}${MOODLE_MINOR}"
 
-CONFIG_FILE="$MOODLE_DIR/config.php"
+CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: $CONFIG_FILE not found."
     exit 1
