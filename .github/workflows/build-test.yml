@@ -185,7 +185,7 @@ jobs:
             local flags=$3
             if [ -n "$bin" ]; then
               ALIAS_CONTENT+="
-alias ${cmd}='${bin} ${flags}'"
+            alias ${cmd}='${bin} ${flags}'"
             fi
           }
 
