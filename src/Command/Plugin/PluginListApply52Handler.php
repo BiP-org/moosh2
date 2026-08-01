@@ -571,6 +571,13 @@ class PluginListApply52Handler extends BaseHandler
         require_once $CFG->libdir . '/upgradelib.php';
         require_once $CFG->libdir . '/filelib.php';
 
+        // download+extract+upgrade_noncore() below loads the full moodle.org
+        // plugin directory JSON (decoded into PHP objects, which costs far
+        // more memory than the raw JSON) and then runs Moodle's own plugin
+        // upgrade code - both can exceed the default CLI memory_limit on
+        // large/many-plugin sites, same as context:rebuild.
+        raise_memory_limit(MEMORY_EXTRA);
+
         $client = new PluginApiClient($this->proxy);
         $version = $client->findBestVersion($component, (string) moodle_major_version(), $requestedversion, true);
 
@@ -813,6 +820,15 @@ class PluginListApply52Handler extends BaseHandler
     private function resetPluginCaches(): void
     {
         global $CFG;
+
+        // upgrade_noncore() below needs this. uninstallForce() (the
+        // already-uninstalled / best-effort DB cleanup path) never loads
+        // upgradelib.php itself, unlike install() and uninstall() - require
+        // it here so resetPluginCaches() works no matter which caller
+        // reaches it.
+        require_once $CFG->libdir . '/upgradelib.php';
+        raise_memory_limit(MEMORY_EXTRA);
+
         if (function_exists('opcache_reset')) {
             opcache_reset();
         }
