@@ -609,9 +609,10 @@ class PluginListApply52Handler extends BaseHandler
             }
 
             $output->writeln("Installing to $componentpath");
-            if (!@rename($extractedPluginDir, $componentpath)) {
-                $error = error_get_last();
-                throw new \RuntimeException("Failed to install $component to $componentpath: " . ($error['message'] ?? 'unknown error'));
+            try {
+                $this->moveDirectory($extractedPluginDir, $componentpath);
+            } catch (\RuntimeException $e) {
+                throw new \RuntimeException("Failed to install $component to $componentpath: " . $e->getMessage());
             }
         } finally {
             $this->removeDirectory($tempDir);
@@ -839,6 +840,53 @@ class PluginListApply52Handler extends BaseHandler
         \core_component::reset(true);
         \core_plugin_manager::reset_caches();
         upgrade_noncore(true);
+    }
+
+    /**
+     * Move a directory into place. Tries an atomic rename() first; if that
+     * fails because source and destination are on different filesystems
+     * (EXDEV "Invalid cross-device link" - common in CI containers where
+     * /tmp and the Moodle directory are separate mounts), falls back to a
+     * recursive copy followed by deleting the source.
+     *
+     * @throws \RuntimeException on failure
+     */
+    private function moveDirectory(string $src, string $dst): void
+    {
+        if (@rename($src, $dst)) {
+            return;
+        }
+
+        $this->copyDirectory($src, $dst);
+        $this->removeDirectory($src);
+    }
+
+    /**
+     * Recursively copy a directory. Used by moveDirectory()'s cross-device
+     * fallback.
+     *
+     * @throws \RuntimeException on failure
+     */
+    private function copyDirectory(string $src, string $dst): void
+    {
+        if (!is_dir($dst) && !mkdir($dst, 0755, true) && !is_dir($dst)) {
+            throw new \RuntimeException("Failed to create directory $dst.");
+        }
+
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST,
+        );
+        foreach ($items as $item) {
+            $target = $dst . DIRECTORY_SEPARATOR . $items->getSubPathName();
+            if ($item->isDir()) {
+                if (!is_dir($target) && !mkdir($target, 0755, true) && !is_dir($target)) {
+                    throw new \RuntimeException("Failed to create directory $target.");
+                }
+            } elseif (!copy($item->getPathname(), $target)) {
+                throw new \RuntimeException("Failed to copy {$item->getPathname()} to $target.");
+            }
+        }
     }
 
     private function removeDirectory(string $dir): void
