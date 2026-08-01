@@ -5,6 +5,14 @@
 #
 # Usage: bash tests/test_plugin_list_update.sh
 #
+# Note: only mod_attendance is used as a "real" plugin here. Not every
+# plugin on moodle.org has a version explicitly marked compatible with
+# every Moodle release - block_progress, for example, does not reliably
+# resolve a version for --moodle-version=5.1 the way mod_attendance does,
+# even though it installs fine via `plugin:install --force` (a different
+# code path that skips compatibility matching entirely). mod_attendance is
+# actively maintained and has consistently resolved in CI, so it's the only
+# plugin this file relies on actually existing on moodle.org.
 
 source "$(dirname "$0")/common.sh"
 
@@ -22,14 +30,14 @@ assert_output_contains "Help shows --run" "--run" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
-mkdir -p "$LISTDIR/block_progress" "$LISTDIR/mod_attendance"
+mkdir -p "$LISTDIR/mod_attendance"
 
 echo "--- Test: Dry run does not write a version file ---"
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1
 EC=$?
 assert_exit_code "Exit code 0 for dry run" 0 "$EC"
 assert_output_contains "Shows dry run banner" "Dry run" "$OUT"
-if [ ! -f "$LISTDIR/block_progress/version" ]; then
+if [ ! -f "$LISTDIR/mod_attendance/version" ]; then
     echo "  PASS: No version file written without --run"
     ((PASS++))
 else
@@ -42,33 +50,33 @@ echo "--- Test: --run writes a plausible version number ---"
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run
 EC=$?
 assert_exit_code "Exit code 0 for --run" 0 "$EC"
-for component in block_progress mod_attendance; do
-    VERSION_FILE="$LISTDIR/$component/version"
-    if [ ! -f "$VERSION_FILE" ]; then
-        echo "  FAIL: $VERSION_FILE was not created"
-        ((FAIL++))
-        continue
-    fi
+VERSION_FILE="$LISTDIR/mod_attendance/version"
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "  FAIL: $VERSION_FILE was not created"
+    echo "  --- plugin:list-update output ---"
+    echo "$OUT"
+    ((FAIL++))
+else
     VERSION=$(cat "$VERSION_FILE")
     # Moodle plugin versions are date-stamped ints, eg. 2024010100 - just
     # confirm it looks like one rather than asserting an exact value, since
     # the actual latest version drifts over time.
     if [[ "$VERSION" =~ ^20[0-9]{8}$ ]]; then
-        echo "  PASS: $component/version looks like a real version ($VERSION)"
+        echo "  PASS: mod_attendance/version looks like a real version ($VERSION)"
         ((PASS++))
     else
-        echo "  FAIL: $component/version content doesn't look like a version: '$VERSION'"
+        echo "  FAIL: mod_attendance/version content doesn't look like a version: '$VERSION'"
         ((FAIL++))
     fi
-done
+fi
 echo ""
 
 echo "--- Test: Re-running --run reports already up to date ---"
-FIRST_VERSION=$(cat "$LISTDIR/block_progress/version")
+FIRST_VERSION=$(cat "$LISTDIR/mod_attendance/version")
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run
 EC=$?
 assert_exit_code "Exit code 0" 0 "$EC"
-SECOND_VERSION=$(cat "$LISTDIR/block_progress/version")
+SECOND_VERSION=$(cat "$LISTDIR/mod_attendance/version")
 if [ "$FIRST_VERSION" = "$SECOND_VERSION" ]; then
     echo "  PASS: version file unchanged on a second, back-to-back --run"
     ((PASS++))
@@ -79,17 +87,26 @@ fi
 echo ""
 
 echo "--- Test: Filtering by positional plugin name only updates that one ---"
-rm -f "$LISTDIR/block_progress/version" "$LISTDIR/mod_attendance/version"
-run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run block_progress
+# Uses a pre-seeded sentinel in an unrelated "control" directory rather than
+# a second real moodle.org plugin, so this doesn't depend on that second
+# plugin also happening to resolve a compatible version (see note above).
+rm -f "$LISTDIR/mod_attendance/version"
+mkdir -p "$LISTDIR/zzz_filter_control"
+echo "9999999999" > "$LISTDIR/zzz_filter_control/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_attendance
 EC=$?
 assert_exit_code "Exit code 0" 0 "$EC"
-if [ -f "$LISTDIR/block_progress/version" ] && [ ! -f "$LISTDIR/mod_attendance/version" ]; then
-    echo "  PASS: only block_progress was updated"
+CONTROL_VALUE=$(cat "$LISTDIR/zzz_filter_control/version")
+if [ -f "$LISTDIR/mod_attendance/version" ] && [ "$CONTROL_VALUE" = "9999999999" ]; then
+    echo "  PASS: mod_attendance was updated, zzz_filter_control was left untouched"
     ((PASS++))
 else
-    echo "  FAIL: expected only block_progress/version to exist"
+    echo "  FAIL: expected only mod_attendance/version to be written (control now: '$CONTROL_VALUE')"
+    echo "  --- plugin:list-update output ---"
+    echo "$OUT"
     ((FAIL++))
 fi
+rm -rf "$LISTDIR/zzz_filter_control"
 echo ""
 
 echo "--- Test: Unknown component directory reports an error ---"
