@@ -457,6 +457,10 @@ class PluginListApply52Handler extends BaseHandler
         global $CFG;
         require_once $CFG->libdir . '/adminlib.php';
         require_once $CFG->libdir . '/upgradelib.php';
+        // Same reasoning as installRequestedVersion() below: uninstall_plugin()
+        // triggers upgrade_noncore() internally, which is just as
+        // memory-hungry as a fresh install.
+        raise_memory_limit(MEMORY_EXTRA);
 
         $output->writeln("Uninstalling $component");
 
