@@ -25,6 +25,8 @@ on:
           test_course_top.sh
           test_event_discover.sh
           test_fontawesome.sh
+          test_fontawesome_list.sh
+          test_log_unpack.sh
           test_instance_info.sh
           test_plugin_usage.sh
           test_plugin.sh
