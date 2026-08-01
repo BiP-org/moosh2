@@ -231,6 +231,19 @@ jobs:
 
           . /tmp/override_env.sh
 
+          # github.event.inputs.* is only populated for workflow_dispatch runs;
+          # on push (and any other trigger) ONLY_TESTS/SKIP_TESTS above are
+          # always empty, so the `default:` under workflow_dispatch.inputs
+          # never takes effect outside a manual run. Apply the same default
+          # skip list here whenever the caller hasn't specified anything, so
+          # push runs get it too. Keep this list in sync with the
+          # workflow_dispatch.inputs.skip_tests default above.
+          DEFAULT_SKIP_TESTS="test_archive.sh test_category_list.sh test_content_search.sh test_context_info.sh test_context_search.sh test_course_create.sh test_course_backup_restore.sh test_course_find_big_images.sh test_course_last_visited.sh test_course_top.sh test_event_discover.sh test_fontawesome.sh test_instance_info.sh test_plugin_usage.sh test_plugin.sh test_search_questionid.sh test_search_timestamp.sh test_sql.sh test_sql_select.sh test_user_info.sh test_user_list.sh test_user_online_export_login.sh test_utility.sh test_webservice.sh"
+          if [ -z "$ONLY_TESTS" ] && [ -z "$SKIP_TESTS" ]; then
+            SKIP_TESTS="$DEFAULT_SKIP_TESTS"
+          fi
+          export ONLY_TESTS SKIP_TESTS
+
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR/public" > /dev/null 2>&1 &
           sleep 2
 
