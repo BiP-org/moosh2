@@ -8,6 +8,17 @@
 
 source "$(dirname "$0")/common.sh"
 
+# A valid ClamAV extended signature that won't match anything in a real
+# plugin's source - used everywhere below that a scan needs a database
+# that's real (won't itself error out) but guaranteed not to hit, since we
+# can't rely on the system's default ClamAV database (/var/lib/clamav)
+# having any signatures loaded - CI images ship clamscan without ever
+# running freshclam.
+NOMATCH_MARKER_HEX=$(printf 'MOOSH2_TEST_NOMATCH_MARKER' | od -An -tx1 | tr -d ' \n')
+write_nomatch_db() {
+    echo "Test.Moosh2.NoMatch:0:*:${NOMATCH_MARKER_HEX}" > "$1/nomatch.ndb"
+}
+
 echo "=== moosh2 plugin:clamscan integration tests ==="
 echo "Moodle path: $MOODLE_PATH"
 echo "moosh path:  $MOOSH"
@@ -42,21 +53,28 @@ rm -rf "$SCANDIR"
 echo ""
 
 echo "--- Test: Scan a downloaded plugin (clean) ---"
-run_moosh plugin:clamscan mod_attendance
+# Uses an explicit database with a real, non-matching signature rather
+# than relying on the system's default ClamAV database (see note above).
+EMPTYRULEDIR=$(mktemp -d)
+write_nomatch_db "$EMPTYRULEDIR"
+run_moosh plugin:clamscan -d "$EMPTYRULEDIR" mod_attendance
 EC=$?
 assert_exit_code "Exit code 0 for a clean plugin" 0 "$EC"
+rm -rf "$EMPTYRULEDIR"
 echo ""
 
 echo "--- Test: Scan the plugin in the current directory ---"
 CWDDIR=$(mktemp -d)
-run_moosh plugin:download --moodle-version 5.1 mod_attendance
+run_moosh plugin:download -p "$MOODLE_PATH" mod_attendance
 cd "$CWDDIR"
 unzip -q -o "$OLDPWD"/*.zip -d . 2>/dev/null || true
-OUT=$(cd mod_attendance 2>/dev/null && $PHP $MOOSH plugin:clamscan 2>&1)
+EMPTYRULEDIR2=$(mktemp -d)
+write_nomatch_db "$EMPTYRULEDIR2"
+OUT=$(cd mod_attendance 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
 EC=$?
 cd - >/dev/null
 assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
-rm -rf "$CWDDIR"
+rm -rf "$CWDDIR" "$EMPTYRULEDIR2"
 echo ""
 
 echo "--- Test: Custom database (-d) detects a planted signature -> exit 1 ---"

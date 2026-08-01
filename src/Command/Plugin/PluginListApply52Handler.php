@@ -699,6 +699,11 @@ class PluginListApply52Handler extends BaseHandler
             $databases[] = $exceptionsdir;
         }
 
+        if ($databases === []) {
+            $output->writeln("WARN: no clamscan database available (checked /var/lib/clamav, $rulesdir, $exceptionsdir), skipping malware scan for $component");
+            return ClamscanRunner::EXIT_CLEAN;
+        }
+
         $output->writeln("Starting malware scan for $component at $componentpath");
         $options = ['database' => $databases, 'infected' => true, 'log' => $reportdir . '/clamav.log'];
         [$exitcode, $lines] = ClamscanRunner::scan($binary, $componentpath, $options);
