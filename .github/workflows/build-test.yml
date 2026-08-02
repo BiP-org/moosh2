@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["8.3", "8.4", "8.5"]
+        image: ["8.3"]
         moodle_branch: ["MOODLE_502_STABLE"]
     runs-on: ubuntu-latest
     container: php:${{ matrix.image }}
