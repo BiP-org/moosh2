@@ -4,6 +4,11 @@
 #
 # Usage: MOODLE_DIR=/path/to/test/moodle/ bash tests/run_all_tests.sh
 #
+# ONLY_TESTS: space/comma-separated list of test filenames (with or without
+#             the .sh extension) to run; everything else is skipped.
+# SKIP_TESTS: space/comma-separated list of test filenames to skip. Ignored
+#             if ONLY_TESTS is set.
+#
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOTAL_PASS=0
@@ -11,12 +16,50 @@ TOTAL_FAIL=0
 TOTAL_TESTS=0
 FILES_PASS=0
 FILES_FAIL=0
+FILES_SKIPPED=0
 FAILED_FILES=()
+
+# Normalize a space/comma-separated list into a set of bare filenames
+# (test_foo, with or without .sh, both map to "test_foo.sh").
+_normalize_list() {
+    local raw="$1" name
+    for name in ${raw//,/ }; do
+        [ -n "$name" ] || continue
+        case "$name" in
+            *.sh) echo "$name" ;;
+            *) echo "$name.sh" ;;
+        esac
+    done
+}
+
+ONLY_LIST=$(_normalize_list "${ONLY_TESTS:-}")
+SKIP_LIST=$(_normalize_list "${SKIP_TESTS:-}")
+
+if [ -n "$ONLY_LIST" ]; then
+    echo "Running only: $(echo "$ONLY_LIST" | tr '\n' ' ')"
+elif [ -n "$SKIP_LIST" ]; then
+    echo "Skipping: $(echo "$SKIP_LIST" | tr '\n' ' ')"
+fi
 
 START_TIME=$(date +%s)
 
 for test_file in "$SCRIPT_DIR"/test_*.sh; do
     filename=$(basename "$test_file")
+
+    if [ -n "$ONLY_LIST" ]; then
+        if ! grep -qxF "$filename" <<< "$ONLY_LIST"; then
+            ((FILES_SKIPPED++))
+            continue
+        fi
+    elif [ -n "$SKIP_LIST" ]; then
+        if grep -qxF "$filename" <<< "$SKIP_LIST"; then
+            echo ""
+            echo "# Skipping: $filename"
+            ((FILES_SKIPPED++))
+            continue
+        fi
+    fi
+
     echo ""
     echo "################################################################"
     echo "# Running: $filename"
@@ -65,6 +108,7 @@ echo "================================================================"
 echo "Test files run:  $((FILES_PASS + FILES_FAIL))"
 echo "  Passed files:  $FILES_PASS"
 echo "  Failed files:  $FILES_FAIL"
+echo "  Skipped files: $FILES_SKIPPED"
 echo ""
 echo "Total tests:     $TOTAL_TESTS"
 echo "  PASS:          $TOTAL_PASS"

@@ -2,9 +2,50 @@ name: Build and Test
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+  workflow_dispatch:
+    inputs:
+      only_tests:
+        description: 'Run only these tests (space/comma-separated, e.g. "plugin_list_apply plugin_clamscan"). Leave empty to run everything.'
+        required: false
+        type: string
+      skip_tests:
+        description: 'Skip these tests (space/comma-separated). Ignored if only_tests is set.'
+        required: false
+        type: string
+        default: >-
+          test_archive.sh
+          test_category_list.sh
+          test_content_search.sh
+          test_context_info.sh
+          test_context_search.sh
+          test_course_create.sh
+          test_course_backup_restore.sh
+          test_course_find_big_images.sh
+          test_course_last_visited.sh
+          test_course_top.sh
+          test_event_discover.sh
+          test_fontawesome.sh
+          test_fontawesome_list.sh
+          test_log_unpack.sh
+          test_instance_info.sh
+          test_plugin_usage.sh
+          test_plugin.sh
+          test_search_questionid.sh
+          test_search_timestamp.sh
+          test_sql.sh
+          test_sql_select.sh
+          test_user_info.sh
+          test_user_list.sh
+          test_user_online_export_login.sh
+          test_utility.sh
+          test_webservice.sh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  MOODLE_REPOSITORY: "moodle/moodle"
 
 jobs:
 
@@ -13,13 +54,19 @@ jobs:
     container: composer:latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
+      - name: Trust the checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Set composer package name to this repository
+        run: |
+          REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          sed -i "s#\"name\": \"tmuras/moosh\"#\"name\": \"${REPO_NAME}\"#" composer.json
       - name: Build code
         run: composer install
       - name: Zip build
         run: zip -r vendor.zip vendor
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: moosh-vendor
           path: vendor.zip
@@ -28,26 +75,180 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["8.2", "8.1", "8.0", "7.4", "7.3", "7.2"]
+        image: ["8.3"]
+        moodle_branch: ["MOODLE_502_STABLE"]
     runs-on: ubuntu-latest
-    container: php:${{ matrix.image }}-cli-alpine
+    container: php:${{ matrix.image }}
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: moodle_password
+          MYSQL_DATABASE: moodledb
+          MYSQL_USER: moodleuser
+          MYSQL_PASSWORD: moodle_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     needs: build
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
+
+      - name: Set Absolute MOODLE_DIR & DATAROOT
+        run: |
+          {
+            echo "MOODLE_DIR=${{ github.workspace }}/moodle"
+            echo "DATAROOT=${{ github.workspace }}/moodledata" 
+          } >> "$GITHUB_ENV"
+
+      - name: Install dependencies & PHP extensions
+        run: |
+          apt-get update && apt-get install -y bash git unzip zip grep default-mysql-client coreutils sudo clamav
+          ADD_EXT_PATH=/usr/local/bin/install-php-extensions
+          curl -sSLf -o $ADD_EXT_PATH https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+          chmod +x $ADD_EXT_PATH
+          install-php-extensions mysqli pdo_mysql gd intl mbstring xml zip
+
+      - name: Extract the certificate from mysql chain and save the first certificate (usually the CA) to the trust store
+        run: |
+          echo | openssl s_client -connect your_db_host:3306 -showcerts 2>/dev/null | \
+          awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{ if(/BEGIN CERTIFICATE/){n++}; if(n==1) print }' > /usr/local/share/ca-certificates/mysql-ca.crt
+          sudo update-ca-certificates
+
       - name: Remove vendor folder
         run:  rm -rf vendor
+
       - name: Download build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: moosh-vendor
+
       - name: Unzip build
         run: unzip vendor.zip
-      - name: Run test
-        run: php moosh.php | grep "moosh version"
+
+      - name: Run preliminary test
+        id: prelim_test
+        run: php moosh.php -V | grep -Eq "moosh 2\."
+
+      - name: Run diagnostic
+        if: failure() && steps.prelim_test.outcome == 'failure'
+        run: php moosh.php
+
       - name: Lint files
         run: |
           ls    
-          rm includes/config*class.php
-          rm -rf vendor external
-          find . -name '*.php' -print0 | xargs -0 -n1 php -l
+          find . -name '*.php' -not -path '*/tests/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Configure PHP settings
+        run: |
+          echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini
+
+      - name: Checkout Moodle Repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.MOODLE_REPOSITORY }}
+          path: ${{ env.MOODLE_DIR }}
+          ref: ${{ matrix.moodle_branch }}
+          fetch-depth: 1
+
+      - name: Install Moodle Instance
+        run: |
+          mkdir -vp "${DATAROOT}"
+          chmod -v 777 "${DATAROOT}"
+
+          php "$MOODLE_DIR/admin/cli/install.php" \
+            --non-interactive \
+            --lang=en \
+            --wwwroot="http://localhost:8000" \
+            --dataroot="${DATAROOT}" \
+            --dbtype=mysqli \
+            --dbhost=mysql \
+            --dbname=moodledb \
+            --dbuser=moodleuser \
+            --dbpass=moodle_password \
+            --fullname="Moosh Test Moodle" \
+            --shortname="moodle_test" \
+            --adminuser=admin \
+            --adminpass=Admin123! \
+            --agree-license
+
+          echo "Checking for config.php" 
+          FOUND_FILE=$(find "$MOODLE_DIR" -maxdepth 2 -type f -name "config.php" -exec grep -lF 'CFG->dbname' {} + | head -n 1)
+          
+          if [ -n "$FOUND_FILE" ]; then
+            echo "Found config.php: $FOUND_FILE"
+            CLEAN_PATH=$(printf '%s' "$FOUND_FILE" | tr -d '"')
+            echo "CONFIG_FILE=$CLEAN_PATH" >> "$GITHUB_ENV"
+            echo "Exported CONFIG_FILE as: $CLEAN_PATH"
+          else
+            echo "Error: No config.php containing 'CFG->dbname' found."
+            exit 1
+          fi
+
+      - name: Populating test data and saving database and moodledata snapshots for tests
+        run: |
+          echo "-- creating environment"
+          PHP=$(command -v php 2>/dev/null) || true
+
+          # Build file line by line using a single grouped redirect (POSIX safe)
+          {
+            echo "# override environment"
+            echo "MYSQLDUMP_OPTS='--skip-ssl-verify-server-cert --no-tablespaces'"
+            echo "MYSQL_OPTS='--skip-ssl-verify-server-cert'"
+            echo "export MYSQLDUMP_OPTS MYSQL_OPTS"
+
+            if [ -n "$PHP" ]; then
+              echo "PHP='${PHP}'"
+              echo "export PHP"
+            fi
+          } > /tmp/override_env.sh
+
+          # Source the file using POSIX dot command
+          # shellcheck source=/dev/null
+          . /tmp/override_env.sh
+
+          php "tests/test_data_setup_moodle52/setup_testdata.php" "$MOODLE_DIR"
+          cd "tests/test_data_setup_moodle52/" || exit 1
+          
+          echo "--- clearing existing snapshots"
+          rm -vf data.tar.gz dump.sql.gz
+          
+          echo "--- creating snapshots"
+          chmod -v a+xr dump.sh
+          ./dump.sh
+
+      - name: Run all Test
+        env:
+          MOODLE_DIR: ${{ env.MOODLE_DIR }}
+          DATAROOT: "${{ github.workspace }}/moodledata"
+          ONLY_TESTS: ${{ github.event.inputs.only_tests }}
+          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+        run: |
+          # Start PHP built-in web server in the background
+
+          . /tmp/override_env.sh
+
+          # github.event.inputs.* is only populated for workflow_dispatch runs;
+          # on push (and any other trigger) ONLY_TESTS/SKIP_TESTS above are
+          # always empty, so the `default:` under workflow_dispatch.inputs
+          # never takes effect outside a manual run. Apply the same default
+          # skip list here whenever the caller hasn't specified anything, so
+          # push runs get it too. Keep this list in sync with the
+          # workflow_dispatch.inputs.skip_tests default above.
+          DEFAULT_SKIP_TESTS="test_archive.sh test_category_list.sh test_content_search.sh test_context_info.sh test_context_search.sh test_course_create.sh test_course_backup_restore.sh test_course_find_big_images.sh test_course_last_visited.sh test_course_top.sh test_event_discover.sh test_fontawesome.sh test_instance_info.sh test_plugin_usage.sh test_plugin.sh test_search_questionid.sh test_search_timestamp.sh test_sql.sh test_sql_select.sh test_user_info.sh test_user_list.sh test_user_online_export_login.sh test_utility.sh test_webservice.sh"
+          if [ -z "$ONLY_TESTS" ] && [ -z "$SKIP_TESTS" ]; then
+            SKIP_TESTS="$DEFAULT_SKIP_TESTS"
+          fi
+          export ONLY_TESTS SKIP_TESTS
+
+          php -S 127.0.0.1:8000 -t "$MOODLE_DIR/public" > /dev/null 2>&1 &
+          sleep 2
+
+          # 2. Run your test suite as normal
+          chmod +x tests/run_all_tests.sh
+          ./tests/run_all_tests.sh

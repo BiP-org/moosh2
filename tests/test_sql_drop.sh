@@ -15,6 +15,7 @@ echo ""
 
 echo "--- Resetting Moodle to known state ---"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 bash "$SCRIPT_DIR/clear.sh"
 echo ""
 
@@ -93,7 +94,7 @@ DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$MOODLE_DIR/config.php")
 DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$MOODLE_DIR/config.php")
 DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$MOODLE_DIR/config.php")
 
-REMAINING=$(mysql -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES" "$DB_NAME" 2>/dev/null | wc -l)
+REMAINING=$(mysql $MYSQL_OPTS -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES" "$DB_NAME" 2>/dev/null | wc -l)
 if [ "$REMAINING" -eq 0 ]; then
     echo "  PASS: Database has no tables after sql:drop --run"
     ((PASS++))
@@ -122,7 +123,7 @@ echo "--- Test: sql:drop --exclude --run keeps excluded table ---"
 run_moosh sql:drop -p "$MOODLE_PATH" --exclude=mdl_config --run
 assert_output_contains "Reports dropped count" "Dropped" "$OUT"
 
-KEPT=$(mysql -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES LIKE 'mdl_config'" "$DB_NAME" 2>/dev/null | wc -l)
+KEPT=$(mysql $MYSQL_OPTS -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES LIKE 'mdl_config'" "$DB_NAME" 2>/dev/null | wc -l)
 if [ "$KEPT" -eq 1 ]; then
     echo "  PASS: mdl_config survived sql:drop --exclude=mdl_config --run"
     ((PASS++))
@@ -131,7 +132,7 @@ else
     ((FAIL++))
 fi
 
-OTHER=$(mysql -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES" "$DB_NAME" 2>/dev/null | wc -l)
+OTHER=$(mysql $MYSQL_OPTS -N -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -e "SHOW TABLES" "$DB_NAME" 2>/dev/null | wc -l)
 if [ "$OTHER" -eq 1 ]; then
     echo "  PASS: Only the excluded table remains ($OTHER table left)"
     ((PASS++))

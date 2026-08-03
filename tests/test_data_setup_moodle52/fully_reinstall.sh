@@ -10,8 +10,9 @@ DB_NAME="moodle52"
 DB_USER="root"
 DB_PASS="a"
 DB_HOST="localhost"
-DATAROOT="/opt/data/moodle52"
+DATAROOT="${DATAROOT:-/opt/data/moodle52}"
 MOODLE_DIR="/var/www/html/moodle52"
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 WWWROOT="http://localhost/moodle52/public"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ADMIN_USER="admin"
@@ -25,7 +26,7 @@ echo "=== Moodle 5.2 full reinstall ==="
 
 # Drop and recreate database.
 echo "Dropping and recreating database '$DB_NAME'..."
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
+mysql $MYSQL_OPTS -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" <<SQL
 DROP DATABASE IF EXISTS \`$DB_NAME\`;
 CREATE DATABASE \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SQL

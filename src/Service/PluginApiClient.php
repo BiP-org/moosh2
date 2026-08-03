@@ -67,9 +67,12 @@ final class PluginApiClient
             return false;
         }
 
-        $content = file_get_contents(self::API_URL, false, $this->createStreamContext());
+        $content = file_get_contents(self::API_URL, false, $this->createStreamContext(expectJson: true));
         if ($content === false) {
-            throw new \RuntimeException('Failed to fetch plugin list from ' . self::API_URL);
+            throw new \RuntimeException(
+                'Failed to fetch plugin list from ' . self::API_URL
+                . self::formatHttpResponseStatus($http_response_header ?? null)
+            );
         }
         file_put_contents($cachePath, $content);
 
@@ -174,7 +177,10 @@ final class PluginApiClient
     {
         $content = file_get_contents($url, false, $this->createStreamContext());
         if ($content === false) {
-            throw new \RuntimeException("Failed to download from $url");
+            throw new \RuntimeException(
+                "Failed to download from $url"
+                . self::formatHttpResponseStatus($http_response_header ?? null)
+            );
         }
 
         if (file_put_contents($targetPath, $content) === false) {
@@ -202,15 +208,41 @@ final class PluginApiClient
     }
 
     /**
+     * $http_response_header is a magic local variable PHP populates
+     * alongside file_get_contents() over an http:// wrapper, even when the
+     * call itself returns false - this surfaces it in exception messages
+     * so a failure states *why* (eg. "403 Forbidden") instead of just that
+     * something failed.
+     *
+     * @param string[]|null $responseHeaders
+     */
+    private static function formatHttpResponseStatus(?array $responseHeaders): string
+    {
+        if (empty($responseHeaders)) {
+            return ' (no HTTP response received - network/DNS/TLS failure, or the request never completed)';
+        }
+        return ' (HTTP response: ' . $responseHeaders[0] . ')';
+    }
+
+    /**
+     * @param bool $expectJson true for the plugins.json API call, false for
+     *   binary zip downloads - moodle.org has previously blocked requests
+     *   from unusual/obviously-automated User-Agent strings (we hit and
+     *   fixed the identical issue in moosh 1.x), so this deliberately uses a
+     *   generic, curl-like UA rather than identifying as "moosh2".
      * @return resource
      */
-    private function createStreamContext()
+    private function createStreamContext(bool $expectJson = false)
     {
+        $header = "User-Agent: curl/7.81.0\r\n"
+            . "Connection: close\r\n";
+        if ($expectJson) {
+            $header .= "Accept: application/json\r\n";
+        }
+
         $httpConfig = [
             'method' => 'GET',
-            'header' => "User-Agent: moosh2\r\n"
-                . "Accept: application/json\r\n"
-                . "Connection: close\r\n",
+            'header' => $header,
             'request_fulluri' => true,
         ];
 

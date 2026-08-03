@@ -16,6 +16,7 @@ echo ""
 # Step 1: Reset Moodle to known state
 echo "--- Resetting Moodle to known state ---"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 bash "$SCRIPT_DIR/clear.sh"
 echo ""
 
@@ -68,7 +69,7 @@ run_moosh course:create -p "$MOODLE_PATH" --run \
 assert_output_contains "Created advmath" "advmath" "$OUT"
 assert_output_contains "Full name" "Advanced Mathematics" "$OUT"
 # Verify newsitems was persisted (course:list does not expose newsitems, query DB directly).
-NEWSITEMS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='advmath';" 2>/dev/null)
+NEWSITEMS=$(mysql $MYSQL_OPTS -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='advmath';" 2>/dev/null)
 assert_output_contains "newsitems persisted as 7" "7" "$NEWSITEMS"
 echo ""
 
@@ -77,7 +78,7 @@ echo ""
 echo "--- Test: Create course with --newsitems=0 (hide announcements block) ---"
 run_moosh course:create -p "$MOODLE_PATH" --run --category 2 --newsitems 0 quietcourse -o csv
 assert_output_contains "Created quietcourse" "quietcourse" "$OUT"
-NEWSITEMS=$(mysql -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='quietcourse';" 2>/dev/null)
+NEWSITEMS=$(mysql $MYSQL_OPTS -uroot -pa -N -B moodle52 -e "SELECT newsitems FROM mdl_course WHERE shortname='quietcourse';" 2>/dev/null)
 assert_output_contains "newsitems is 0" "0" "$NEWSITEMS"
 echo ""
 

@@ -6,16 +6,23 @@
 
 set -euo pipefail
 
-DB_NAME="moodle51"
-DB_USER="root"
-DB_PASS="a"
-DB_HOST="localhost"
-DATAROOT="/opt/data/moodle51"
+MYSQLDUMP_OPTS="${MYSQLDUMP_OPTS:-}"
+CONFIG_FILE="${CONFIG_FILE:-$MOODLE_DIR/config.php}"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: $CONFIG_FILE not found."
+    exit 1
+fi
+
+DB_NAME=$(grep -oP "\\\$CFG->dbname\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_VERSION}"
 
 echo "=== Moodle 5.2 backup ==="
 
 echo "Dumping database '$DB_NAME'..."
-mysqldump -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME" | gzip > dump.sql.gz
+mysqldump $MYSQLDUMP_OPTS -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" "$DB_NAME" | gzip > dump.sql.gz
 echo "Created dump.sql.gz ($(du -h dump.sql.gz | cut -f1))"
 
 echo "Archiving dataroot '$DATAROOT'..."

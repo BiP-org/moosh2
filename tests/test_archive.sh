@@ -9,7 +9,7 @@
 source "$(dirname "$0")/common.sh"
 
 MOODLE_BASENAME="$(basename "${MOODLE_DIR}")"
-DATAROOT="/opt/data/$MOODLE_BASENAME"
+DATAROOT="${DATAROOT:-/opt/data/$MOODLE_BASENAME}"
 
 echo "=== moosh2 archive:dump / archive:restore integration tests ==="
 echo "Moodle path: $MOODLE_PATH"
@@ -19,6 +19,7 @@ echo ""
 # Reset Moodle to a known state so the dump captures a predictable snapshot.
 echo "--- Resetting Moodle to known state ---"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MYSQL_OPTS="${MYSQL_OPTS:-}"
 bash "$SCRIPT_DIR/clear.sh"
 echo ""
 
@@ -310,10 +311,20 @@ echo ""
 #  archive:restore --db --run (round-trip)
 # ═══════════════════════════════════════════════════════════════════
 
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: $CONFIG_FILE not found."
+    exit 1
+fi
+
+DB_NAME=$(grep -oP "\\\$CFG->dbname\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_USER=$(grep -oP "\\\$CFG->dbuser\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_PASS=$(grep -oP "\\\$CFG->dbpass\s*=\s*'\K[^']+" "$CONFIG_FILE")
+DB_HOST=$(grep -oP "\\\$CFG->dbhost\s*=\s*'\K[^']+" "$CONFIG_FILE")
+
 echo "--- Test: db round-trip — modify, restore, verify revert ---"
 # Modify a value in the DB.
-mysql -uroot -pa moodle52 -e "UPDATE mdl_user SET city='ARCHIVE_TEST_MODIFIED' WHERE username='admin';" 2>/dev/null
-CITY_BEFORE=$(mysql -uroot -pa -N -B moodle52 -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
+mysql $MYSQL_OPTS -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "UPDATE mdl_user SET city='ARCHIVE_TEST_MODIFIED' WHERE username='admin';" 2>/dev/null
+CITY_BEFORE=$(mysql $MYSQL_OPTS -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -N -B "${DB_NAME}" -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
 if [ "$CITY_BEFORE" = "ARCHIVE_TEST_MODIFIED" ]; then
     echo "  PASS: City modified before restore"
     ((PASS++))
@@ -327,7 +338,7 @@ EXIT_CODE=$?
 assert_exit_code "Exit 0 for restore" 0 "$EXIT_CODE"
 assert_output_contains "Restore confirmation" "Restored from" "$OUT"
 
-CITY_AFTER=$(mysql -uroot -pa -N -B moodle52 -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
+CITY_AFTER=$(mysql $MYSQL_OPTS -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -N -B "${DB_NAME}" -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
 if [ "$CITY_AFTER" != "ARCHIVE_TEST_MODIFIED" ]; then
     echo "  PASS: City reverted after restore (now: '$CITY_AFTER')"
     ((PASS++))
@@ -399,11 +410,11 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════
 
 echo "--- Test: --db only on full archive restores just the database ---"
-mysql -uroot -pa moodle52 -e "UPDATE mdl_user SET city='SELECTIVE_TEST' WHERE username='admin';" 2>/dev/null
+mysql $MYSQL_OPTS -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "UPDATE mdl_user SET city='SELECTIVE_TEST' WHERE username='admin';" 2>/dev/null
 run_moosh archive:restore -p "$MOODLE_PATH" --db --run "$FULL_ARCHIVE"
 EXIT_CODE=$?
 assert_exit_code "Exit 0" 0 "$EXIT_CODE"
-CITY_AFTER=$(mysql -uroot -pa -N -B moodle52 -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
+CITY_AFTER=$(mysql $MYSQL_OPTS -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}"  -N -B "${DB_NAME}" -e "SELECT city FROM mdl_user WHERE username='admin';" 2>/dev/null)
 if [ "$CITY_AFTER" != "SELECTIVE_TEST" ]; then
     echo "  PASS: DB restored from full archive (city='$CITY_AFTER')"
     ((PASS++))
