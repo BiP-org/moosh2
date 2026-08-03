@@ -195,6 +195,84 @@ assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
 echo ""
 
+# ═══════════════════════════════════════════════════════════════════
+# Git submodule awareness
+# ═══════════════════════════════════════════════════════════════════
+# A plugin directory with a .git FILE (submodule working-tree marker) that
+# is ALSO a registered path in the Moodle root's .gitmodules must be left
+# alone entirely, not overwritten by extracting a freshly downloaded zip
+# over it. A bare .git file that ISN'T registered in .gitmodules must NOT
+# be treated as a submodule - this is the specific distinction being
+# tested, not just "does a .git file exist".
+
+echo "--- Setup: reset mod_attendance and back up any existing .gitmodules ---"
+sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+GITMODULES_BACKUP=$(mktemp)
+if [ -f "$MOODLE_PATH/.gitmodules" ]; then
+    sudo cp "$MOODLE_PATH/.gitmodules" "$GITMODULES_BACKUP"
+else
+    rm -f "$GITMODULES_BACKUP"
+fi
+echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
+echo ""
+
+echo "--- Test: A registered submodule is left untouched ---"
+sudo mkdir -p "$MOODLE_PATH/mod/attendance"
+echo '<?php $plugin->version = 1;' | sudo tee "$MOODLE_PATH/mod/attendance/version.php" >/dev/null
+echo 'gitdir: ../../.git/modules/mod/attendance' | sudo tee "$MOODLE_PATH/mod/attendance/.git" >/dev/null
+SENTINEL_FILE="$MOODLE_PATH/mod/attendance/SUBMODULE_MARKER_DO_NOT_TOUCH.txt"
+echo 'planted-by-test' | sudo tee "$SENTINEL_FILE" >/dev/null
+cat << 'EOF' | sudo tee "$MOODLE_PATH/.gitmodules" >/dev/null
+[submodule "mod/attendance"]
+	path = mod/attendance
+	url = https://example.invalid/moodle-mod_attendance.git
+EOF
+
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows managed-by-git message" "managed by git - leaving as is" "$OUT"
+if [ -f "$SENTINEL_FILE" ]; then
+    echo "  PASS: registered submodule was left untouched"
+    ((PASS++))
+else
+    echo "  FAIL: registered submodule's files were overwritten"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: An unregistered .git file is NOT treated as a submodule ---"
+# Same directory, same .git file, but .gitmodules no longer mentions it -
+# proves the check is against .gitmodules, not just .git's existence.
+if [ -s "$GITMODULES_BACKUP" ]; then
+    sudo cp "$GITMODULES_BACKUP" "$MOODLE_PATH/.gitmodules"
+else
+    sudo rm -f "$MOODLE_PATH/.gitmodules"
+fi
+
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_not_contains "Does not show managed-by-git message this time" "managed by git - leaving as is" "$OUT"
+if [ ! -f "$SENTINEL_FILE" ] && [ -f "$MOODLE_PATH/mod/attendance/version.php" ]; then
+    echo "  PASS: unregistered .git file was correctly overwritten as a normal install"
+    ((PASS++))
+else
+    echo "  FAIL: expected the unregistered-.git directory to be reinstalled normally"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Cleanup: restore .gitmodules ---"
+if [ -s "$GITMODULES_BACKUP" ]; then
+    sudo cp "$GITMODULES_BACKUP" "$MOODLE_PATH/.gitmodules"
+else
+    sudo rm -f "$MOODLE_PATH/.gitmodules"
+fi
+rm -f "$GITMODULES_BACKUP"
+sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+echo ""
+
 # ── Cleanup ──────────────────────────────────────────────────────
 
 echo "--- Cleaning up ---"

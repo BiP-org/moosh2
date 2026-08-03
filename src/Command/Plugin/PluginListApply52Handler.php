@@ -418,6 +418,51 @@ class PluginListApply52Handler extends BaseHandler
         return $pluginTypes[$type] . '/' . $name;
     }
 
+    /**
+     * Whether $componentpath is a directory actually registered as a git
+     * submodule of this Moodle install, not just any directory that happens
+     * to contain a .git file (submodule working trees have a .git FILE
+     * pointing at ../.git/modules/..., unlike a normal repo's .git
+     * directory - but that alone doesn't confirm this exact path is a
+     * submodule of *this* superproject, only that it's *some* git checkout).
+     *
+     * Cross-references .gitmodules at the Moodle root, matching on its
+     * `path = ...` entries (relative to the Moodle root), which is git's
+     * own record of which paths are registered submodules.
+     */
+    private function isRegisteredGitSubmodule(string $componentpath): bool
+    {
+        if (!is_file($componentpath . '/.git')) {
+            return false;
+        }
+
+        $gitmodulesPath = $this->moodleroot . '/.gitmodules';
+        if (!is_file($gitmodulesPath)) {
+            return false;
+        }
+
+        $contents = file_get_contents($gitmodulesPath);
+        if ($contents === false) {
+            return false;
+        }
+
+        $relativePath = ltrim(substr($componentpath, strlen($this->moodleroot)), '/');
+
+        // .gitmodules is a git-config-style file (INI-like, but with quoted
+        // subsections PHP's own ini parser doesn't handle reliably) - only
+        // the `path = ` values are needed here, regardless of which
+        // [submodule "..."] section they fall under.
+        if (preg_match_all('/^\s*path\s*=\s*(.+?)\s*$/m', $contents, $matches)) {
+            foreach ($matches[1] as $registeredPath) {
+                if (rtrim($registeredPath, '/') === rtrim($relativePath, '/')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     // -------------------------------------------------------------------
     // uninstall / remove-files
     // -------------------------------------------------------------------
@@ -429,7 +474,7 @@ class PluginListApply52Handler extends BaseHandler
             return;
         }
 
-        if (is_file($componentpath . '/.git')) {
+        if ($this->isRegisteredGitSubmodule($componentpath)) {
             $output->writeln("plugin $component is managed by git - leaving as is");
             return;
         }
@@ -475,7 +520,7 @@ class PluginListApply52Handler extends BaseHandler
             $output->writeln("WARN: Moodle reports $component cannot be uninstalled through the plugin manager - removing files only");
         }
 
-        if (is_file($componentpath . '/.git')) {
+        if ($this->isRegisteredGitSubmodule($componentpath)) {
             $output->writeln("plugin $component is managed by git - leaving as is");
         } elseif (is_dir($componentpath)) {
             \fulldelete($componentpath);
@@ -569,6 +614,16 @@ class PluginListApply52Handler extends BaseHandler
         $this->installRequiresFileDependencies($component, $componentdir, $output, $depth);
 
         $componentpath = $this->getComponentPath($component, $componentdir);
+
+        if ($this->isRegisteredGitSubmodule($componentpath)) {
+            $output->writeln("plugin $component is managed by git - leaving as is");
+            // Files on disk are authoritative (managed outside list-apply),
+            // but Moodle's DB may still need to catch up with whatever
+            // version is actually checked out - resetPluginCaches() below
+            // runs Moodle's own upgrade_noncore(), which reconciles that.
+            $this->resetPluginCaches();
+            return;
+        }
 
         global $CFG;
         require_once $CFG->libdir . '/adminlib.php';
