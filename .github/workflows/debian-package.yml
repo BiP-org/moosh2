@@ -45,24 +45,30 @@ jobs:
           else
             BRANCH="${{ github.ref_name }}"
           fi
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
           if [ "$BRANCH" = "2.x" ]; then
-            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+            IS_STABLE=true
+            SAFE_BRANCH=""
             # Keep the artifact name stable ones have always used, so the
             # publish workflow's "find the latest debian-package artifact"
             # fallback only ever matches stable builds.
-            echo "artifact_name=debian-package" >> "$GITHUB_OUTPUT"
+            ARTIFACT_NAME="debian-package"
           else
             # Debian upstream-version chars are limited to [A-Za-z0-9.+~],
             # so turn anything else (e.g. the "/" in "feature/foo") into ".".
             SAFE_BRANCH=$(echo "$BRANCH" | tr -c 'A-Za-z0-9' '.' | sed -E 's/\.+/./g; s/^\.|\.$//g')
-            echo "is_stable=false" >> "$GITHUB_OUTPUT"
-            echo "safe_branch=$SAFE_BRANCH" >> "$GITHUB_OUTPUT"
+            IS_STABLE=false
             # Give feature-branch artifacts a distinct name so they can
             # never be picked up by anything expecting the stable package.
-            echo "artifact_name=debian-package-unstable-${SAFE_BRANCH}" >> "$GITHUB_OUTPUT"
+            ARTIFACT_NAME="debian-package-unstable-${SAFE_BRANCH}"
           fi
+
+          {
+            echo "branch=$BRANCH"
+            echo "is_stable=$IS_STABLE"
+            echo "safe_branch=$SAFE_BRANCH"
+            echo "artifact_name=$ARTIFACT_NAME"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2

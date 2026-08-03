@@ -42,13 +42,17 @@ jobs:
             BRANCH="${{ github.ref_name }}"
             SHA="${{ github.sha }}"
           fi
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           if [ "$BRANCH" = "2.x" ]; then
-            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+            IS_STABLE=true
           else
-            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+            IS_STABLE=false
           fi
+
+          {
+            echo "branch=$BRANCH"
+            echo "sha=$SHA"
+            echo "is_stable=$IS_STABLE"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
