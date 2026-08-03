@@ -20,10 +20,12 @@ final class PluginApiClient
     private const CACHE_TTL = 86400; // 24 hours
 
     private ?string $proxy;
+    private ?string $token;
 
-    public function __construct(?string $proxy = null)
+    public function __construct(?string $proxy = null, ?string $token = null)
     {
         $this->proxy = $proxy;
+        $this->token = $token;
     }
 
     /**
@@ -67,12 +69,9 @@ final class PluginApiClient
             return false;
         }
 
-        $content = file_get_contents(self::API_URL, false, $this->createStreamContext(expectJson: true));
+        $content = file_get_contents(self::API_URL, false, $this->createStreamContext(expectJson: true, url: self::API_URL));
         if ($content === false) {
-            throw new \RuntimeException(
-                'Failed to fetch plugin list from ' . self::API_URL
-                . self::formatHttpResponseStatus($http_response_header ?? null)
-            );
+            throw self::httpFailure('Failed to fetch plugin list from ' . self::API_URL, $http_response_header ?? null);
         }
         file_put_contents($cachePath, $content);
 
@@ -175,12 +174,9 @@ final class PluginApiClient
      */
     public function downloadFile(string $url, string $targetPath): void
     {
-        $content = file_get_contents($url, false, $this->createStreamContext());
+        $content = file_get_contents($url, false, $this->createStreamContext(url: $url));
         if ($content === false) {
-            throw new \RuntimeException(
-                "Failed to download from $url"
-                . self::formatHttpResponseStatus($http_response_header ?? null)
-            );
+            throw self::httpFailure("Failed to download from $url", $http_response_header ?? null);
         }
 
         if (file_put_contents($targetPath, $content) === false) {
@@ -210,18 +206,57 @@ final class PluginApiClient
     /**
      * $http_response_header is a magic local variable PHP populates
      * alongside file_get_contents() over an http:// wrapper, even when the
-     * call itself returns false - this surfaces it in exception messages
-     * so a failure states *why* (eg. "403 Forbidden") instead of just that
-     * something failed.
+     * call itself returns false - this parses it into a proper HTTP status
+     * code/text so a failure states *why* (eg. 429 Too Many Requests)
+     * instead of just that something failed.
      *
      * @param string[]|null $responseHeaders
      */
-    private static function formatHttpResponseStatus(?array $responseHeaders): string
+    private static function httpFailure(string $message, ?array $responseHeaders): HttpRequestException
+    {
+        [$statusCode, $statusText] = self::parseHttpStatus($responseHeaders);
+
+        if ($statusCode === null) {
+            return new HttpRequestException(
+                "$message (no HTTP response received - network/DNS/TLS failure, or the request never completed)",
+            );
+        }
+
+        $suffix = $statusText !== null && $statusText !== ''
+            ? "HTTP $statusCode $statusText"
+            : "HTTP $statusCode";
+
+        return new HttpRequestException("$message ($suffix)", $statusCode, $statusText);
+    }
+
+    /**
+     * Parse the numeric status code and reason phrase out of the response's
+     * first header line (e.g. "HTTP/1.1 429 Too Many Requests" -> [429,
+     * "Too Many Requests"]). PHP's stream wrapper follows redirects, so
+     * $responseHeaders may contain more than one status line; the last one
+     * is the final response actually received.
+     *
+     * @param string[]|null $responseHeaders
+     * @return array{0: int|null, 1: string|null}
+     */
+    private static function parseHttpStatus(?array $responseHeaders): array
     {
         if (empty($responseHeaders)) {
-            return ' (no HTTP response received - network/DNS/TLS failure, or the request never completed)';
+            return [null, null];
         }
-        return ' (HTTP response: ' . $responseHeaders[0] . ')';
+
+        $statusLine = null;
+        foreach ($responseHeaders as $line) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})(?:\s+(.*))?$#i', $line)) {
+                $statusLine = $line;
+            }
+        }
+
+        if ($statusLine === null || !preg_match('#^HTTP/\S+\s+(\d{3})(?:\s+(.*))?$#i', $statusLine, $matches)) {
+            return [null, null];
+        }
+
+        return [(int) $matches[1], isset($matches[2]) ? trim($matches[2]) : null];
     }
 
     /**
@@ -230,14 +265,20 @@ final class PluginApiClient
      *   from unusual/obviously-automated User-Agent strings (we hit and
      *   fixed the identical issue in moosh 1.x), so this deliberately uses a
      *   generic, curl-like UA rather than identifying as "moosh2".
+     * @param string|null $url the request URL, used only to decide whether
+     *   the Marketplace bearer token applies (see isMarketplaceHost())
      * @return resource
      */
-    private function createStreamContext(bool $expectJson = false)
+    private function createStreamContext(bool $expectJson = false, ?string $url = null)
     {
         $header = "User-Agent: curl/7.81.0\r\n"
             . "Connection: close\r\n";
         if ($expectJson) {
             $header .= "Accept: application/json\r\n";
+        }
+
+        if ($this->token !== null && $this->token !== '' && self::isMarketplaceHost($url)) {
+            $header .= 'Authorization: Bearer ' . $this->token . "\r\n";
         }
 
         $httpConfig = [
@@ -265,5 +306,24 @@ final class PluginApiClient
         }
 
         return stream_context_create(['http' => $httpConfig]);
+    }
+
+    /**
+     * True if $url's host is marketplace.moodle.com (or a subdomain of
+     * it) - the only host the Marketplace bearer token should ever be sent
+     * to. download.moodle.org (the plugin list API and most plugin zips)
+     * never gets the Authorization header, token or not.
+     */
+    private static function isMarketplaceHost(?string $url): bool
+    {
+        if ($url === null) {
+            return false;
+        }
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return false;
+        }
+        $host = strtolower($host);
+        return $host === 'marketplace.moodle.com' || str_ends_with($host, '.marketplace.moodle.com');
     }
 }

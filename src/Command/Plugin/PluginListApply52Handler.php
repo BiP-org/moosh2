@@ -69,6 +69,7 @@ class PluginListApply52Handler extends BaseHandler
 
     private bool $dryRun = true;
     private ?string $proxy = null;
+    private ?string $token = null;
 
     public function configureCommand(Command $command): void
     {
@@ -76,7 +77,8 @@ class PluginListApply52Handler extends BaseHandler
             ->addArgument('plugin_name', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'Zero or more Frankenstyle component names. None given: every subdirectory of --directory is applied.')
             ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory holding one subdirectory per plugin (the declarative plugin list).', '.')
             ->addOption('keep-going', 'k', InputOption::VALUE_NONE, "Don't abort on the first component that fails; process the rest and report every failure at the end.")
-            ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.');
+            ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
+            ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
@@ -91,6 +93,7 @@ class PluginListApply52Handler extends BaseHandler
 
         $this->dryRun = !$input->getOption('run');
         $this->proxy = $input->getOption('proxy');
+        $this->token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
         $this->moodleroot = rtrim($CFG->dirroot, '/');
 
         $basedir = rtrim($input->getOption('directory'), '/');
@@ -457,10 +460,6 @@ class PluginListApply52Handler extends BaseHandler
         global $CFG;
         require_once $CFG->libdir . '/adminlib.php';
         require_once $CFG->libdir . '/upgradelib.php';
-        // Same reasoning as installRequestedVersion() below: uninstall_plugin()
-        // triggers upgrade_noncore() internally, which is just as
-        // memory-hungry as a fresh install.
-        raise_memory_limit(MEMORY_EXTRA);
 
         $output->writeln("Uninstalling $component");
 
@@ -582,7 +581,7 @@ class PluginListApply52Handler extends BaseHandler
         // large/many-plugin sites, same as context:rebuild.
         raise_memory_limit(MEMORY_EXTRA);
 
-        $client = new PluginApiClient($this->proxy);
+        $client = new PluginApiClient($this->proxy, $this->token);
         $version = $client->findBestVersion($component, (string) moodle_major_version(), $requestedversion, true);
 
         $tempDir = sys_get_temp_dir() . '/moosh_plugin_list_apply_' . uniqid();

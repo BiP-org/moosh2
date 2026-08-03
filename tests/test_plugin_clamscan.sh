@@ -64,18 +64,15 @@ rm -rf "$EMPTYRULEDIR"
 echo ""
 
 echo "--- Test: Scan the plugin in the current directory ---"
-# Synthetic plugin dir, not a real download - this test only needs to
-# verify the "no plugin name given -> scan cwd via version.php" code path,
-# which doesn't need real plugin content. A second real plugin:download
-# here (on top of the one the previous test already did) was redundant and
-# made this flaky under moodle.org's rate limiting.
 CWDDIR=$(mktemp -d)
-echo '<?php $plugin->version = 2024010100;' > "$CWDDIR/version.php"
-echo '<?php // nothing suspicious here' > "$CWDDIR/lib.php"
+run_moosh plugin:download -p "$MOODLE_PATH" mod_attendance
+cd "$CWDDIR"
+unzip -q -o "$OLDPWD"/*.zip -d . 2>/dev/null || true
 EMPTYRULEDIR2=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR2"
-OUT=$(cd "$CWDDIR" && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
+OUT=$(cd mod_attendance 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
 EC=$?
+cd - >/dev/null
 assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
 rm -rf "$CWDDIR" "$EMPTYRULEDIR2"
 echo ""

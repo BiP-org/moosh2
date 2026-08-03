@@ -27,6 +27,7 @@ assert_output_contains "Help description" "declarative plugin list" "$OUT"
 assert_output_contains "Help shows --directory" "--directory" "$OUT"
 assert_output_contains "Help shows --moodle-version" "--moodle-version" "$OUT"
 assert_output_contains "Help shows --run" "--run" "$OUT"
+assert_output_contains "Help shows --token" "--token" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
@@ -107,6 +108,41 @@ else
     ((FAIL++))
 fi
 rm -rf "$LISTDIR/zzz_filter_control"
+echo ""
+
+echo "--- Test: --token doesn't affect a normal (non-Marketplace) update ---"
+# The token is only ever sent as a Bearer header to marketplace.moodle.com
+# (see PluginApiClient::isMarketplaceHost()) - download.moodle.org, which
+# is all this test actually talks to, should behave identically whether or
+# not one is supplied. This guards against the option breaking normal
+# usage, e.g. via a parsing mistake or the host check being backwards.
+rm -f "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --token=dummy-test-token mod_attendance
+EC=$?
+assert_exit_code "Exit code 0 with --token set" 0 "$EC"
+if [ -f "$LISTDIR/mod_attendance/version" ]; then
+    echo "  PASS: --token didn't interfere with a normal update"
+    ((PASS++))
+else
+    echo "  FAIL: version file missing when --token was supplied"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: MOODLE_MARKETPLACE_TOKEN env var behaves the same way ---"
+rm -f "$LISTDIR/mod_attendance/version"
+export MOODLE_MARKETPLACE_TOKEN="dummy-env-token"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_attendance
+EC=$?
+unset MOODLE_MARKETPLACE_TOKEN
+assert_exit_code "Exit code 0 with MOODLE_MARKETPLACE_TOKEN set" 0 "$EC"
+if [ -f "$LISTDIR/mod_attendance/version" ]; then
+    echo "  PASS: MOODLE_MARKETPLACE_TOKEN didn't interfere with a normal update"
+    ((PASS++))
+else
+    echo "  FAIL: version file missing when MOODLE_MARKETPLACE_TOKEN was set"
+    ((FAIL++))
+fi
 echo ""
 
 echo "--- Test: Unknown component directory reports an error ---"

@@ -27,6 +27,7 @@ assert_output_contains "Help description" "declarative plugin list" "$OUT"
 assert_output_contains "Help shows --directory" "--directory" "$OUT"
 assert_output_contains "Help shows --keep-going" "--keep-going" "$OUT"
 assert_output_contains "Help shows --run" "--run" "$OUT"
+assert_output_contains "Help shows --token" "--token" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
@@ -63,6 +64,27 @@ else
     echo "  FAIL: plugin directory exists after a dry run"
     ((FAIL++))
 fi
+echo ""
+
+echo "--- Test: --token doesn't affect a normal (non-Marketplace) dry run ---"
+# The token is only ever sent as a Bearer header to marketplace.moodle.com
+# (see PluginApiClient::isMarketplaceHost()) - download.moodle.org, which
+# is all this test actually talks to, should behave identically whether or
+# not one is supplied. This guards against the option breaking normal
+# usage, e.g. via a parsing mistake or the host check being backwards.
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --token=dummy-test-token
+EC=$?
+assert_exit_code "Exit code 0 for dry run with --token" 0 "$EC"
+assert_output_contains "Still shows would-install with --token" "WOULD INSTALL" "$OUT"
+echo ""
+
+echo "--- Test: MOODLE_MARKETPLACE_TOKEN env var behaves the same way ---"
+export MOODLE_MARKETPLACE_TOKEN="dummy-env-token"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR"
+EC=$?
+unset MOODLE_MARKETPLACE_TOKEN
+assert_exit_code "Exit code 0 for dry run with MOODLE_MARKETPLACE_TOKEN" 0 "$EC"
+assert_output_contains "Still shows would-install with env token" "WOULD INSTALL" "$OUT"
 echo ""
 
 echo "--- Test: --run actually installs ---"

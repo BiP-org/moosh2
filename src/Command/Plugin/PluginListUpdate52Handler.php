@@ -68,6 +68,7 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('moodle-version', null, InputOption::VALUE_REQUIRED, 'Moodle major version to match plugin compatibility against (e.g. 4.5). Defaults to the version of the bootstrapped Moodle site.')
             ->addOption('moodle-root', 'm', InputOption::VALUE_REQUIRED, "Working directory used when invoking a package_*'s bin/get_latest_plugin_version.sh. Defaults to the parent directory of --directory.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
+            ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
             ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin a sha256 checksum next to version.");
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
@@ -82,7 +83,8 @@ class PluginListUpdate52Handler extends BaseHandler
         $this->moodleRelease = $input->getOption('moodle-version') ?? (string) moodle_major_version();
         $this->noChecksum = (bool) $input->getOption('no-checksum');
 
-        $client = new PluginApiClient($input->getOption('proxy'));
+        $token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
+        $client = new PluginApiClient($input->getOption('proxy'), $token);
         $client->ensureCacheFresh();
         $this->pluginsData = $client->getPluginList();
 
