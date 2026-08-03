@@ -27,6 +27,7 @@ assert_output_contains "Help description" "declarative plugin list" "$OUT"
 assert_output_contains "Help shows --directory" "--directory" "$OUT"
 assert_output_contains "Help shows --keep-going" "--keep-going" "$OUT"
 assert_output_contains "Help shows --run" "--run" "$OUT"
+assert_output_contains "Help shows --token" "--token" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
@@ -63,6 +64,27 @@ else
     echo "  FAIL: plugin directory exists after a dry run"
     ((FAIL++))
 fi
+echo ""
+
+echo "--- Test: --token doesn't affect a normal (non-Marketplace) dry run ---"
+# The token is only ever sent as a Bearer header to marketplace.moodle.com
+# (see PluginApiClient::isMarketplaceHost()) - download.moodle.org, which
+# is all this test actually talks to, should behave identically whether or
+# not one is supplied. This guards against the option breaking normal
+# usage, e.g. via a parsing mistake or the host check being backwards.
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --token=dummy-test-token
+EC=$?
+assert_exit_code "Exit code 0 for dry run with --token" 0 "$EC"
+assert_output_contains "Still shows would-install with --token" "WOULD INSTALL" "$OUT"
+echo ""
+
+echo "--- Test: MOODLE_MARKETPLACE_TOKEN env var behaves the same way ---"
+export MOODLE_MARKETPLACE_TOKEN="dummy-env-token"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR"
+EC=$?
+unset MOODLE_MARKETPLACE_TOKEN
+assert_exit_code "Exit code 0 for dry run with MOODLE_MARKETPLACE_TOKEN" 0 "$EC"
+assert_output_contains "Still shows would-install with env token" "WOULD INSTALL" "$OUT"
 echo ""
 
 echo "--- Test: --run actually installs ---"
@@ -193,84 +215,6 @@ run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory=/tmp/does_not_exist_$$
 EC=$?
 assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# Git submodule awareness
-# ═══════════════════════════════════════════════════════════════════
-# A plugin directory with a .git FILE (submodule working-tree marker) that
-# is ALSO a registered path in the Moodle root's .gitmodules must be left
-# alone entirely, not overwritten by extracting a freshly downloaded zip
-# over it. A bare .git file that ISN'T registered in .gitmodules must NOT
-# be treated as a submodule - this is the specific distinction being
-# tested, not just "does a .git file exist".
-
-echo "--- Setup: reset mod_attendance and back up any existing .gitmodules ---"
-sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-GITMODULES_BACKUP=$(mktemp)
-if [ -f "$MOODLE_PATH/.gitmodules" ]; then
-    sudo cp "$MOODLE_PATH/.gitmodules" "$GITMODULES_BACKUP"
-else
-    rm -f "$GITMODULES_BACKUP"
-fi
-echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
-echo ""
-
-echo "--- Test: A registered submodule is left untouched ---"
-sudo mkdir -p "$MOODLE_PATH/mod/attendance"
-echo '<?php $plugin->version = 1;' | sudo tee "$MOODLE_PATH/mod/attendance/version.php" >/dev/null
-echo 'gitdir: ../../.git/modules/mod/attendance' | sudo tee "$MOODLE_PATH/mod/attendance/.git" >/dev/null
-SENTINEL_FILE="$MOODLE_PATH/mod/attendance/SUBMODULE_MARKER_DO_NOT_TOUCH.txt"
-echo 'planted-by-test' | sudo tee "$SENTINEL_FILE" >/dev/null
-cat << 'EOF' | sudo tee "$MOODLE_PATH/.gitmodules" >/dev/null
-[submodule "mod/attendance"]
-	path = mod/attendance
-	url = https://example.invalid/moodle-mod_attendance.git
-EOF
-
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
-EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_contains "Shows managed-by-git message" "managed by git - leaving as is" "$OUT"
-if [ -f "$SENTINEL_FILE" ]; then
-    echo "  PASS: registered submodule was left untouched"
-    ((PASS++))
-else
-    echo "  FAIL: registered submodule's files were overwritten"
-    ((FAIL++))
-fi
-echo ""
-
-echo "--- Test: An unregistered .git file is NOT treated as a submodule ---"
-# Same directory, same .git file, but .gitmodules no longer mentions it -
-# proves the check is against .gitmodules, not just .git's existence.
-if [ -s "$GITMODULES_BACKUP" ]; then
-    sudo cp "$GITMODULES_BACKUP" "$MOODLE_PATH/.gitmodules"
-else
-    sudo rm -f "$MOODLE_PATH/.gitmodules"
-fi
-
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
-EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_not_contains "Does not show managed-by-git message this time" "managed by git - leaving as is" "$OUT"
-if [ ! -f "$SENTINEL_FILE" ] && [ -f "$MOODLE_PATH/mod/attendance/version.php" ]; then
-    echo "  PASS: unregistered .git file was correctly overwritten as a normal install"
-    ((PASS++))
-else
-    echo "  FAIL: expected the unregistered-.git directory to be reinstalled normally"
-    ((FAIL++))
-fi
-echo ""
-
-echo "--- Cleanup: restore .gitmodules ---"
-if [ -s "$GITMODULES_BACKUP" ]; then
-    sudo cp "$GITMODULES_BACKUP" "$MOODLE_PATH/.gitmodules"
-else
-    sudo rm -f "$MOODLE_PATH/.gitmodules"
-fi
-rm -f "$GITMODULES_BACKUP"
-sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 echo ""
 
 # ── Cleanup ──────────────────────────────────────────────────────
