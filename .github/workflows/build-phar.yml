@@ -3,6 +3,10 @@ name: Build moosh.phar
 on:
   push:
     branches: [ "2.x" ]
+  workflow_run:
+    workflows: ["Build and Test"]
+    types:
+      - completed
 
 jobs:
   build-phar:
