@@ -228,6 +228,7 @@ jobs:
           DATAROOT: "${{ github.workspace }}/moodledata"
           ONLY_TESTS: ${{ github.event.inputs.only_tests }}
           SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+          MOODLE_MARKETPLACE_TOKEN: ${{ secret.BOT_MOODLE_MARKETPLACE_TOKEN }}
         run: |
           # Start PHP built-in web server in the background
 
@@ -244,7 +245,7 @@ jobs:
           if [ -z "$ONLY_TESTS" ] && [ -z "$SKIP_TESTS" ]; then
             SKIP_TESTS="$DEFAULT_SKIP_TESTS"
           fi
-          export ONLY_TESTS SKIP_TESTS
+          export ONLY_TESTS SKIP_TESTS MOODLE_MARKETPLACE_TOKEN
 
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR/public" > /dev/null 2>&1 &
           sleep 2
