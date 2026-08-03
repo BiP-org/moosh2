@@ -1,4 +1,4 @@
-name: Build moosh.phar
+name: Build moosh2.phar
 
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Pin to the commit that triggered the run, not whatever the
           # default branch's HEAD happens to be right now.
@@ -59,17 +59,17 @@ jobs:
       - name: Install dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      - name: Build moosh.phar
+      - name: Build moosh2.phar
         run: php -d phar.readonly=0 bin/build-phar.php
 
       - name: Verify phar works
-        run: php bin/moosh.phar list
+        run: php bin/moosh2.phar list
 
-      - name: Upload moosh.phar as artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload moosh2.phar as artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: moosh-phar
-          path: moosh.phar
+          name: moosh2-phar
+          path: moosh2.phar
 
       - name: Package production vendor/ for the Debian build
         # debian-package.yml needs the exact same "composer install --no-dev
@@ -79,9 +79,9 @@ jobs:
         run: zip -rq vendor-nodev.zip vendor
 
       - name: Upload production vendor/ artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: moosh-vendor-nodev
+          name: moosh2-vendor-nodev
           path: vendor-nodev.zip
 
       - name: Create or update rolling release
@@ -92,12 +92,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: phar-latest
-          name: moosh.phar (latest build)
+          name: moosh2.phar (latest build)
           body: |
-            Latest `moosh.phar` built from the `2.x` branch.
+            Latest `moosh2.phar` built from the `2.x` branch.
 
             Commit: ${{ steps.branch_info.outputs.sha }}
-          files: moosh.phar
+          files: moosh2.phar
           prerelease: true
           make_latest: false
         env:

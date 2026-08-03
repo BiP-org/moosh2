@@ -10,7 +10,7 @@ on:
     # listening to "Build and Test" directly, so it also gets a free ride on
     # that job's already-built production vendor/ (see below) instead of
     # running "composer install --no-dev" a second time.
-    workflows: ["Build moosh.phar"]
+    workflows: ["Build moosh2.phar"]
     types:
       - completed
 
@@ -22,7 +22,7 @@ jobs:
   build-deb:
     runs-on: ubuntu-latest
     # Build on EVERY branch (stable "2.x" and feature branches alike) as long
-    # as the triggering "Build moosh.phar" run succeeded (which itself only
+    # as the triggering "Build moosh2.phar" run succeeded (which itself only
     # ran because "Build and Test" passed). There's no result to check for a
     # direct push/workflow_dispatch trigger, so those always proceed.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
@@ -75,7 +75,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y devscripts debhelper build-essential
 
-      - name: Download production vendor/ from Build moosh.phar
+      - name: Download production vendor/ from Build moosh2.phar
         # The phar (built by debian/rules via bin/build-phar.php) bundles
         # vendor/ into itself, so it must already be installed before
         # dpkg-buildpackage runs - unlike moosh 1.x, which didn't need this.
@@ -85,7 +85,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v8
         with:
-          name: moosh-vendor-nodev
+          name: moosh2-vendor-nodev
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
