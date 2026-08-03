@@ -228,7 +228,7 @@ jobs:
           DATAROOT: "${{ github.workspace }}/moodledata"
           ONLY_TESTS: ${{ github.event.inputs.only_tests }}
           SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
-          MOODLE_MARKETPLACE_TOKEN: ${{ secret.BOT_MOODLE_MARKETPLACE_TOKEN }}
+          MOODLE_MARKETPLACE_TOKEN: ${{ secrets.BOT_MOODLE_MARKETPLACE_TOKEN }}
         run: |
           # Start PHP built-in web server in the background
 
