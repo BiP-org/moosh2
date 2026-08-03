@@ -13,10 +13,48 @@ on:
 jobs:
   build-deb:
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == '2.x'
+    # Build on EVERY branch (stable "2.x" and feature branches alike) as long
+    # as the triggering "Build and Test" run succeeded. There's no test
+    # result to check for a direct push/workflow_dispatch trigger, so those
+    # always proceed.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          # IMPORTANT: for a workflow_run trigger, checkout with no "ref"
+          # checks out the repo's DEFAULT branch, not the branch that
+          # actually triggered "Build and Test". Without this, every
+          # feature-branch build would silently package the default
+          # branch's code instead of the feature branch's code.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Determine branch and package naming
+        id: branch_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            BRANCH="${{ github.ref_name }}"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          if [ "$BRANCH" = "2.x" ]; then
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+            # Keep the artifact name stable ones have always used, so the
+            # publish workflow's "find the latest debian-package artifact"
+            # fallback only ever matches stable builds.
+            echo "artifact_name=debian-package" >> "$GITHUB_OUTPUT"
+          else
+            # Debian upstream-version chars are limited to [A-Za-z0-9.+~],
+            # so turn anything else (e.g. the "/" in "feature/foo") into ".".
+            SAFE_BRANCH=$(echo "$BRANCH" | tr -c 'A-Za-z0-9' '.' | sed -E 's/\.+/./g; s/^\.|\.$//g')
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+            echo "safe_branch=$SAFE_BRANCH" >> "$GITHUB_OUTPUT"
+            # Give feature-branch artifacts a distinct name so they can
+            # never be picked up by anything expecting the stable package.
+            echo "artifact_name=debian-package-unstable-${SAFE_BRANCH}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -36,6 +74,10 @@ jobs:
         run: composer install --no-dev --optimize-autoloader
 
       - name: Build Debian package
+        env:
+          BRANCH: ${{ steps.branch_info.outputs.branch }}
+          IS_STABLE: ${{ steps.branch_info.outputs.is_stable }}
+          SAFE_BRANCH: ${{ steps.branch_info.outputs.safe_branch }}
         run: |
           # Prepare an isolated build directory (vendor/ included, unlike
           # a plain git checkout, since it's not tracked in the repo).
@@ -59,12 +101,23 @@ jobs:
           # workflow produces dev/snapshot builds, not tagged releases.
           TIMESTAMP=$(date -u +'%Y%m%d%H%M%S')
           SHORT_SHA="${GITHUB_SHA:0:7}"
-          PKG_VERSION="${BASE_VERSION}+git${TIMESTAMP}.${SHORT_SHA}-1"
+
+          if [ "$IS_STABLE" = "true" ]; then
+            PKG_VERSION="${BASE_VERSION}+git${TIMESTAMP}.${SHORT_SHA}-1"
+          else
+            # "~" sorts BEFORE nothing in Debian's version comparison rules,
+            # so an unstable/feature-branch build always sorts lower than a
+            # stable release carrying the same base version - apt will never
+            # offer one of these as an "upgrade" on a system tracking the
+            # stable repo.
+            PKG_VERSION="${BASE_VERSION}+git${TIMESTAMP}.${SHORT_SHA}~unstable-feature.${SAFE_BRANCH}-1"
+          fi
+          echo "Building package version: $PKG_VERSION (branch: $BRANCH)"
 
           rm -f debian/changelog
           export DEBFULLNAME="GitHub Actions"
           export DEBEMAIL="actions@github.com"
-          dch --create --package moosh2 -v "$PKG_VERSION" --distribution unstable "Automated build for commit ${SHORT_SHA}"
+          dch --create --package moosh2 -v "$PKG_VERSION" --distribution unstable "Automated build for commit ${SHORT_SHA} (branch: ${BRANCH})"
 
           chmod +x debian/rules
           dpkg-buildpackage -us -uc -b -d
@@ -74,6 +127,6 @@ jobs:
       - name: Upload Debian package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debian-package
+          name: ${{ steps.branch_info.outputs.artifact_name }}
           path: |
             dist/*.deb
