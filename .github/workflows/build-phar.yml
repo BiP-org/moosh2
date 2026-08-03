@@ -1,20 +1,54 @@
 name: Build moosh.phar
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ "2.x" ]
+    paths:
+      - '.github/workflows/build-phar.yml'
   workflow_run:
     workflows: ["Build and Test"]
     types:
       - completed
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   build-phar:
     runs-on: ubuntu-latest
-
+    # Only proceed once the "Build and Test" run that triggered this
+    # actually passed. A direct push/workflow_dispatch trigger has no test
+    # result to check, so it always proceeds. (Previously this workflow had
+    # NO guard at all, and a separate "push: branches: [2.x]" trigger, so a
+    # push to 2.x ran it twice and any branch's green build-test run could
+    # overwrite the shared "phar-latest" release.)
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Pin to the commit that triggered the run, not whatever the
+          # default branch's HEAD happens to be right now.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Determine branch
+        id: branch_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            BRANCH="${{ github.ref_name }}"
+            SHA="${{ github.sha }}"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if [ "$BRANCH" = "2.x" ]; then
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -37,7 +71,24 @@ jobs:
           name: moosh-phar
           path: moosh.phar
 
+      - name: Package production vendor/ for the Debian build
+        # debian-package.yml needs the exact same "composer install --no-dev
+        # --optimize-autoloader" output this job just produced. Ship it as
+        # an artifact so that workflow can download instead of installing
+        # composer dependencies a second time.
+        run: zip -rq vendor-nodev.zip vendor
+
+      - name: Upload production vendor/ artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: moosh-vendor-nodev
+          path: vendor-nodev.zip
+
       - name: Create or update rolling release
+        # Only the stable branch gets a public "latest phar" release -
+        # feature branches still build and verify the phar (as a normal
+        # workflow artifact) but never touch the shared release.
+        if: steps.branch_info.outputs.is_stable == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: phar-latest
@@ -45,7 +96,7 @@ jobs:
           body: |
             Latest `moosh.phar` built from the `2.x` branch.
 
-            Commit: ${{ github.sha }}
+            Commit: ${{ steps.branch_info.outputs.sha }}
           files: moosh.phar
           prerelease: true
           make_latest: false

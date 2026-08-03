@@ -6,21 +6,29 @@ on:
     paths:
       - '.github/workflows/debian-package.yml'
   workflow_run:
-    workflows: ["Build and Test"]
+    # Chained after the phar build (test -> phar -> deb) rather than
+    # listening to "Build and Test" directly, so it also gets a free ride on
+    # that job's already-built production vendor/ (see below) instead of
+    # running "composer install --no-dev" a second time.
+    workflows: ["Build moosh.phar"]
     types:
       - completed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build-deb:
     runs-on: ubuntu-latest
     # Build on EVERY branch (stable "2.x" and feature branches alike) as long
-    # as the triggering "Build and Test" run succeeded. There's no test
-    # result to check for a direct push/workflow_dispatch trigger, so those
-    # always proceed.
+    # as the triggering "Build moosh.phar" run succeeded (which itself only
+    # ran because "Build and Test" passed). There's no result to check for a
+    # direct push/workflow_dispatch trigger, so those always proceed.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           # IMPORTANT: for a workflow_run trigger, checkout with no "ref"
           # checks out the repo's DEFAULT branch, not the branch that
@@ -67,10 +75,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y devscripts debhelper build-essential
 
-      - name: Install composer dependencies
+      - name: Download production vendor/ from Build moosh.phar
         # The phar (built by debian/rules via bin/build-phar.php) bundles
         # vendor/ into itself, so it must already be installed before
         # dpkg-buildpackage runs - unlike moosh 1.x, which didn't need this.
+        # build-phar.yml just ran "composer install --no-dev
+        # --optimize-autoloader" for this exact commit, so reuse its output
+        # instead of installing a second time.
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v8
+        with:
+          name: moosh-vendor-nodev
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Unpack downloaded vendor/
+        if: github.event_name == 'workflow_run'
+        run: unzip -q vendor-nodev.zip
+
+      - name: Install composer dependencies directly
+        # Fallback for a manual workflow_dispatch or a push to this workflow
+        # file itself, where there's no upstream "Build moosh.phar" run to
+        # download vendor/ from.
+        if: github.event_name != 'workflow_run'
         run: composer install --no-dev --optimize-autoloader
 
       - name: Build Debian package
