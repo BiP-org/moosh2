@@ -75,7 +75,7 @@ class PluginListApply52Handler extends BaseHandler
     {
         $command
             ->addArgument('plugin_name', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'Zero or more Frankenstyle component names. None given: every subdirectory of --directory is applied.')
-            ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory holding one subdirectory per plugin (the declarative plugin list).', '.')
+            ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory holding one subdirectory per plugin (the declarative plugin list).', 'plugins')
             ->addOption('keep-going', 'k', InputOption::VALUE_NONE, "Don't abort on the first component that fails; process the rest and report every failure at the end.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.');
@@ -96,7 +96,16 @@ class PluginListApply52Handler extends BaseHandler
         $this->token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
         $this->moodleroot = rtrim($CFG->dirroot, '/');
 
-        $basedir = rtrim($input->getOption('directory'), '/');
+        // Default to moodleroot/plugins if the option is not explicitly set.
+        $basedir = $input->getOption('directory');
+        if ($basedir === 'plugins') {
+            // Check if the option was explicitly provided or using default.
+            // Since default is 'plugins', we need to resolve it relative to moodleroot.
+            $basedir = $this->moodleroot . '/plugins';
+        } else {
+            $basedir = rtrim($basedir, '/');
+        }
+
         if ($basedir === '') {
             $basedir = '/';
         }
@@ -796,6 +805,10 @@ class PluginListApply52Handler extends BaseHandler
 
         $cwd = getcwd();
         chdir($this->moodleroot);
+        
+        // Export MOODLEROOT environment variable for the external script.
+        putenv('MOODLEROOT=' . $this->moodleroot);
+        
         exec($cmd . ' 2>&1', $output, $exitcode);
         chdir($cwd);
 
