@@ -27,6 +27,7 @@ if (file_exists($pharFile)) {
 }
 
 $phar = new Phar($pharFile, 0, 'moosh2.phar');
+$phar->setAlias('moosh2.phar'); // Ensure this matches the filename or is unique
 $phar->startBuffering();
 
 $baseDir = __DIR__ . '/..';
@@ -69,7 +70,7 @@ $stub = <<<'STUB'
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-Phar::mapPhar('moosh.phar');
+Phar::mapPhar('moosh2.phar');
 
 require 'phar://moosh.phar/vendor/autoload.php';
 
