@@ -37,6 +37,13 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
+        with:
+          # Without this, a workflow_run trigger checks out the repo's
+          # default-branch HEAD rather than the commit that actually
+          # produced the .deb/passed the tests. Harmless while "2.x" is
+          # also the default branch, but pin it explicitly so this stays
+          # correct even if that ever changes.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Update links for repository forks
         run: |

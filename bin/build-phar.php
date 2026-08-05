@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Build script for moosh.phar
+ * Build script for moosh2.phar
  *
  * Creates a single PHAR file containing all code from:
  * includes/, src/, vendor/ directories plus the entry point.
@@ -20,13 +20,13 @@ if (ini_get('phar.readonly')) {
     exit(1);
 }
 
-$pharFile = __DIR__ . '/moosh.phar';
+$pharFile = __DIR__ . '/moosh2.phar';
 
 if (file_exists($pharFile)) {
     unlink($pharFile);
 }
 
-$phar = new Phar($pharFile, 0, 'moosh.phar');
+$phar = new Phar($pharFile, 0, 'moosh2.phar');
 $phar->startBuffering();
 
 $baseDir = __DIR__ . '/..';
@@ -87,5 +87,5 @@ $phar->stopBuffering();
 chmod($pharFile, 0755);
 
 $size = round(filesize($pharFile) / 1024 / 1024, 2);
-echo "\nBuilt moosh.phar ({$size} MB)\n";
-echo "Run with: php moosh.phar <command>\n";
+echo "\nBuilt moosh2.phar ({$size} MB)\n";
+echo "Run with: php moosh2.phar <command>\n";
