@@ -72,7 +72,7 @@ $stub = <<<'STUB'
 
 Phar::mapPhar('moosh2.phar');
 
-require 'phar://moosh.phar/vendor/autoload.php';
+require 'phar://moosh2.phar/vendor/autoload.php';
 
 use Moosh2\Application;
 
