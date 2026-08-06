@@ -26,6 +26,31 @@ cd moosh2
 composer install`}</CodeBlock>
           <h2 className="text-xl font-semibold">Using composer</h2>
           <CodeBlock>{`composer require tmuras/moosh:2.x@dev`}</CodeBlock>
+          <h2 className="text-xl font-semibold">Using a Debian package</h2>
+          <p className="text-muted-foreground">
+            On Debian-based systems you can install moosh2 from the project's APT repository
+            instead of building it from source.
+          </p>
+          <p className="text-muted-foreground">
+            Add the signing key:
+          </p>
+          <CodeBlock>{`curl -sfLo /tmp/moosh2.asc https://BiP-org.github.io/moosh2/gpg.key
+sudo mv /tmp/moosh2.asc /etc/apt/keyrings/moosh2.asc`}</CodeBlock>
+          <p className="text-muted-foreground">
+            Register the repository:
+          </p>
+          <CodeBlock>{`echo "deb [signed-by=/etc/apt/keyrings/moosh2.asc] https://BiP-org.github.io/moosh2/ bookworm main" | \\
+  sudo tee /etc/apt/sources.list.d/moosh2.list`}</CodeBlock>
+          <p className="text-muted-foreground">
+            Refresh your package index and install:
+          </p>
+          <CodeBlock>{`sudo apt update
+sudo apt install moosh2`}</CodeBlock>
+          <p className="text-muted-foreground">
+            To confirm the package signature manually, you can query the key from a public
+            keyserver:
+          </p>
+          <CodeBlock>{`apt-key adv --keyserver keyserver.ubuntu.com --recv-keys <KEY_ID>`}</CodeBlock>
       </section>
 
       <section className="space-y-3">
