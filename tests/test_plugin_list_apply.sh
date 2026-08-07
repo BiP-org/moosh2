@@ -217,6 +217,79 @@ assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
 echo ""
 
+# ═══════════════════════════════════════════════════════════════════
+# version.php $plugin->dependencies (theme_boost_union -> theme_boost)
+# ═══════════════════════════════════════════════════════════════════
+#
+# theme_boost_union is a real Moodle theme whose own version.php declares
+# $plugin->dependencies = ['theme_boost' => <min version>]. theme_boost
+# itself ships with every Moodle install (it's part of core), so this
+# exercises the "already installed/bundled - nothing to do" branch of
+# resolveSingleDependency() without needing any third-party plugin at all.
+
+DEPDIR=$(mktemp -d)
+mkdir -p "$DEPDIR/theme_boost_union"
+
+echo "--- Setup: resolve a real version of theme_boost_union ---"
+run_moosh plugin:list-update --directory="$DEPDIR" --moodle-version=5.2 --run theme_boost_union
+if [ ! -f "$DEPDIR/theme_boost_union/version" ]; then
+    echo "  SKIP: theme_boost_union has no version compatible with Moodle 5.2 on moodle.org right now - skipping dependency-resolution tests"
+    echo "  --- plugin:list-update output ---"
+    echo "$OUT"
+else
+    echo "--- Test: installing theme_boost_union resolves its theme_boost dependency ---"
+    sudo rm -rf "$MOODLE_PATH/theme/boost_union" 2>/dev/null
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$DEPDIR" --run
+    EC=$?
+    assert_exit_code "Exit code 0" 0 "$EC"
+    assert_output_contains "Installs theme_boost_union itself" "INSTALLED theme_boost_union" "$OUT"
+    # theme_boost ships with core, so it's satisfied via the "already
+    # installed" branch - it must NOT be treated as a third-party plugin
+    # that gets added to the plugin list.
+    assert_output_not_contains "Does not add theme_boost as a third-party plugin (it's core-bundled)" "ADD     theme_boost:" "$OUT"
+    if [ -d "$MOODLE_PATH/theme/boost_union" ]; then
+        echo "  PASS: theme_boost_union installed"
+        ((PASS++))
+    else
+        echo "  FAIL: theme/boost_union not found after install"
+        ((FAIL++))
+    fi
+    if [ ! -d "$DEPDIR/theme_boost" ]; then
+        echo "  PASS: no plugin-list entry was created for theme_boost (core-bundled, not third-party)"
+        ((PASS++))
+    else
+        echo "  FAIL: a plugin-list entry for theme_boost was created despite it shipping with core"
+        ((FAIL++))
+    fi
+    echo ""
+
+    echo "--- Test: an unmet version.php dependency fails loudly rather than installing silently ---"
+    # Force the check to fail by pre-declaring theme_boost in the plugin
+    # list at a version far too low to satisfy theme_boost_union's
+    # requirement, exercising resolveSingleDependency()'s "declared but
+    # insufficient" branch, which must throw rather than silently
+    # downgrading/ignoring the requirement.
+    mkdir -p "$DEPDIR/theme_boost"
+    echo "2000010100" > "$DEPDIR/theme_boost/version"
+    sudo rm -rf "$MOODLE_PATH/theme/boost_union" 2>/dev/null
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$DEPDIR" --run
+    EC=$?
+    assert_exit_code "Nonzero exit - dependency can't be satisfied" 1 "$EC"
+    assert_output_contains "Explains the unmet dependency" "theme_boost" "$OUT"
+    if [ ! -d "$MOODLE_PATH/theme/boost_union" ]; then
+        echo "  PASS: theme_boost_union was not installed with an unmet dependency"
+        ((PASS++))
+    else
+        echo "  FAIL: theme_boost_union was installed despite theme_boost being pinned too low"
+        ((FAIL++))
+    fi
+    echo ""
+
+    sudo rm -rf "$MOODLE_PATH/theme/boost_union" 2>/dev/null
+fi
+rm -rf "$DEPDIR"
+echo ""
+
 # ── Cleanup ──────────────────────────────────────────────────────
 
 echo "--- Cleaning up ---"

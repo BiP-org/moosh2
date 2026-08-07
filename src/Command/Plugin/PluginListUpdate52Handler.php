@@ -348,6 +348,13 @@ class PluginListUpdate52Handler extends BaseHandler
 
         $client->downloadFile($downloadurl, $downloadedfile);
 
+        // Fail fast with a clear reason if what came back isn't a zip at
+        // all (e.g. an HTML/JSON error page) before ever trying to parse
+        // it as one; isValidZip() below still does the fuller structural
+        // check (and would eventually reject it anyway), but this gives a
+        // much more specific error message when it's not even a zip.
+        PluginZipCache::assertZipMagicBytes($downloadedfile);
+
         if (!PluginZipCache::isValidZip($downloadedfile)) {
             @unlink($downloadedfile);
             throw new \RuntimeException("Downloaded file from $downloadurl is not a valid, non-empty zip archive.");

@@ -70,6 +70,10 @@ final class PluginZipCache
             return false;
         }
 
+        if (!self::hasZipMagicBytes($path)) {
+            return false;
+        }
+
         if (class_exists(\ZipArchive::class)) {
             $zip = new \ZipArchive();
             $result = $zip->open($path, \ZipArchive::CHECKCONS);
@@ -84,6 +88,57 @@ final class PluginZipCache
         // extension isn't available.
         exec('unzip -tqq ' . escapeshellarg($path), $output, $returnvar);
         return $returnvar === 0;
+    }
+
+    /**
+     * Cheap fast-path check: read just the first two bytes and confirm
+     * they're the zip "local file header" magic bytes 'PK'. Every real
+     * zip starts with them (even an empty one); an HTML error page, a
+     * JSON error body, or a truncated download never will.
+     */
+    public static function hasZipMagicBytes(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+        $magic = fread($handle, 2);
+        fclose($handle);
+        return $magic === 'PK';
+    }
+
+    /**
+     * Same check as hasZipMagicBytes(), but throws with a diagnostic
+     * message instead of returning false - meant to be called right after
+     * downloading a plugin zip and before ever handing it to
+     * ZipArchive::open()/extractTo(), so a non-zip response (a Marketplace
+     * error page, a proxy's block page, a truncated transfer, ...) fails
+     * fast with a clear reason instead of a generic "Failed to open ZIP
+     * archive" from deeper in the extraction code.
+     *
+     * @throws \RuntimeException if the file is missing, empty, or doesn't
+     *   start with the zip magic bytes
+     */
+    public static function assertZipMagicBytes(string $path): void
+    {
+        if (!is_file($path) || filesize($path) === 0) {
+            throw new \RuntimeException("Downloaded file is missing or empty: $path");
+        }
+
+        if (self::hasZipMagicBytes($path)) {
+            return;
+        }
+
+        $preview = trim((string) @file_get_contents($path, false, null, 0, 500));
+        $preview = strlen($preview) > 500 ? substr($preview, 0, 500) . '…' : $preview;
+
+        throw new \RuntimeException(
+            "Downloaded file is not a zip archive (missing 'PK' magic bytes): $path"
+            . ($preview !== '' ? ' — response started with: ' . $preview : ''),
+        );
     }
 
     /**

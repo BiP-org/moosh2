@@ -50,6 +50,8 @@ use Moosh2\Bootstrap\BootstrapLevel;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Service\ClamscanRunner;
 use Moosh2\Service\PluginApiClient;
+use Moosh2\Service\PluginZipCache;
+use Moosh2\Service\VersionPhpParser;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -332,7 +334,7 @@ class PluginListApply52Handler extends BaseHandler
             return '-1';
         }
 
-        $version = $this->evalVersionPhp($versionphp);
+        $version = VersionPhpParser::parseFile($versionphp)['version'];
         if ($version === null) {
             throw new \RuntimeException("could not get \$plugin->version from $versionphp");
         }
@@ -345,52 +347,6 @@ class PluginListApply52Handler extends BaseHandler
             return null;
         }
         return rtrim(file_get_contents($versionfile), "\r\n");
-    }
-
-    /**
-     * Evaluate a plugin's version.php in the current process and return
-     * $plugin->version (or $module->version - some plugin types use that
-     * variable name instead), without needing a second `php -r` subprocess.
-     */
-    private function evalVersionPhp(string $versionphp): ?int
-    {
-        foreach ([
-            'MOODLE_INTERNAL' => true,
-            'MATURITY_ALPHA' => 50,
-            'MATURITY_BETA' => 150,
-            'MATURITY_RC' => 180,
-            'MATURITY_STABLE' => 200,
-            'ANY_VERSION' => 'any',
-        ] as $name => $value) {
-            if (!defined($name)) {
-                define($name, $value);
-            }
-        }
-
-        $plugin = new \stdClass();
-        $module = new \stdClass();
-
-        $loader = function ($__versionphp_path) use ($plugin, $module) {
-            ob_start();
-            try {
-                include $__versionphp_path;
-            } catch (\Throwable) {
-                // Swallow: some version.php files reference things only a
-                // real Moodle bootstrap provides. We only care whether
-                // ->version got set before it blew up.
-            } finally {
-                ob_end_clean();
-            }
-        };
-        $loader($versionphp);
-
-        if (isset($plugin->version) && is_numeric($plugin->version)) {
-            return (int) $plugin->version;
-        }
-        if (isset($module->version) && is_numeric($module->version)) {
-            return (int) $module->version;
-        }
-        return null;
     }
 
     // -------------------------------------------------------------------
@@ -601,6 +557,11 @@ class PluginListApply52Handler extends BaseHandler
             $zipFile = $tempDir . '/' . $component . '.zip';
             $client->downloadFile($version->downloadurl, $zipFile);
 
+            // Fail fast on anything that isn't actually a zip (an error
+            // page, a truncated download, ...) before ever handing it to
+            // ZipArchive - see PluginZipCache::assertZipMagicBytes().
+            PluginZipCache::assertZipMagicBytes($zipFile);
+
             $extractDir = $tempDir . '/extracted';
             mkdir($extractDir, 0755, true);
             $zip = new \ZipArchive();
@@ -614,6 +575,13 @@ class PluginListApply52Handler extends BaseHandler
             if ($extractedPluginDir === null) {
                 throw new \RuntimeException("The ZIP for $component does not contain a valid plugin (no version.php found).");
             }
+
+            // Resolve any $plugin->dependencies declared in the plugin's
+            // own version.php (e.g. a theme requiring a specific parent
+            // theme version) - and get them installed - before this
+            // component itself is moved into place, so nothing ends up
+            // installed with an unmet dependency.
+            $this->resolveVersionPhpDependencies($component, $componentdir, $extractedPluginDir, $output, $depth);
 
             if (file_exists($componentpath)) {
                 $output->writeln("Removing existing directory $componentpath");
@@ -672,6 +640,168 @@ class PluginListApply52Handler extends BaseHandler
                 $this->installRequestedVersion($requiredcomponent, $requiredcomponentdir, $requiredrequested, $output, $depth + 1);
             }
         }
+    }
+
+    // -------------------------------------------------------------------
+    // version.php-declared dependencies ($plugin->dependencies)
+    // -------------------------------------------------------------------
+
+    /**
+     * Unlike the <componentdir>/requires file above (a moosh2-specific,
+     * hand-maintained list), $plugin->dependencies inside version.php is
+     * how the plugin itself - as shipped by its author - declares what it
+     * needs (e.g. theme_boost_union requiring a minimum theme_boost
+     * version). Read from the just-downloaded/extracted copy via
+     * VersionPhpParser (never executed - see that class), not the
+     * eventually-installed one, since that's the authoritative copy for
+     * the version about to be installed.
+     *
+     * @throws \RuntimeException if a dependency can't be resolved (see
+     *   resolveSingleDependency())
+     */
+    private function resolveVersionPhpDependencies(string $component, string $componentdir, string $extractedPluginDir, OutputInterface $output, int $depth): void
+    {
+        $versionphp = $extractedPluginDir . '/version.php';
+        if (!is_file($versionphp)) {
+            return;
+        }
+
+        $dependencies = VersionPhpParser::parseFile($versionphp)['dependencies'];
+        foreach ($dependencies as $depcomponent => $requiredversion) {
+            $this->resolveSingleDependency($component, $componentdir, $depcomponent, $requiredversion, $output, $depth);
+        }
+    }
+
+    /**
+     * Resolve one version.php-declared dependency of $component, in order:
+     *   1. Already installed (on disk) at a sufficient version? Nothing to do -
+     *      this is what makes a dependency on e.g. theme_boost (shipped
+     *      with Moodle core) a no-op on a normal install.
+     *   2. Already declared in the same declarative plugin list (a sibling
+     *      directory next to $componentdir)? Install/upgrade it from there,
+     *      recursing through installRequestedVersion() like a <requires>
+     *      file entry would.
+     *   3. Otherwise, look it up in plugins.json (moodle.org's plugin
+     *      directory - the same data plugin:list-update reads) as a
+     *      third-party plugin: if found, write it into the declarative
+     *      plugin list on disk (so plugin:list-update/list-apply see it
+     *      from now on too) and install it immediately so $component's
+     *      own install can proceed.
+     *   4. Can't be resolved any of those ways -> throw. A dependency that
+     *      silently doesn't get installed is worse than a loud failure
+     *      here.
+     *
+     * @param int|string $requiredversion an int version, or the string
+     *   'any' for ANY_VERSION
+     * @throws \RuntimeException if depth exceeds the recursion guard, or
+     *   the dependency can't be resolved
+     */
+    private function resolveSingleDependency(string $component, string $componentdir, string $depcomponent, int|string $requiredversion, OutputInterface $output, int $depth): void
+    {
+        if ($depth > 5) {
+            throw new \RuntimeException(
+                "dependency resolution recursion too deep resolving $depcomponent for $component - possible circular dependency",
+            );
+        }
+        if (str_starts_with($depcomponent, 'package_')) {
+            throw new \RuntimeException(
+                "$component declares a version.php dependency on $depcomponent, but package_* pseudo-components "
+                . "can't be resolved as a version.php dependency - add it to the plugin list manually instead.",
+            );
+        }
+
+        $requiredlabel = $requiredversion === 'any' ? 'any version' : (string) $requiredversion;
+        $depcomponentdir = dirname($componentdir) . '/' . $depcomponent;
+
+        // 1) Already installed/present on disk at a sufficient version?
+        //    Covers plugins shipped with Moodle core itself (e.g.
+        //    theme_boost) exactly the same way as a separately-installed
+        //    third-party one - both just mean "already on disk".
+        $deppath = $this->getComponentPath($depcomponent, $depcomponentdir);
+        $installed = $this->getInstalledVersionAt($deppath);
+        if ($installed !== null && $this->dependencySatisfiedBy($installed, $requiredversion)) {
+            $output->writeln("  OK      $depcomponent: dependency of $component already installed ($installed, needs >= $requiredlabel)");
+            return;
+        }
+
+        // 2) Already declared in this declarative plugin list?
+        if (is_dir($depcomponentdir)) {
+            $requested = $this->getRequestedVersion($depcomponent, $depcomponentdir);
+            if (
+                $requested !== self::SENTINEL_UNINSTALL
+                && $requested !== self::SENTINEL_REMOVE_FILES
+                && $this->dependencySatisfiedBy($requested, $requiredversion)
+            ) {
+                $output->writeln("  Installing dependency $depcomponent (needs >= $requiredlabel) for $component - already in the plugin list, requested $requested");
+                $this->installRequestedVersion($depcomponent, $depcomponentdir, $requested, $output, $depth + 1);
+                return;
+            }
+            $requestedlabel = match ($requested) {
+                self::SENTINEL_UNINSTALL => 'uninstall (0)',
+                self::SENTINEL_REMOVE_FILES => 'no version / removed (-1)',
+                default => $requested,
+            };
+            throw new \RuntimeException(
+                "$component depends on $depcomponent >= $requiredlabel, but the plugin list at $depcomponentdir "
+                . "requests $requestedlabel - update its version file to satisfy the dependency.",
+            );
+        }
+
+        // 3) Not installed, not declared - is it a third-party plugin
+        //    listed in plugins.json (moodle.org's directory)?
+        $client = new PluginApiClient($this->proxy, $this->token);
+        if ($client->findPlugin($depcomponent) === null) {
+            throw new \RuntimeException(
+                "$component depends on $depcomponent (>= $requiredlabel), but it's not installed, not declared in "
+                . "the plugin list, and not listed in the moodle.org plugin directory - cannot resolve automatically.",
+            );
+        }
+
+        $resolved = $client->findBestVersion($depcomponent, (string) moodle_major_version(), null, true);
+        if (!$this->dependencySatisfiedBy((string) $resolved->version, $requiredversion)) {
+            throw new \RuntimeException(
+                "$component depends on $depcomponent >= $requiredlabel, but the latest version available for "
+                . "this Moodle release ({$resolved->version}) doesn't satisfy that.",
+            );
+        }
+
+        $output->writeln(
+            "  ADD     $depcomponent: third-party dependency of $component (needs >= $requiredlabel), not found locally - "
+            . "adding {$resolved->version} to the plugin list at $depcomponentdir and installing it now",
+        );
+        if (!mkdir($depcomponentdir, 0755, true) && !is_dir($depcomponentdir)) {
+            throw new \RuntimeException("Failed to create plugin list directory $depcomponentdir for dependency $depcomponent.");
+        }
+        file_put_contents($depcomponentdir . '/version', $resolved->version . "\n");
+
+        $this->installRequestedVersion($depcomponent, $depcomponentdir, (string) $resolved->version, $output, $depth + 1);
+    }
+
+    /**
+     * @return string|null the installed version at an arbitrary component
+     *   path (which may belong to a dependency this run never otherwise
+     *   touches), or null if nothing valid is installed there
+     */
+    private function getInstalledVersionAt(string $componentpath): ?string
+    {
+        $versionphp = $componentpath . '/version.php';
+        if (!is_file($versionphp)) {
+            return null;
+        }
+        $version = VersionPhpParser::parseFile($versionphp)['version'];
+        return $version !== null ? (string) $version : null;
+    }
+
+    /** @param int|string $requiredversion an int version, or 'any' */
+    private function dependencySatisfiedBy(?string $actual, int|string $requiredversion): bool
+    {
+        if ($actual === null) {
+            return false;
+        }
+        if ($requiredversion === 'any') {
+            return (int) $actual > 0;
+        }
+        return (int) $actual >= (int) $requiredversion;
     }
 
     // -------------------------------------------------------------------
