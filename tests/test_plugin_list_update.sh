@@ -161,5 +161,86 @@ assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
 echo ""
 
+# --- Marketplace-subscription-only plugin (HTTP 401) ---
+#
+# tiny_fontfamily is listed in plugins.json (moodle.org's public plugin
+# directory) but its actual zip only lives behind marketplace.moodle.com,
+# which returns HTTP 401 "Not privileged to request the resource" without
+# a valid subscription token - exactly the case this feature exists for.
+# These tests deliberately do NOT pass --token, so every request to
+# marketplace.moodle.com here is expected to 401.
+unset CI
+
+echo "--- Test: Marketplace 401 does not create a version file ---"
+mkdir -p "$LISTDIR/tiny_fontfamily"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run tiny_fontfamily
+EC=$?
+assert_exit_code "Exit code 0 (a 401 is a WARN, not an ERROR)" 0 "$EC"
+assert_output_contains "Explains the Marketplace subscription requirement" "Marketplace subscription" "$OUT"
+assert_output_contains "Mentions HTTP 401" "401" "$OUT"
+if [ ! -f "$LISTDIR/tiny_fontfamily/version" ]; then
+    echo "  PASS: no version file was created for a plugin only reachable via Marketplace"
+    ((PASS++))
+else
+    echo "  FAIL: version file was created despite the download being 401 Unauthorized"
+    echo "  --- plugin:list-update output ---"
+    echo "$OUT"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: Marketplace 401 leaves an existing version file untouched ---"
+echo "2020010100" > "$LISTDIR/tiny_fontfamily/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run tiny_fontfamily
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+PINNED_VERSION=$(cat "$LISTDIR/tiny_fontfamily/version")
+if [ "$PINNED_VERSION" = "2020010100" ]; then
+    echo "  PASS: pre-existing version (2020010100) was left in place, not bumped"
+    ((PASS++))
+else
+    echo "  FAIL: version changed from 2020010100 to '$PINNED_VERSION' despite the 401"
+    ((FAIL++))
+fi
+if [ ! -f "$LISTDIR/tiny_fontfamily/checksum" ]; then
+    echo "  PASS: no checksum file was written either"
+    ((PASS++))
+else
+    echo "  FAIL: a checksum file was written despite the download being 401 Unauthorized"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: Marketplace 401 prints a plain WARNING outside CI ---"
+assert_output_contains "Plain WARNING prefix (no \$CI set)" "WARNING" "$OUT"
+if [[ "$OUT" != *"::warning"* ]]; then
+    echo "  PASS: no GitHub Actions annotation emitted when \$CI is unset"
+    ((PASS++))
+else
+    echo "  FAIL: unexpected ::warning:: annotation emitted without \$CI set"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: Marketplace 401 emits a GitHub Actions annotation when \$CI is set ---"
+rm -f "$LISTDIR/tiny_fontfamily/version"
+export CI=true
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run tiny_fontfamily
+EC=$?
+unset CI
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "GitHub Actions warning annotation" "::warning" "$OUT"
+assert_output_contains "Annotation still names the plugin" "tiny_fontfamily" "$OUT"
+if [ ! -f "$LISTDIR/tiny_fontfamily/version" ]; then
+    echo "  PASS: still no version file written under \$CI"
+    ((PASS++))
+else
+    echo "  FAIL: version file was created under \$CI despite the 401"
+    ((FAIL++))
+fi
+echo ""
+
+rm -rf "$LISTDIR/tiny_fontfamily"
+
 rm -rf "$LISTDIR"
 print_summary

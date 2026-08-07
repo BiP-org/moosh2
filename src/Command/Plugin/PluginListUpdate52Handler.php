@@ -25,6 +25,7 @@ namespace Moosh2\Command\Plugin;
 
 use Moosh2\Bootstrap\BootstrapLevel;
 use Moosh2\Command\BaseHandler;
+use Moosh2\Service\HttpRequestException;
 use Moosh2\Service\PluginApiClient;
 use Moosh2\Service\PluginZipCache;
 use Symfony\Component\Console\Command\Command;
@@ -183,6 +184,35 @@ class PluginListUpdate52Handler extends BaseHandler
             return "SKIP   $component: no version supports Moodle {$this->moodleRelease}";
         }
 
+        // plugins.json lists every version moodle.org knows about, but some
+        // of those are only actually downloadable by Moodle Marketplace
+        // subscribers - trying anyway returns HTTP 401 "Not privileged to
+        // request the resource" from marketplace.moodle.com. Verify that
+        // *before* touching the version file: bumping `version` to point at
+        // a release nobody (without a valid --token) can download would
+        // leave a later plugin:list-apply broken, so a 401 here means the
+        // existing version file is left exactly as it was.
+        //
+        // Local-version-is-newer is checked first purely to skip this
+        // network round trip when applyVersion() would SKIP anyway.
+        $localIsNewer = $currentversion !== null && (int) $currentversion > (int) $latest->version;
+        $preDownloaded = null;
+        if (!$localIsNewer && PluginApiClient::isMarketplaceUrl($latest->downloadurl)) {
+            try {
+                $preDownloaded = $this->downloadPluginZip($component, (string) $latest->version, $latest->downloadurl, $client);
+            } catch (HttpRequestException $e) {
+                if ($e->getStatusCode() !== 401) {
+                    throw new \RuntimeException(
+                        "could not reach Moodle Marketplace for version {$latest->version}: " . $e->getMessage(),
+                    );
+                }
+                $this->reportMarketplaceUnavailable($component, (string) $latest->version, $output);
+                $label = $currentversion ?? 'unset';
+                return "WARN   $component: version {$latest->version} requires a Moodle Marketplace subscription "
+                    . "(HTTP 401 Not privileged to request the resource) - version left at $label";
+            }
+        }
+
         if (!$dryRun) {
             $this->clearSupportStatus($componentdir);
         }
@@ -195,13 +225,56 @@ class PluginListUpdate52Handler extends BaseHandler
             // a checksum that isn't pinned yet - don't re-download on every
             // run just to re-confirm nothing changed.
             $versionchanged = str_starts_with($message, 'CREATE ') || str_starts_with($message, 'UPDATE ');
-            $checksumline = $this->reconcileChecksum($component, $componentdir, (string) $latest->version, $latest->downloadurl, $versionchanged, $client);
+            $checksumline = $this->reconcileChecksum(
+                $component,
+                $componentdir,
+                (string) $latest->version,
+                $latest->downloadurl,
+                $versionchanged,
+                $client,
+                $preDownloaded,
+            );
             if ($checksumline !== null) {
                 $message .= "\n" . $checksumline;
             }
+            $preDownloaded = null; // reconcileChecksum() always consumes/cleans it up, dry or not
+        }
+
+        if ($preDownloaded !== null && is_dir($preDownloaded[1])) {
+            // Downloaded only to verify Marketplace reachability (dry-run,
+            // --no-checksum, or a SKIP message) - nothing else needs it.
+            $this->removeDirectory($preDownloaded[1]);
         }
 
         return $message;
+    }
+
+    /**
+     * Surface a Marketplace-subscription-required (HTTP 401) result: a
+     * GitHub Actions workflow annotation when running under GitHub CI
+     * (detected via $CI, one of the default environment variables GitHub
+     * Actions sets - see
+     * https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables),
+     * or a plain WARNING line everywhere else. Either way the caller leaves
+     * the existing version file untouched.
+     */
+    private function reportMarketplaceUnavailable(string $component, string $version, OutputInterface $output): void
+    {
+        $message = "$component: version $version is only downloadable with a Moodle Marketplace subscription "
+            . '(HTTP 401 Not privileged to request the resource) - leaving the existing version in place.';
+
+        if ($this->isRunningInCi()) {
+            $output->writeln("::warning title=Moodle Marketplace subscription required::$message");
+        } else {
+            $output->writeln("WARNING $message");
+        }
+    }
+
+    /** True under GitHub Actions (and most other CI systems, which set the same $CI convention). */
+    private function isRunningInCi(): bool
+    {
+        $ci = getenv('CI');
+        return $ci !== false && $ci !== '' && strtolower($ci) !== 'false';
     }
 
     private function hasOptionNoChecksum(): bool
@@ -216,17 +289,28 @@ class PluginListUpdate52Handler extends BaseHandler
      *
      * @throws \RuntimeException if the zip can't be downloaded
      */
-    private function reconcileChecksum(string $component, string $componentdir, string $version, string $downloadurl, bool $forceRecompute, PluginApiClient $client): ?string
+    /**
+     * @param array{0: string, 1: string}|null $preDownloaded [downloadedFile,
+     *   tempDir] already fetched by updateStandardComponent() while probing
+     *   Marketplace reachability - reused here instead of downloading the
+     *   same zip a second time. Always consumed (and its tempDir removed)
+     *   by this method when passed, whether or not a checksum ends up
+     *   being (re)computed.
+     */
+    private function reconcileChecksum(string $component, string $componentdir, string $version, string $downloadurl, bool $forceRecompute, PluginApiClient $client, ?array $preDownloaded = null): ?string
     {
         $checksumfile = $componentdir . '/checksum';
         $existing = $this->readVersionFile($checksumfile);
         if (!$forceRecompute && $existing !== null) {
+            if ($preDownloaded !== null && is_dir($preDownloaded[1])) {
+                $this->removeDirectory($preDownloaded[1]);
+            }
             return null;
         }
 
         $tempdir = null;
         try {
-            [$downloadedfile, $tempdir] = $this->downloadPluginZip($component, $version, $downloadurl, $client);
+            [$downloadedfile, $tempdir] = $preDownloaded ?? $this->downloadPluginZip($component, $version, $downloadurl, $client);
             $sha256 = hash_file('sha256', $downloadedfile);
         } catch (\RuntimeException $e) {
             throw new \RuntimeException("could not pin checksum for $version: " . $e->getMessage());

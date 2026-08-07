@@ -326,4 +326,17 @@ final class PluginApiClient
         $host = strtolower($host);
         return $host === 'marketplace.moodle.com' || str_ends_with($host, '.marketplace.moodle.com');
     }
+
+    /**
+     * Public wrapper around isMarketplaceHost() so callers (e.g.
+     * plugin:list-update) can tell, ahead of time, whether a given
+     * downloadurl is one that only ever gets the Marketplace bearer token
+     * — and therefore the only kind of URL that can 401 with "Not
+     * privileged to request the resource" for a plugin that's listed but
+     * gated behind a paid Moodle Marketplace subscription.
+     */
+    public static function isMarketplaceUrl(string $url): bool
+    {
+        return self::isMarketplaceHost($url);
+    }
 }
