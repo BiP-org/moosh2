@@ -110,7 +110,7 @@ assert_output_not_contains "Does not reinstall" "INSTALLED mod_attendance" "$OUT
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
-# Uninstall (requested == 0)
+# Uninstall (requested == 0 or "uninstall")
 # ═══════════════════════════════════════════════════════════════════
 
 echo "--- Test: Sentinel 0 dry-run previews uninstall ---"
@@ -142,8 +142,60 @@ else
 fi
 echo ""
 
+echo "--- Test: String sentinel 'uninstall' dry-run previews uninstall ---"
+echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+# Reinstall for test
+echo "uninstall" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR"
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows would-uninstall with string sentinel" "WOULD UNINSTALL" "$OUT"
+assert_output_contains "Shows uninstall display name" "requested: uninstall" "$OUT"
+if [ -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: plugin still present during dry run with string sentinel"
+    ((PASS++))
+else
+    echo "  FAIL: plugin was removed during a dry run with string sentinel"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: String sentinel 'uninstall' --run actually uninstalls ---"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows uninstalled with string sentinel" "REMOVED mod_attendance: uninstalled" "$OUT"
+assert_output_contains "Shows uninstall display name in output" "requested: uninstall" "$OUT"
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: plugin directory removed with string sentinel"
+    ((PASS++))
+else
+    echo "  FAIL: plugin directory still exists after uninstall with string sentinel"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: String sentinel 'UNINSTALL' (uppercase) works ---"
+echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+# Reinstall for test
+echo "UNINSTALL" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows uninstalled with uppercase sentinel" "REMOVED mod_attendance: uninstalled" "$OUT"
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: uppercase sentinel works"
+    ((PASS++))
+else
+    echo "  FAIL: uppercase sentinel did not work"
+    ((FAIL++))
+fi
+echo ""
+
 # ═══════════════════════════════════════════════════════════════════
-# Remove files only (requested == -1), database left untouched
+# Remove files only (requested == -1 or "remove-files"), database left untouched
 # ═══════════════════════════════════════════════════════════════════
 
 echo "--- Setup: reinstall mod_attendance for the remove-files test ---"
@@ -167,6 +219,52 @@ else
         ((PASS++))
     else
         echo "  FAIL: plugin directory still exists"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
+echo "--- Test: String sentinel 'remove-files' --run removes files only ---"
+echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  FAIL: could not reinstall mod_attendance for the remove-files string test - skipping it"
+    ((FAIL++))
+else
+    echo "remove-files" > "$LISTDIR/mod_attendance/version"
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+    EC=$?
+    assert_exit_code "Exit code 0" 0 "$EC"
+    assert_output_contains "Shows files removed with string sentinel" "REMOVED mod_attendance: files removed" "$OUT"
+    assert_output_contains "Shows remove-files display name" "requested: remove-files" "$OUT"
+    assert_output_contains "Notes database untouched" "database left untouched" "$OUT"
+    if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+        echo "  PASS: plugin files removed with string sentinel"
+        ((PASS++))
+    else
+        echo "  FAIL: plugin directory still exists with string sentinel"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
+echo "--- Test: String sentinel 'REMOVE-FILES' (uppercase) works ---"
+echo "$REAL_VERSION" > "$LISTDIR/mod_attendance/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  FAIL: could not reinstall mod_attendance for the uppercase remove-files test - skipping it"
+    ((FAIL++))
+else
+    echo "REMOVE-FILES" > "$LISTDIR/mod_attendance/version"
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$LISTDIR" --run
+    EC=$?
+    assert_exit_code "Exit code 0" 0 "$EC"
+    assert_output_contains "Shows files removed with uppercase sentinel" "REMOVED mod_attendance: files removed" "$OUT"
+    if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+        echo "  PASS: uppercase sentinel works"
+        ((PASS++))
+    else
+        echo "  FAIL: uppercase sentinel did not work"
         ((FAIL++))
     fi
 fi

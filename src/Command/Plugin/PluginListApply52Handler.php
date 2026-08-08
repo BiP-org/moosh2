@@ -60,6 +60,10 @@ class PluginListApply52Handler extends BaseHandler
 {
     private const SENTINEL_REMOVE_FILES = '-1';
     private const SENTINEL_UNINSTALL = '0';
+    
+    // String versions of sentinels for more readable config files
+    private const SENTINEL_REMOVE_FILES_STR = 'remove-files';
+    private const SENTINEL_UNINSTALL_STR = 'uninstall';
 
     /** @var string absolute path to the declarative plugin list directory (--directory) */
     private string $configPluginDirectory = '';
@@ -199,15 +203,19 @@ class PluginListApply52Handler extends BaseHandler
         if ($requested === null || $requested === '') {
             throw new \RuntimeException('could not determine requested version, exiting');
         }
-        $output->writeln("$component requested: $requested installed: $current");
+        
+        // Display human-readable version for output
+        $displayRequested = $this->getDisplayVersion($requested);
+        $displayCurrent = $this->getDisplayVersion($current);
+        $output->writeln("$component requested: $displayRequested installed: $displayCurrent");
 
         if ($current === $requested) {
             $this->runAlwaysRunHookIfPresent($component, $componentdir, $output);
-            $output->writeln("OK      $component: already at $current");
+            $output->writeln("OK      $component: already at $displayRequested");
             return;
         }
 
-        if ($requested === self::SENTINEL_REMOVE_FILES) {
+        if ($this->isRemoveFilesSentinel($requested)) {
             if ($this->dryRun) {
                 $output->writeln("WOULD REMOVE $component: files at $componentpath (database left untouched)");
                 return;
@@ -217,7 +225,7 @@ class PluginListApply52Handler extends BaseHandler
             return;
         }
 
-        if ($requested === self::SENTINEL_UNINSTALL) {
+        if ($this->isUninstallSentinel($requested)) {
             if ((int) $current <= -1) {
                 if ($this->dryRun) {
                     $output->writeln("OK      $component: already uninstalled (would still best-effort clean up orphan records)");
@@ -227,7 +235,7 @@ class PluginListApply52Handler extends BaseHandler
                 $output->writeln("OK      $component: already uninstalled, database cleaned up (best effort)");
             } else {
                 if ($this->dryRun) {
-                    $output->writeln("WOULD UNINSTALL $component (currently $current)");
+                    $output->writeln("WOULD UNINSTALL $component (currently $displayCurrent)");
                     return;
                 }
                 $this->uninstall($component, $componentdir, $componentpath, $output);
@@ -238,7 +246,7 @@ class PluginListApply52Handler extends BaseHandler
 
         // requested > 1: install or upgrade.
         if ($this->dryRun) {
-            $output->writeln("WOULD INSTALL $component: $current -> $requested (target: $componentpath)");
+            $output->writeln("WOULD INSTALL $component: $displayCurrent -> $displayRequested (target: $componentpath)");
             return;
         }
 
@@ -246,10 +254,10 @@ class PluginListApply52Handler extends BaseHandler
 
         $updated = $this->getInstalledVersion($component, $componentdir, $componentpath);
         if ($updated === null || $updated === '') {
-            throw new \RuntimeException("requested: $requested could not be installed, exiting");
+            throw new \RuntimeException("requested: $displayRequested could not be installed, exiting");
         }
         if ($updated !== $requested) {
-            throw new \RuntimeException("requested: $requested could not be upgraded, $updated is still deployed, exiting");
+            throw new \RuntimeException("requested: $displayRequested could not be upgraded, $displayCurrent is still deployed, exiting");
         }
 
         $scanresult = $this->scanForMalware($component, $componentpath, $output);
@@ -261,7 +269,7 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $this->addIgnorePathsToGitignore($component, $componentdir, $componentpath);
-        $output->writeln("INSTALLED $component: $current -> $requested");
+        $output->writeln("INSTALLED $component: $displayCurrent -> $displayRequested");
     }
 
     private function runAlwaysRunHookIfPresent(string $component, string $componentdir, OutputInterface $output): void
@@ -288,6 +296,86 @@ class PluginListApply52Handler extends BaseHandler
     // -------------------------------------------------------------------
 
     /**
+     * Normalize a requested version string to one of the sentinel constants
+     * or the numeric version.
+     * 
+     * Recognizes:
+     *   - "-1" or "remove-files" (case-insensitive) -> SENTINEL_REMOVE_FILES
+     *   - "0" or "uninstall" (case-insensitive) -> SENTINEL_UNINSTALL
+     *   - Any other numeric string -> returned as-is
+     * 
+     * @param string $requested The raw requested version from the version file
+     * @return string Normalized version string (sentinel constant or numeric)
+     * @throws \RuntimeException if the version is not a valid integer or recognized sentinel
+     */
+    private function normalizeRequestedVersion(string $requested): string
+    {
+        $trimmed = trim($requested);
+        $lower = strtolower($trimmed);
+        
+        // Check for string sentinels first (case-insensitive)
+        if ($lower === strtolower(self::SENTINEL_REMOVE_FILES_STR)) {
+            return self::SENTINEL_REMOVE_FILES;
+        }
+        
+        if ($lower === strtolower(self::SENTINEL_UNINSTALL_STR)) {
+            return self::SENTINEL_UNINSTALL;
+        }
+        
+        // Check for numeric sentinels
+        if ($trimmed === self::SENTINEL_REMOVE_FILES || $trimmed === self::SENTINEL_UNINSTALL) {
+            return $trimmed;
+        }
+        
+        // Must be a valid integer
+        if (!preg_match('/^-?[0-9]+$/', $trimmed)) {
+            throw new \RuntimeException(
+                "requested version is not a valid integer or recognized sentinel: '$requested' " .
+                "(valid: -1, 0, 'remove-files', 'uninstall')"
+            );
+        }
+        
+        return $trimmed;
+    }
+
+    /**
+     * Check if a version string represents the "remove files" sentinel.
+     * Handles both "-1" and "remove-files" (case-insensitive).
+     */
+    private function isRemoveFilesSentinel(string $version): bool
+    {
+        $trimmed = trim($version);
+        return $trimmed === self::SENTINEL_REMOVE_FILES || 
+               strtolower($trimmed) === strtolower(self::SENTINEL_REMOVE_FILES_STR);
+    }
+
+    /**
+     * Check if a version string represents the "uninstall" sentinel.
+     * Handles both "0" and "uninstall" (case-insensitive).
+     */
+    private function isUninstallSentinel(string $version): bool
+    {
+        $trimmed = trim($version);
+        return $trimmed === self::SENTINEL_UNINSTALL || 
+               strtolower($trimmed) === strtolower(self::SENTINEL_UNINSTALL_STR);
+    }
+
+    /**
+     * Get a human-readable display version string.
+     * Converts sentinel constants to their readable equivalents.
+     */
+    private function getDisplayVersion(string $version): string
+    {
+        if ($this->isRemoveFilesSentinel($version)) {
+            return self::SENTINEL_REMOVE_FILES_STR;
+        }
+        if ($this->isUninstallSentinel($version)) {
+            return self::SENTINEL_UNINSTALL_STR;
+        }
+        return $version;
+    }
+
+    /**
      * @throws \RuntimeException if the version file/script exists but its
      *   content isn't a valid integer, or a package_* script fails
      */
@@ -306,10 +394,7 @@ class PluginListApply52Handler extends BaseHandler
             }
         }
 
-        if (!preg_match('/^-?[0-9]+$/', $requested)) {
-            throw new \RuntimeException("requested version is not a valid integer: '$requested'");
-        }
-        return $requested;
+        return $this->normalizeRequestedVersion($requested);
     }
 
     /**
@@ -663,10 +748,12 @@ class PluginListApply52Handler extends BaseHandler
             $requiredcurrent = $this->getInstalledVersion($requiredcomponent, $requiredcomponentdir, $requiredpath);
             $requiredrequested = $this->getRequestedVersion($requiredcomponent, $requiredcomponentdir);
 
-            $output->writeln("Installing requirement $requiredcomponent for $component (requested: $requiredrequested, installed: $requiredcurrent)");
+            $displayRequested = $this->getDisplayVersion($requiredrequested);
+            $displayCurrent = $this->getDisplayVersion($requiredcurrent);
+            $output->writeln("Installing requirement $requiredcomponent for $component (requested: $displayRequested, installed: $displayCurrent)");
 
             if ($requiredcurrent !== $requiredrequested) {
-                if ($requiredrequested === self::SENTINEL_UNINSTALL) {
+                if ($this->isUninstallSentinel($requiredrequested)) {
                     throw new \RuntimeException("$component requires $requiredcomponent but $requiredcomponent is marked for uninstall");
                 }
                 $this->installRequestedVersion($requiredcomponent, $requiredcomponentdir, $requiredrequested, $output, $depth + 1);
