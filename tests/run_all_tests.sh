@@ -73,10 +73,15 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
 
     # Retry once on errors — the test DB occasionally returns transient errors
     # (orphan InnoDB tablespaces after restore). Discard the first run's output.
+    # The retry runs with DEBUG=1 so common.sh's is_debug_enabled() kicks in:
+    # every run_moosh call logs its command/exit code/output, and the
+    # github_annotate_* helpers include the actual output in their
+    # annotations too. First run stays quiet so normal green runs aren't
+    # noisy; only a genuine failure pays the verbose-logging cost.
     if [ "$exit_code" -ne 0 ] || [ "${fail_count:-0}" -gt 0 ]; then
-        echo "# First run had errors (exit=$exit_code, fail=${fail_count:-0}); retrying after 1s..."
+        echo "# First run had errors (exit=$exit_code, fail=${fail_count:-0}); retrying with debug enabled after 1s..."
         sleep 1
-        output=$(bash "$test_file" 2>&1)
+        output=$(DEBUG=1 bash "$test_file" 2>&1)
         exit_code=$?
         pass_count=$(echo "$output" | grep -oP 'Results: \K[0-9]+(?= passed)' || echo 0)
         fail_count=$(echo "$output" | grep -oP 'Results: [0-9]+ passed, \K[0-9]+(?= failed)' || echo 0)
