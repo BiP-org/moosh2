@@ -8,6 +8,10 @@ on:
         description: 'Run only these tests (space/comma-separated, e.g. "plugin_list_apply plugin_clamscan"). Leave empty to run everything.'
         required: false
         type: string
+      debug:
+        description: 'Enable Debug Mode'
+        required: true
+        default: 'false'
       skip_tests:
         description: 'Skip these tests (space/comma-separated). Ignored if only_tests is set.'
         required: false
@@ -229,9 +233,13 @@ jobs:
           ONLY_TESTS: ${{ github.event.inputs.only_tests }}
           SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           MOODLE_MARKETPLACE_TOKEN: ${{ secrets.BOT_MOODLE_MARKETPLACE_TOKEN }}
+          GITHUB_ACTIONS: true
+          # Debug variables - consolidate all sources
+          INPUTS_DEBUG: ${{ github.event.inputs.debug || '0' }}
+          ACTIONS_STEP_DEBUG: ${{ env.ACTIONS_STEP_DEBUG || 'false' }}
+          ACTIONS_RUNNER_DEBUG: ${{ env.ACTIONS_RUNNER_DEBUG || 'false' }}
         run: |
           # Start PHP built-in web server in the background
-
           . /tmp/override_env.sh
 
           # github.event.inputs.* is only populated for workflow_dispatch runs;
@@ -245,8 +253,50 @@ jobs:
           if [ -z "$ONLY_TESTS" ] && [ -z "$SKIP_TESTS" ]; then
             SKIP_TESTS="$DEFAULT_SKIP_TESTS"
           fi
-          export ONLY_TESTS SKIP_TESTS MOODLE_MARKETPLACE_TOKEN
 
+          # ---- Consolidated Debug Detection ----
+          # Set RUNNER_DEBUG based on multiple sources
+          RUNNER_DEBUG=0
+          DEBUG_MESSAGE=""
+
+          # Check Step Debug (UI/Secret enabled)
+          if [ "${ACTIONS_STEP_DEBUG}" = "true" ]; then
+            DEBUG_MESSAGE="${DEBUG_MESSAGE} StepDebug"
+            RUNNER_DEBUG=1
+          fi
+
+          # Check Runner Debug (Secret enabled)
+          if [ "${ACTIONS_RUNNER_DEBUG}" = "true" ]; then
+            DEBUG_MESSAGE="${DEBUG_MESSAGE} RunnerDebug"
+            RUNNER_DEBUG=1
+          fi
+
+          # Check custom input (workflow_dispatch input)
+          if [ "${INPUTS_DEBUG}" = "true" ] || [ "${INPUTS_DEBUG}" = "1" ]; then
+            DEBUG_MESSAGE="${DEBUG_MESSAGE} InputDebug"
+            RUNNER_DEBUG=1
+          fi
+
+          # Check for manual DEBUG env var (for local debugging)
+          if [ "${DEBUG:-0}" = "1" ]; then
+            DEBUG_MESSAGE="${DEBUG_MESSAGE} ManualDebug"
+            RUNNER_DEBUG=1
+          fi
+
+          # Export consolidated debug status
+          export RUNNER_DEBUG
+
+          if [ "$RUNNER_DEBUG" -eq 1 ]; then
+            echo "::notice::Debug mode ENABLED (sources:${DEBUG_MESSAGE})"
+            echo "DEBUG: Debug mode enabled via:${DEBUG_MESSAGE}"
+            echo "DEBUG: Runner debug level set to $RUNNER_DEBUG"
+          else
+            echo "DEBUG: Debug mode disabled"
+          fi
+
+          export ONLY_TESTS SKIP_TESTS MOODLE_MARKETPLACE_TOKEN GITHUB_ACTIONS RUNNER_DEBUG
+
+          # 1. Run php built-in webserver
           php -S 127.0.0.1:8000 -t "$MOODLE_DIR/public" > /dev/null 2>&1 &
           sleep 2
 

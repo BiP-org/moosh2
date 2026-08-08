@@ -35,6 +35,93 @@ PHP="${PHP:-/usr/bin/php}"
 PASS=0
 FAIL=0
 LAST_CMD=""
+LAST_OUT=""
+# Initialized here (not just inside run_moosh) so that, under `set -u`,
+# nothing can ever blow up with "OUT: unbound variable" - even if a test
+# references $OUT before the first run_moosh call.
+OUT=""
+GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
+GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
+
+# ── Debug detection ──────────────────────────────────────────────────
+# Comprehensive debug detection that checks multiple sources
+is_debug_enabled() {
+    # Check if any debug flag is set
+    # shellcheck disable=SC2153
+    if [ "${RUNNER_DEBUG:-0}" = "1" ] || \
+       [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ] || \
+       [ "${ACTIONS_RUNNER_DEBUG:-false}" = "true" ] || \
+       [ "${INPUTS_DEBUG:-0}" = "1" ] || \
+       [ "${DEBUG:-0}" = "1" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Get debug level (0 = off, 1 = basic, 2 = verbose)
+get_debug_level() {
+    local level=0
+    
+    # Check environment variables in order of precedence
+    # shellcheck disable=SC2153
+    if [ "${RUNNER_DEBUG:-0}" = "1" ] || \
+       [ "${DEBUG:-0}" = "1" ] || \
+       [ "${INPUTS_DEBUG:-0}" = "1" ]; then
+        level=1
+    fi
+    
+    # Runner debug is more verbose
+    if [ "${ACTIONS_RUNNER_DEBUG:-false}" = "true" ]; then
+        level=2
+    fi
+    
+    # Step debug is also verbose
+    if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ] && [ "$level" -lt 2 ]; then
+        level=2
+    fi
+    
+    echo "$level"
+}
+
+# ── GitHub Actions helpers ──────────────────────────────────────────
+github_annotation() {
+    local level="$1"  # error, warning, notice
+    local message="$2"
+    if [ "$GITHUB_ACTIONS" = "true" ]; then
+        echo "::$level::$message"
+    fi
+}
+
+github_annotate_output_contains() {
+    local description="$1"
+    local expected="$2"
+    local actual="$3"
+    if ! grep -qF -- "$expected" <<< "$actual"; then
+        github_annotation "error" "Test failed: $description - Expected to contain: '$expected'"
+        if is_debug_enabled; then
+            github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
+        fi
+    fi
+}
+
+github_annotate_exit_code() {
+    local description="$1"
+    local expected="$2"
+    local actual="$3"
+    if [ "$actual" -ne "$expected" ]; then
+        github_annotation "error" "Test failed: $description - Expected exit code $expected, got $actual"
+        if is_debug_enabled; then
+            github_annotation "notice" "Command output for '$LAST_CMD': $LAST_OUT"
+        fi
+    fi
+}
+
+append_to_summary() {
+    local content="$1"
+    if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        echo "$content" >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
 
 # ── Test-run lock ──────────────────────────────────────────────────
 # Prevent two test runs from racing on the same Moodle dataroot/database.
@@ -82,7 +169,12 @@ _moosh_test_release_lock() {
 # own trap.
 trap _moosh_test_release_lock EXIT
 
+# IMPORTANT: This function sets global LAST_OUT and returns the exit code.
+# The test scripts expect OUT to be set globally after calling run_moosh.
+# We achieve this by using command substitution to capture output into a global
+# variable while preserving the exit code.
 run_moosh() {
+    # Build the command string for debugging
     LAST_CMD="$PHP $MOOSH"
     for arg in "$@"; do
         if [[ "$arg" == *' '* || "$arg" == *'"'* ]]; then
@@ -91,8 +183,44 @@ run_moosh() {
             LAST_CMD+=" $arg"
         fi
     done
-    OUT=$($PHP $MOOSH "$@" 2>&1)
+    
+    # NOTE: deliberately NOT using `eval` here. eval re-joins its arguments
+    # with spaces and re-parses the result, which throws away the word
+    # boundaries "$@" already gives us for free: an argument containing a
+    # space (e.g. --fullname "New Name") gets re-split into two arguments,
+    # and an empty-string argument (e.g. --courseid "") vanishes entirely,
+    # shifting every argument after it. Passing "$@" straight through to
+    # the command preserves it exactly as the caller built it.
+    local output
+    output=$("$PHP" "$MOOSH" "$@" 2>&1)
     local rc=$?
+    
+    # Set the global OUT variable (tests expect this)
+    # shellcheck disable=SC2034
+    OUT="$output"
+    # Also set LAST_OUT for debug/annotation functions
+    LAST_OUT="$output"
+    
+    # DEBUG: If debug is enabled, output the command and exit code
+    if is_debug_enabled; then
+        echo "DEBUG: Command: $LAST_CMD" >&2
+        echo "DEBUG: Exit code: $rc" >&2
+        if [ -n "$LAST_OUT" ]; then
+            echo "DEBUG: Output:" >&2
+            echo "$LAST_OUT" | sed 's/^/DEBUG:   /' >&2
+        fi
+    fi
+    
+    return $rc
+}
+
+# Helper function for tests that need to capture output in a variable
+# Usage: OUT=$(run_moosh_capture args...)
+# This ensures OUT is always set and the exit code is preserved
+run_moosh_capture() {
+    run_moosh "$@"
+    local rc=$?
+    echo "$OUT"
     return $rc
 }
 
@@ -108,6 +236,7 @@ assert_output_contains() {
         echo "    Expected to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
+        github_annotate_output_contains "$description" "$expected" "$actual"
     fi
 }
 
@@ -121,6 +250,10 @@ assert_output_not_contains() {
         echo "    Expected NOT to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
+        github_annotation "error" "Test failed: $description - Output should NOT contain: '$expected'"
+        if is_debug_enabled; then
+            github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
+        fi
     else
         ((PASS++))
     fi
@@ -135,6 +268,10 @@ assert_output_not_empty() {
         echo "  FAIL: $description (output was empty)"
         echo "    Command: $LAST_CMD"
         ((FAIL++))
+        github_annotation "error" "Test failed: $description - Output was empty"
+        if is_debug_enabled; then
+            github_annotation "notice" "Command: $LAST_CMD"
+        fi
     fi
 }
 
@@ -149,7 +286,11 @@ assert_exit_code() {
         echo "    Command: $LAST_CMD"
         echo "    Expected exit code: $expected"
         echo "    Got: $actual"
+        if is_debug_enabled; then
+            echo "    Output: $LAST_OUT"
+        fi
         ((FAIL++))
+        github_annotate_exit_code "$description" "$expected" "$actual"
     fi
 }
 
@@ -158,6 +299,44 @@ print_summary() {
     echo "================================"
     echo "Results: $PASS passed, $FAIL failed"
     echo "================================"
+
+    # Add summary to GitHub Actions step summary
+    if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        local test_name="${0##*/}"
+        echo "## Test Summary: $test_name" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "- ✅ **$PASS** tests passed" >> "$GITHUB_STEP_SUMMARY"
+        echo "- ❌ **$FAIL** tests failed" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        
+        if [ "$FAIL" -gt 0 ]; then
+            echo "### ❌ Test Run Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the workflow logs for details on the failed tests." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            if is_debug_enabled; then
+                echo "**Debug mode enabled** - verbose output available in logs." >> "$GITHUB_STEP_SUMMARY"
+            else
+                echo "> To enable debug mode, re-run with debug enabled." >> "$GITHUB_STEP_SUMMARY"
+            fi
+        else
+            echo "### ✅ All Tests Passed" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+        # Add debug status to summary
+        local debug_level
+        debug_level=$(get_debug_level)
+        if [ "$debug_level" -gt 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Debug Level:** $debug_level (verbose output enabled)" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+        # Add annotation for summary
+        if [ "$FAIL" -gt 0 ]; then
+            github_annotation "error" "Test run failed with $FAIL failed tests (debug: $(is_debug_enabled && echo "on" || echo "off"))"
+        else
+            github_annotation "notice" "All $PASS tests passed successfully (debug: $(is_debug_enabled && echo "on" || echo "off"))"
+        fi
+    fi
 
     _moosh_test_release_lock
 
