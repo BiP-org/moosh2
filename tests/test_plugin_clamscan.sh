@@ -34,7 +34,7 @@ echo ""
 
 if ! command -v clamscan >/dev/null 2>&1; then
     echo "--- Test: clamscan not installed -> exit 2 ---"
-    run_moosh plugin:clamscan mod_attendance
+    run_moosh plugin:clamscan block_readspeaker_embhl
     EC=$?
     assert_exit_code "Exit code 2 when clamscan missing" 2 "$EC"
     assert_output_contains "Not found message" "clamscan was not found in PATH" "$OUT"
@@ -57,7 +57,7 @@ echo "--- Test: Scan a downloaded plugin (clean) ---"
 # than relying on the system's default ClamAV database (see note above).
 EMPTYRULEDIR=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR"
-run_moosh plugin:clamscan -d "$EMPTYRULEDIR" mod_attendance
+run_moosh plugin:clamscan -d "$EMPTYRULEDIR" block_readspeaker_embhl
 EC=$?
 assert_exit_code "Exit code 0 for a clean plugin" 0 "$EC"
 rm -rf "$EMPTYRULEDIR"
@@ -65,12 +65,12 @@ echo ""
 
 echo "--- Test: Scan the plugin in the current directory ---"
 CWDDIR=$(mktemp -d)
-run_moosh plugin:download -p "$MOODLE_PATH" mod_attendance
+run_moosh plugin:download -p "$MOODLE_PATH" block_readspeaker_embhl
 cd "$CWDDIR"
 unzip -q -o "$OLDPWD"/*.zip -d . 2>/dev/null || true
 EMPTYRULEDIR2=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR2"
-OUT=$(cd mod_attendance 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
+OUT=$(cd block_readspeaker_embhl 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
 EC=$?
 cd - >/dev/null
 assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
