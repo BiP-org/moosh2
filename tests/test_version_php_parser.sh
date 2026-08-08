@@ -113,23 +113,37 @@ if [ ! -f "$RESULT_FILE" ]; then
 fi
 
 get() { php -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$RESULT_FILE" "$1"; }
+# Traverse nested JSON keys in the order given, e.g. `getpath theme_boost_union version`
+# reads $out["theme_boost_union"]["version"]. (Note: must use "$@", not "${@:2}" -
+# within this function "$@" already starts at getpath's own first argument.)
 getpath() { php -r '
 $v = json_decode(file_get_contents($argv[1]), true);
 foreach (array_slice($argv, 2) as $k) { $v = $v[$k] ?? null; }
 echo is_array($v) ? json_encode($v) : $v;
-' "$RESULT_FILE" "${@:2}"; }
+' "$RESULT_FILE" "$@"; }
 
 echo "--- Test: component/version/release/requires/maturity/supported ---"
-[ "$(getpath component theme_boost_union)" = "theme_boost_union" ] && { ((PASS++)); } || { echo "  FAIL: component"; ((FAIL++)); }
-[ "$(getpath version theme_boost_union)" = "2026042012" ] && { ((PASS++)); } || { echo "  FAIL: version"; ((FAIL++)); }
-[ "$(getpath release theme_boost_union)" = "v5.2-r8" ] && { ((PASS++)); } || { echo "  FAIL: release"; ((FAIL++)); }
-[ "$(getpath requires theme_boost_union)" = "2026042000" ] && { ((PASS++)); } || { echo "  FAIL: requires"; ((FAIL++)); }
-[ "$(getpath maturity theme_boost_union)" = "200" ] && { ((PASS++)); } || { echo "  FAIL: maturity (expected MATURITY_STABLE=200)"; ((FAIL++)); }
-[ "$(getpath supported theme_boost_union)" = "[502,502]" ] && { ((PASS++)); } || { echo "  FAIL: supported"; ((FAIL++)); }
+check() {
+    local description="$1"
+    local expected="$2"
+    local actual="$3"
+    if [ "$actual" = "$expected" ]; then
+        ((PASS++))
+    else
+        echo "  FAIL: $description (expected '$expected', got '$actual')"
+        ((FAIL++))
+    fi
+}
+check "component" "theme_boost_union" "$(getpath theme_boost_union component)"
+check "version" "2026042012" "$(getpath theme_boost_union version)"
+check "release" "v5.2-r8" "$(getpath theme_boost_union release)"
+check "requires" "2026042000" "$(getpath theme_boost_union requires)"
+check "maturity (expected MATURITY_STABLE=200)" "200" "$(getpath theme_boost_union maturity)"
+check "supported" "[502,502]" "$(getpath theme_boost_union supported)"
 echo ""
 
 echo "--- Test: \$plugin->dependencies is parsed (theme_boost >= 2026042000) ---"
-[ "$(getpath dependencies theme_boost_union theme_boost)" = "2026042000" ] && { ((PASS++)); } || { echo "  FAIL: dependencies.theme_boost"; ((FAIL++)); }
+check "dependencies.theme_boost" "2026042000" "$(getpath theme_boost_union dependencies theme_boost)"
 echo ""
 
 echo "--- Test: a malicious version.php's top-level code is never executed ---"
@@ -142,24 +156,24 @@ fi
 echo ""
 
 echo "--- Test: ANY_VERSION dependency is understood as the string 'any' ---"
-[ "$(getpath evil dependencies mod_forum)" = "any" ] && { ((PASS++)); } || { echo "  FAIL: ANY_VERSION dependency not parsed as 'any'"; ((FAIL++)); }
-[ "$(getpath evil component)" = "mod_evil" ] && { ((PASS++)); } || { echo "  FAIL: evil version.php's own component"; ((FAIL++)); }
+check "ANY_VERSION dependency not parsed as 'any'" "any" "$(getpath evil dependencies mod_forum)"
+check "evil version.php's own component" "mod_evil" "$(getpath evil component)"
 echo ""
 
 echo "--- Test: Moodle core's own top-level \$version/\$release/\$branch shape (float version) ---"
-[ "$(getpath version core_version)" = "2026042000" ] && { ((PASS++)); } || { echo "  FAIL: core version (float 2026042000.02 -> int 2026042000)"; ((FAIL++)); }
-[ "$(getpath release core_version)" = "5.2" ] && { ((PASS++)); } || { echo "  FAIL: core release"; ((FAIL++)); }
+check "core version (float 2026042000.02 -> int 2026042000)" "2026042000" "$(getpath core_version version)"
+check "core release" "5.2" "$(getpath core_version release)"
 echo ""
 
 echo "--- Test: PluginZipCache::hasZipMagicBytes() ---"
-[ "$(get magic_ok_on_real_zip)" = "1" ] && { ((PASS++)); } || { echo "  FAIL: PK-prefixed file not recognised as a zip"; ((FAIL++)); }
-[ "$(get magic_ok_on_non_zip)" = "" ] && { ((PASS++)); } || { echo "  FAIL: HTML error body was recognised as a zip"; ((FAIL++)); }
+check "PK-prefixed file not recognised as a zip" "1" "$(get magic_ok_on_real_zip)"
+check "HTML error body was recognised as a zip" "" "$(get magic_ok_on_non_zip)"
 echo ""
 
 echo "--- Test: PluginZipCache::assertZipMagicBytes() throws with a diagnostic preview ---"
-[ "$(get assert_threw_on_non_zip)" = "1" ] && { ((PASS++)); } || { echo "  FAIL: did not throw for non-zip content"; ((FAIL++)); }
-[ "$(get assert_message_has_preview)" = "1" ] && { ((PASS++)); } || { echo "  FAIL: exception message doesn't include a preview of the response body"; ((FAIL++)); }
-[ "$(get assert_ok_on_real_zip)" = "1" ] && { ((PASS++)); } || { echo "  FAIL: threw for a genuinely PK-prefixed file"; ((FAIL++)); }
+check "did not throw for non-zip content" "1" "$(get assert_threw_on_non_zip)"
+check "exception message doesn't include a preview of the response body" "1" "$(get assert_message_has_preview)"
+check "threw for a genuinely PK-prefixed file" "1" "$(get assert_ok_on_real_zip)"
 echo ""
 
 print_summary
