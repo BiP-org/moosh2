@@ -36,6 +36,10 @@ PASS=0
 FAIL=0
 LAST_CMD=""
 LAST_OUT=""
+# Initialized here (not just inside run_moosh) so that, under `set -u`,
+# nothing can ever blow up with "OUT: unbound variable" - even if a test
+# references $OUT before the first run_moosh call.
+OUT=""
 GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
 GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
 
@@ -180,11 +184,15 @@ run_moosh() {
         fi
     done
     
-    # IMPORTANT: Use eval with proper escaping to handle arguments with spaces
-    # We need to set OUT globally so tests can use it
-    # The eval must be in a way that preserves exit code
+    # NOTE: deliberately NOT using `eval` here. eval re-joins its arguments
+    # with spaces and re-parses the result, which throws away the word
+    # boundaries "$@" already gives us for free: an argument containing a
+    # space (e.g. --fullname "New Name") gets re-split into two arguments,
+    # and an empty-string argument (e.g. --courseid "") vanishes entirely,
+    # shifting every argument after it. Passing "$@" straight through to
+    # the command preserves it exactly as the caller built it.
     local output
-    output=$(eval "$PHP $MOOSH" "$@" 2>&1)
+    output=$("$PHP" "$MOOSH" "$@" 2>&1)
     local rc=$?
     
     # Set the global OUT variable (tests expect this)
@@ -324,9 +332,9 @@ print_summary() {
         
         # Add annotation for summary
         if [ "$FAIL" -gt 0 ]; then
-            github_annotation "error" "Test run failed with $FAIL failed tests (debug: $([ "$(is_debug_enabled)" = "0" ] && echo "off" || echo "on"))"
+            github_annotation "error" "Test run failed with $FAIL failed tests (debug: $(is_debug_enabled && echo "on" || echo "off"))"
         else
-            github_annotation "notice" "All $PASS tests passed successfully (debug: $([ "$(is_debug_enabled)" = "0" ] && echo "off" || echo "on"))"
+            github_annotation "notice" "All $PASS tests passed successfully (debug: $(is_debug_enabled && echo "on" || echo "off"))"
         fi
     fi
 

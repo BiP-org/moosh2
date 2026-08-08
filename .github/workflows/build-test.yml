@@ -235,7 +235,7 @@ jobs:
           MOODLE_MARKETPLACE_TOKEN: ${{ secrets.BOT_MOODLE_MARKETPLACE_TOKEN }}
           GITHUB_ACTIONS: true
           # Debug variables - consolidate all sources
-          INPUTS_DEBUG: ${{ github.event.inputs.debug || github.event.inputs.debug == '' && '0' || '0' }}
+          INPUTS_DEBUG: ${{ github.event.inputs.debug || '0' }}
           ACTIONS_STEP_DEBUG: ${{ env.ACTIONS_STEP_DEBUG || 'false' }}
           ACTIONS_RUNNER_DEBUG: ${{ env.ACTIONS_RUNNER_DEBUG || 'false' }}
         run: |
