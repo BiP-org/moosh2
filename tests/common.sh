@@ -35,6 +35,49 @@ PHP="${PHP:-/usr/bin/php}"
 PASS=0
 FAIL=0
 LAST_CMD=""
+LAST_OUT=""
+GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
+GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
+
+# ── GitHub Actions helpers ──────────────────────────────────────
+github_annotation() {
+    local level="$1"  # error, warning, notice
+    local message="$2"
+    if [ "$GITHUB_ACTIONS" = "true" ]; then
+        echo "::$level::$message"
+    fi
+}
+
+github_annotate_output_contains() {
+    local description="$1"
+    local expected="$2"
+    local actual="$3"
+    if ! grep -qF -- "$expected" <<< "$actual"; then
+        github_annotation "error" "Test failed: $description - Expected to contain: '$expected'"
+        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+            github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
+        fi
+    fi
+}
+
+github_annotate_exit_code() {
+    local description="$1"
+    local expected="$2"
+    local actual="$3"
+    if [ "$actual" -ne "$expected" ]; then
+        github_annotation "error" "Test failed: $description - Expected exit code $expected, got $actual"
+        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+            github_annotation "notice" "Command output for '$LAST_CMD': $LAST_OUT"
+        fi
+    fi
+}
+
+append_to_summary() {
+    local content="$1"
+    if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        echo "$content" >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
 
 # ── Test-run lock ──────────────────────────────────────────────────
 # Prevent two test runs from racing on the same Moodle dataroot/database.
@@ -91,7 +134,7 @@ run_moosh() {
             LAST_CMD+=" $arg"
         fi
     done
-    OUT=$($PHP $MOOSH "$@" 2>&1)
+    LAST_OUT=$($PHP $MOOSH "$@" 2>&1)
     local rc=$?
     return $rc
 }
@@ -108,6 +151,7 @@ assert_output_contains() {
         echo "    Expected to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
+        github_annotate_output_contains "$description" "$expected" "$actual"
     fi
 }
 
@@ -121,6 +165,10 @@ assert_output_not_contains() {
         echo "    Expected NOT to contain: $expected"
         echo "    Got: $actual"
         ((FAIL++))
+        github_annotation "error" "Test failed: $description - Output should NOT contain: '$expected'"
+        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+            github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
+        fi
     else
         ((PASS++))
     fi
@@ -135,6 +183,10 @@ assert_output_not_empty() {
         echo "  FAIL: $description (output was empty)"
         echo "    Command: $LAST_CMD"
         ((FAIL++))
+        github_annotation "error" "Test failed: $description - Output was empty"
+        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+            github_annotation "notice" "Command: $LAST_CMD"
+        fi
     fi
 }
 
@@ -149,7 +201,11 @@ assert_exit_code() {
         echo "    Command: $LAST_CMD"
         echo "    Expected exit code: $expected"
         echo "    Got: $actual"
+        if [ "$actual" -ne 0 ] && [ "${RUNNER_DEBUG:-}" = "1" ]; then
+            echo "    Output: $LAST_OUT"
+        fi
         ((FAIL++))
+        github_annotate_exit_code "$description" "$expected" "$actual"
     fi
 }
 
@@ -158,6 +214,31 @@ print_summary() {
     echo "================================"
     echo "Results: $PASS passed, $FAIL failed"
     echo "================================"
+
+    # Add summary to GitHub Actions step summary
+    if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        echo "## Test Summary: moosh2 plugin:clamscan" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "- ✅ **$PASS** tests passed" >> "$GITHUB_STEP_SUMMARY"
+        echo "- ❌ **$FAIL** tests failed" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        
+        if [ "$FAIL" -gt 0 ]; then
+            echo "### ❌ Test Run Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the workflow logs for details on the failed tests." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> Debug mode enabled: ${RUNNER_DEBUG:-0}" >> "$GITHUB_STEP_SUMMARY"
+        else
+            echo "### ✅ All Tests Passed" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+        # Add annotation for summary
+        if [ "$FAIL" -gt 0 ]; then
+            github_annotation "error" "Test run failed with $FAIL failed tests"
+        else
+            github_annotation "notice" "All $PASS tests passed successfully"
+        fi
+    fi
 
     _moosh_test_release_lock
 
