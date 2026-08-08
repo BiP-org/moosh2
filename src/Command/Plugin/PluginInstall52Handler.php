@@ -12,6 +12,7 @@ use Moosh2\Command\BaseCommand;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Output\VerboseLogger;
 use Moosh2\Service\PluginApiClient;
+use Moosh2\Service\PluginZipCache;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -104,6 +105,13 @@ class PluginInstall52Handler extends BaseHandler
             mkdir($extractDir, 0755, true);
 
             $verbose->step("Extracting $fromFile");
+            try {
+                PluginZipCache::assertZipMagicBytes($fromFile);
+            } catch (\RuntimeException $e) {
+                $this->cleanup($tempDir);
+                $output->writeln('<error>' . $e->getMessage() . '</error>');
+                return Command::FAILURE;
+            }
             $zip = new \ZipArchive();
             if ($zip->open($fromFile) !== true) {
                 $this->cleanup($tempDir);
@@ -221,6 +229,7 @@ class PluginInstall52Handler extends BaseHandler
             $verbose->step('Downloading plugin');
             try {
                 $client->downloadFile($version->downloadurl, $zipFile);
+                PluginZipCache::assertZipMagicBytes($zipFile);
             } catch (\RuntimeException $e) {
                 $this->cleanup($tempDir);
                 $output->writeln('<error>' . $e->getMessage() . '</error>');
