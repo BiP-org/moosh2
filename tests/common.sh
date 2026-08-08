@@ -166,6 +166,7 @@ _moosh_test_release_lock() {
 trap _moosh_test_release_lock EXIT
 
 run_moosh() {
+    # Save the command for debugging
     LAST_CMD="$PHP $MOOSH"
     for arg in "$@"; do
         if [[ "$arg" == *' '* || "$arg" == *'"'* ]]; then
@@ -174,9 +175,30 @@ run_moosh() {
             LAST_CMD+=" $arg"
         fi
     done
-    LAST_OUT=$($PHP $MOOSH "$@" 2>&1)
+    
+    # Capture both stdout and stderr, and preserve exit code
+    # Use eval to properly handle quoted arguments
+    LAST_OUT=$(eval "$PHP $MOOSH" "$@" 2>&1)
     local rc=$?
+    
+    # DEBUG: If debug is enabled, output the command and exit code
+    if is_debug_enabled; then
+        echo "DEBUG: Command: $LAST_CMD" >&2
+        echo "DEBUG: Exit code: $rc" >&2
+        if [ -n "$LAST_OUT" ]; then
+            echo "DEBUG: Output:" >&2
+            echo "$LAST_OUT" | sed 's/^/DEBUG:   /' >&2
+        fi
+    fi
+    
     return $rc
+}
+
+# Helper to capture output when run_moosh is used with command substitution
+# This ensures OUT is always set, even on failure
+capture_moosh() {
+    run_moosh "$@"
+    echo "$LAST_OUT"
 }
 
 assert_output_contains() {
