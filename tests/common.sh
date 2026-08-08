@@ -165,8 +165,12 @@ _moosh_test_release_lock() {
 # own trap.
 trap _moosh_test_release_lock EXIT
 
+# IMPORTANT: This function sets global LAST_OUT and returns the exit code.
+# The test scripts expect OUT to be set globally after calling run_moosh.
+# We achieve this by using command substitution to capture output into a global
+# variable while preserving the exit code.
 run_moosh() {
-    # Save the command for debugging
+    # Build the command string for debugging
     LAST_CMD="$PHP $MOOSH"
     for arg in "$@"; do
         if [[ "$arg" == *' '* || "$arg" == *'"'* ]]; then
@@ -176,19 +180,30 @@ run_moosh() {
         fi
     done
     
-    # Run the command and capture both stdout and stderr
     # IMPORTANT: Use eval with proper escaping to handle arguments with spaces
+    # We need to set OUT globally so tests can use it
+    # The eval must be in a way that preserves exit code
     local output
-    if output=$(eval "$PHP $MOOSH" "$@" 2>&1); then
-        # Command succeeded, capture output
-        LAST_OUT="$output"
-        return 0
-    else
-        # Command failed, capture output and preserve exit code
-        local rc=$?
-        LAST_OUT="$output"
-        return $rc
+    output=$(eval "$PHP $MOOSH" "$@" 2>&1)
+    local rc=$?
+    
+    # Set the global OUT variable (tests expect this)
+    # shellcheck disable=SC2034
+    OUT="$output"
+    # Also set LAST_OUT for debug/annotation functions
+    LAST_OUT="$output"
+    
+    # DEBUG: If debug is enabled, output the command and exit code
+    if is_debug_enabled; then
+        echo "DEBUG: Command: $LAST_CMD" >&2
+        echo "DEBUG: Exit code: $rc" >&2
+        if [ -n "$LAST_OUT" ]; then
+            echo "DEBUG: Output:" >&2
+            echo "$LAST_OUT" | sed 's/^/DEBUG:   /' >&2
+        fi
     fi
+    
+    return $rc
 }
 
 # Helper function for tests that need to capture output in a variable
@@ -197,7 +212,7 @@ run_moosh() {
 run_moosh_capture() {
     run_moosh "$@"
     local rc=$?
-    echo "$LAST_OUT"
+    echo "$OUT"
     return $rc
 }
 
