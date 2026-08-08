@@ -66,11 +66,23 @@ echo ""
 echo "--- Test: Scan the plugin in the current directory ---"
 CWDDIR=$(mktemp -d)
 run_moosh plugin:download -p "$MOODLE_PATH" block_readspeaker_embhl
+# The plugin zip may extract to a directory with a different name than the plugin name.
+# Find the actual directory created by unzipping.
 cd "$CWDDIR"
 unzip -q -o "$OLDPWD"/*.zip -d . 2>/dev/null || true
+# Detect the directory created by unzip - it should be the only directory if successful.
+PLUGIN_DIR=$(find . -maxdepth 1 -type d ! -name . -print -quit 2>/dev/null || true)
+if [ -z "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR" ]; then
+    echo "  FAIL: Could not detect plugin directory after unzip"
+    ((FAIL++))
+    rm -rf "$CWDDIR" "$EMPTYRULEDIR2"
+    echo ""
+    print_summary
+    exit 1
+fi
 EMPTYRULEDIR2=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR2"
-OUT=$(cd block_readspeaker_embhl 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
+OUT=$(cd "$PLUGIN_DIR" 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
 EC=$?
 cd - >/dev/null
 assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
