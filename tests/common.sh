@@ -39,7 +39,47 @@ LAST_OUT=""
 GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
 GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
 
-# ── GitHub Actions helpers ──────────────────────────────────────
+# ── Debug detection ──────────────────────────────────────────────────
+# Comprehensive debug detection that checks multiple sources
+is_debug_enabled() {
+    # Check if any debug flag is set
+    # shellcheck disable=SC2153
+    if [ "${RUNNER_DEBUG:-0}" = "1" ] || \
+       [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ] || \
+       [ "${ACTIONS_RUNNER_DEBUG:-false}" = "true" ] || \
+       [ "${INPUTS_DEBUG:-0}" = "1" ] || \
+       [ "${DEBUG:-0}" = "1" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Get debug level (0 = off, 1 = basic, 2 = verbose)
+get_debug_level() {
+    local level=0
+    
+    # Check environment variables in order of precedence
+    # shellcheck disable=SC2153
+    if [ "${RUNNER_DEBUG:-0}" = "1" ] || \
+       [ "${DEBUG:-0}" = "1" ] || \
+       [ "${INPUTS_DEBUG:-0}" = "1" ]; then
+        level=1
+    fi
+    
+    # Runner debug is more verbose
+    if [ "${ACTIONS_RUNNER_DEBUG:-false}" = "true" ]; then
+        level=2
+    fi
+    
+    # Step debug is also verbose
+    if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ] && [ "$level" -lt 2 ]; then
+        level=2
+    fi
+    
+    echo "$level"
+}
+
+# ── GitHub Actions helpers ──────────────────────────────────────────
 github_annotation() {
     local level="$1"  # error, warning, notice
     local message="$2"
@@ -54,7 +94,7 @@ github_annotate_output_contains() {
     local actual="$3"
     if ! grep -qF -- "$expected" <<< "$actual"; then
         github_annotation "error" "Test failed: $description - Expected to contain: '$expected'"
-        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+        if is_debug_enabled; then
             github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
         fi
     fi
@@ -66,7 +106,7 @@ github_annotate_exit_code() {
     local actual="$3"
     if [ "$actual" -ne "$expected" ]; then
         github_annotation "error" "Test failed: $description - Expected exit code $expected, got $actual"
-        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+        if is_debug_enabled; then
             github_annotation "notice" "Command output for '$LAST_CMD': $LAST_OUT"
         fi
     fi
@@ -166,7 +206,7 @@ assert_output_not_contains() {
         echo "    Got: $actual"
         ((FAIL++))
         github_annotation "error" "Test failed: $description - Output should NOT contain: '$expected'"
-        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+        if is_debug_enabled; then
             github_annotation "notice" "Actual output for '$LAST_CMD': $actual"
         fi
     else
@@ -184,7 +224,7 @@ assert_output_not_empty() {
         echo "    Command: $LAST_CMD"
         ((FAIL++))
         github_annotation "error" "Test failed: $description - Output was empty"
-        if [ "${RUNNER_DEBUG:-}" = "1" ]; then
+        if is_debug_enabled; then
             github_annotation "notice" "Command: $LAST_CMD"
         fi
     fi
@@ -201,7 +241,7 @@ assert_exit_code() {
         echo "    Command: $LAST_CMD"
         echo "    Expected exit code: $expected"
         echo "    Got: $actual"
-        if [ "$actual" -ne 0 ] && [ "${RUNNER_DEBUG:-}" = "1" ]; then
+        if is_debug_enabled; then
             echo "    Output: $LAST_OUT"
         fi
         ((FAIL++))
@@ -227,16 +267,28 @@ print_summary() {
             echo "### ❌ Test Run Failed" >> "$GITHUB_STEP_SUMMARY"
             echo "Check the workflow logs for details on the failed tests." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "> Debug mode enabled: ${RUNNER_DEBUG:-0}" >> "$GITHUB_STEP_SUMMARY"
+            if is_debug_enabled; then
+                echo "**Debug mode enabled** - verbose output available in logs." >> "$GITHUB_STEP_SUMMARY"
+            else
+                echo "> To enable debug mode, re-run with debug enabled." >> "$GITHUB_STEP_SUMMARY"
+            fi
         else
             echo "### ✅ All Tests Passed" >> "$GITHUB_STEP_SUMMARY"
         fi
         
+        # Add debug status to summary
+        local debug_level
+        debug_level=$(get_debug_level)
+        if [ "$debug_level" -gt 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Debug Level:** $debug_level (verbose output enabled)" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
         # Add annotation for summary
         if [ "$FAIL" -gt 0 ]; then
-            github_annotation "error" "Test run failed with $FAIL failed tests"
+            github_annotation "error" "Test run failed with $FAIL failed tests (debug: $([ "$(is_debug_enabled)" = "0" ] && echo "off" || echo "on"))"
         else
-            github_annotation "notice" "All $PASS tests passed successfully"
+            github_annotation "notice" "All $PASS tests passed successfully (debug: $([ "$(is_debug_enabled)" = "0" ] && echo "off" || echo "on"))"
         fi
     fi
 
