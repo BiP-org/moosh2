@@ -103,6 +103,57 @@ try {
     $out["assert_ok_on_real_zip"] = false;
 }
 
+// assertZipComponent(): build two real zips (a valid one, and one whose
+// version.php claims a different component than its own directory name
+// suggests) to check the match/mismatch/malformed-content paths without
+// touching the network at all.
+$mkzip = function (string $zipPath, string $topDir, string $versionPhpSource) {
+    $zip = new \ZipArchive();
+    $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+    $zip->addFromString("$topDir/version.php", $versionPhpSource);
+    $zip->addFromString("$topDir/lib.php", "<?php\n// not relevant to this test\n");
+    $zip->close();
+};
+
+$mkzip(
+    "$workdir/theme_boost_union.zip",
+    "theme_boost_union",
+    "<?php\ndefined(\x27MOODLE_INTERNAL\x27) || die();\n\$plugin->component = \x27theme_boost_union\x27;\n\$plugin->version = 2026042012;\n",
+);
+$mkzip(
+    "$workdir/mismatched.zip",
+    "some_dir",
+    "<?php\n\$plugin->component = \x27theme_totally_different\x27;\n\$plugin->version = 2020010100;\n",
+);
+$mkzip(
+    "$workdir/no_component.zip",
+    "some_dir",
+    "<?php\n\$plugin->version = 2020010100;\n// no \$plugin->component line at all\n",
+);
+
+try {
+    PluginZipCache::assertZipComponent("$workdir/theme_boost_union.zip", "theme_boost_union");
+    $out["component_match_ok"] = true;
+} catch (\RuntimeException $e) {
+    $out["component_match_ok"] = false;
+}
+
+try {
+    PluginZipCache::assertZipComponent("$workdir/mismatched.zip", "theme_boost_union");
+    $out["component_mismatch_threw"] = false;
+} catch (\RuntimeException $e) {
+    $out["component_mismatch_threw"] = true;
+    $out["component_mismatch_message_names_both"] =
+        str_contains($e->getMessage(), "theme_boost_union") && str_contains($e->getMessage(), "theme_totally_different");
+}
+
+try {
+    PluginZipCache::assertZipComponent("$workdir/no_component.zip", "theme_boost_union");
+    $out["component_missing_threw"] = false;
+} catch (\RuntimeException $e) {
+    $out["component_missing_threw"] = true;
+}
+
 file_put_contents($argv[3], json_encode($out));
 ' "$AUTOLOAD" "$WORKDIR" "$RESULT_FILE"
 
@@ -174,6 +225,13 @@ echo "--- Test: PluginZipCache::assertZipMagicBytes() throws with a diagnostic p
 check "did not throw for non-zip content" "1" "$(get assert_threw_on_non_zip)"
 check "exception message doesn't include a preview of the response body" "1" "$(get assert_message_has_preview)"
 check "threw for a genuinely PK-prefixed file" "1" "$(get assert_ok_on_real_zip)"
+echo ""
+
+echo "--- Test: PluginZipCache::assertZipComponent() ---"
+check "threw for a zip whose version.php genuinely matches the requested component" "1" "$(get component_match_ok)"
+check "did not throw for a mismatched component" "1" "$(get component_mismatch_threw)"
+check "mismatch message doesn't name both the expected and actual component" "1" "$(get component_mismatch_message_names_both)"
+check "did not throw for a version.php with no \$plugin->component at all" "1" "$(get component_missing_threw)"
 echo ""
 
 print_summary

@@ -72,6 +72,66 @@ else
 fi
 echo ""
 
+echo "--- Test: checksum is pinned as an MD5 (moodle.org's own downloadmd5), not a locally-computed sha256 ---"
+CHECKSUM_FILE="$LISTDIR/mod_attendance/checksum"
+if [ ! -f "$CHECKSUM_FILE" ]; then
+    echo "  FAIL: $CHECKSUM_FILE was not created"
+    echo "  --- plugin:list-update output ---"
+    echo "$OUT"
+    ((FAIL++))
+else
+    CHECKSUM=$(cat "$CHECKSUM_FILE")
+    # An md5 is 32 lowercase hex chars; the old sha256-based logic would
+    # have written 64. Deliberately not pinned to one exact expected value
+    # here (unlike the version check above) since the actual latest
+    # mod_attendance version - and so its downloadmd5 - drifts over time;
+    # the format is what distinguishes "pinned from plugins.json's
+    # downloadmd5" from "we went back to hashing the zip ourselves".
+    if [[ "$CHECKSUM" =~ ^[a-f0-9]{32}$ ]]; then
+        echo "  PASS: checksum looks like an md5 ($CHECKSUM)"
+        ((PASS++))
+    else
+        echo "  FAIL: checksum doesn't look like a 32-char lowercase-hex md5: '$CHECKSUM' (length ${#CHECKSUM})"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
+echo "--- Test: pinned checksum matches plugins.json's own downloadmd5 for that version ---"
+if [ -n "${CHECKSUM:-}" ]; then
+    PINNED_VERSION=$(cat "$LISTDIR/mod_attendance/version")
+    EXPECTED_MD5=$(php -r '
+$json = @file_get_contents("https://download.moodle.org/api/1.3/pluglist.php");
+if ($json === false) {
+    exit(0); // network unavailable here - the caller treats empty output as SKIP
+}
+$data = json_decode($json);
+foreach ($data->plugins as $p) {
+    if ($p->component === "mod_attendance") {
+        foreach ($p->versions as $v) {
+            if ((string) $v->version === $argv[1]) {
+                echo $v->downloadmd5 ?? "";
+                exit(0);
+            }
+        }
+    }
+}
+' "$PINNED_VERSION")
+
+    if [ -z "$EXPECTED_MD5" ]; then
+        echo "  SKIP: could not fetch/locate downloadmd5 for mod_attendance $PINNED_VERSION from plugins.json (network issue?)"
+    elif [ "$CHECKSUM" = "$EXPECTED_MD5" ]; then
+        echo "  PASS: pinned checksum matches plugins.json's downloadmd5 exactly ($EXPECTED_MD5)"
+        ((PASS++))
+    else
+        echo "  FAIL: pinned checksum ($CHECKSUM) doesn't match plugins.json's downloadmd5 ($EXPECTED_MD5) for version $PINNED_VERSION"
+        ((FAIL++))
+    fi
+else
+    echo "  SKIP: no checksum was captured by the previous test"
+fi
+echo ""
+
 echo "--- Test: Re-running --run reports already up to date ---"
 FIRST_VERSION=$(cat "$LISTDIR/mod_attendance/version")
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run
