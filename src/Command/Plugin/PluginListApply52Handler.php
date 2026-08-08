@@ -745,35 +745,83 @@ class PluginListApply52Handler extends BaseHandler
     // .gitignore bookkeeping
     // -------------------------------------------------------------------
 
-    private function addIgnorePathsToGitignore(string $component, string $componentdir, string $componentpath): void
-    {
-        if (str_starts_with($component, 'package_')) {
-            [$lines, $exitcode] = $this->runScript($componentdir . '/bin/get_component_ignore_path.sh', []);
-            if ($exitcode !== 0) {
-                throw new \RuntimeException('bin/get_component_ignore_path.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
-            }
-            $ignorepaths = trim(implode("\n", $lines));
-        } else {
-            $ignorepaths = $componentpath;
+private function addIgnorePathsToGitignore(string $component, string $componentdir, string $componentpath): void
+{
+    if (str_starts_with($component, 'package_')) {
+        [$lines, $exitcode] = $this->runScript($componentdir . '/bin/get_component_ignore_path.sh', []);
+        if ($exitcode !== 0) {
+            throw new \RuntimeException('bin/get_component_ignore_path.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
         }
+        $ignorepaths = trim(implode("\n", $lines));
+    } else {
+        $ignorepaths = $componentpath;
+    }
 
-        if ($ignorepaths === '') {
-            return;
+    if ($ignorepaths === '') {
+        return;
+    }
+
+    foreach (preg_split('/\r\n|\r|\n/', $ignorepaths) as $ignorepath) {
+        $ignorepath = trim($ignorepath);
+        if ($ignorepath === '') {
+            continue;
         }
-
-        foreach (preg_split('/\r\n|\r|\n/', $ignorepaths) as $ignorepath) {
-            $ignorepath = trim($ignorepath);
-            if ($ignorepath === '') {
-                continue;
-            }
-            // package_* scripts report paths relative to the Moodle root;
-            // non-package componentpath is already absolute.
-            $absolute = str_starts_with($ignorepath, '/') ? $ignorepath : $this->moodleroot . '/' . $ignorepath;
-            $gitignore = $absolute . '/.gitignore';
+        
+        // package_* scripts report paths relative to the Moodle root;
+        // non-package componentpath is already absolute.
+        $absolute = str_starts_with($ignorepath, '/') ? $ignorepath : $this->moodleroot . '/' . $ignorepath;
+        $gitignore = $absolute . '/.gitignore';
+        
+        // Check if we need to add the ignore rule
+        if ($this->shouldAddGitignoreRule($gitignore)) {
             file_put_contents($gitignore, "\n*", FILE_APPEND);
             @chmod($gitignore, 0644 | (fileperms($gitignore) & 0777) | 0044);
         }
     }
+}
+
+    /**
+    * Determine if a .gitignore file needs the "*" rule added.
+    * Returns true if:
+    * - The .gitignore file doesn't exist
+    * - The .gitignore exists but doesn't already have a rule that ignores everything
+    *
+    * @param string $gitignore Absolute path to the .gitignore file
+    * @return bool True if the "*" rule should be added
+    */
+    private function shouldAddGitignoreRule(string $gitignore): bool
+    {
+        if (!is_file($gitignore)) {
+            return true;
+        }
+        
+        $content = file_get_contents($gitignore);
+        if ($content === false) {
+            return true; // Can't read it, try to append
+        }
+        
+        // Check if there's already a rule that ignores everything in the current directory.
+        // This matches: "*" (with optional whitespace), "/*", or just "*" with whitespace.
+        // Also handles cases where "*" is on its own line or with comments.
+        $patterns = [
+            '/^[*][\s]*$/m',                    // Exactly "*" on a line
+            '/^[\s]*[*][\s]*$/m',               // "*" with whitespace
+            '/^[*][\s]*#/m',                    // "*" followed by a comment (e.g., "* # ignore everything")
+            '/^[*][\s]*[^\/]/m',                // "*" with something after it (like "*." or "*~")
+            '/^\/[*][\s]*$/m',                  // "/*"
+            '/^[\s]*\/[*][\s]*$/m',             // "/*" with whitespace
+            '/^[*][\/]?[\s]*$/m'                // "*" or "*/" 
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $content)) {
+                return false; // Already has a rule that ignores everything
+            }
+        }
+        
+        return true; // No catch-all rule found, we should add it
+    }
+
 
     // -------------------------------------------------------------------
     // package_* bin/ script execution
