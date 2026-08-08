@@ -12,7 +12,7 @@
  *   - No Moosh\PluginChecksum step (that class has no moosh2 equivalent
  *     and wasn't part of this port's scope) — downloaded zips are still
  *     validated as structurally-sound zips via PluginZipCache::isValidZip(),
- *     just not checked against a pinned sha256.
+ *     just not checked against a pinned md5.
  *   - Plugin-root detection after unzip is a small local helper here
  *     instead of Moosh\PluginZip (same idea: first directory containing a
  *     version.php, searched depth-first).

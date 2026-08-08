@@ -230,6 +230,10 @@ class PluginInstall52Handler extends BaseHandler
             try {
                 $client->downloadFile($version->downloadurl, $zipFile);
                 PluginZipCache::assertZipMagicBytes($zipFile);
+                // Before extracting/installing it, confirm the zip we just
+                // downloaded really is $component - catches a stale/
+                // incorrect downloadurl silently serving the wrong plugin.
+                PluginZipCache::assertZipComponent($zipFile, $component);
             } catch (\RuntimeException $e) {
                 $this->cleanup($tempDir);
                 $output->writeln('<error>' . $e->getMessage() . '</error>');

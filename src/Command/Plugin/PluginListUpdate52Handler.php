@@ -14,8 +14,10 @@
  *   - `-v|--version` is gone (Symfony Console reserves -v/-vv/-vvv for
  *     verbosity). The equivalent is `--moodle-version` (long form only).
  *   - No Moosh\PluginChecksum step (no moosh2 equivalent, out of scope for
- *     this port) — checksum pinning still downloads and hashes the zip via
- *     PluginZipCache, it just isn't checked against a pinned expectation.
+ *     this port) — checksum pinning uses plugins.json's own `downloadmd5`
+ *     field for each version rather than downloading and hashing the zip
+ *     ourselves (falling back to that only if a version's entry is
+ *     missing one), and it isn't checked against a pinned expectation.
  *
  * @copyright  2012 onwards Tomasz Muras
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -70,7 +72,7 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('moodle-root', 'm', InputOption::VALUE_REQUIRED, "Working directory used when invoking a package_*'s bin/get_latest_plugin_version.sh. Defaults to the parent directory of --directory.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
-            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin a sha256 checksum next to version.");
+            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't pin an md5 checksum next to version.");
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview what would change for every plugin directory found in the current directory', '');
@@ -230,6 +232,7 @@ class PluginListUpdate52Handler extends BaseHandler
                 $componentdir,
                 (string) $latest->version,
                 $latest->downloadurl,
+                $latest->downloadmd5 ?? null,
                 $versionchanged,
                 $client,
                 $preDownloaded,
@@ -283,22 +286,34 @@ class PluginListUpdate52Handler extends BaseHandler
     }
 
     /**
-     * Make sure `<componentdir>/checksum` holds the sha256 of $version's
-     * zip, downloading it (via the shared PluginZipCache, same as
-     * plugin:clamscan) only when that's not already the case.
-     *
-     * @throws \RuntimeException if the zip can't be downloaded
+     * Make sure `<componentdir>/checksum` holds the MD5 checksum that
+     * moodle.org's own plugin directory publishes for $version - the
+     * `downloadmd5` field of plugins.json
+     * (https://download.moodle.org/api/1.3/pluglist.php) - only
+     * downloading and hashing the zip ourselves as a fallback for the
+     * rare plugins.json entry missing that field.
      */
     /**
+     * @param string|null $downloadmd5 the `downloadmd5` field from this
+     *   version's plugins.json entry, if present
      * @param array{0: string, 1: string}|null $preDownloaded [downloadedFile,
      *   tempDir] already fetched by updateStandardComponent() while probing
-     *   Marketplace reachability - reused here instead of downloading the
-     *   same zip a second time. Always consumed (and its tempDir removed)
-     *   by this method when passed, whether or not a checksum ends up
-     *   being (re)computed.
+     *   Marketplace reachability - reused as the fallback path's source
+     *   (when $downloadmd5 is absent) instead of downloading the same zip
+     *   again; otherwise just cleaned up. Always consumed (and its tempDir
+     *   removed) by this method when passed.
+     * @throws \RuntimeException if the fallback path's download/hash fails
      */
-    private function reconcileChecksum(string $component, string $componentdir, string $version, string $downloadurl, bool $forceRecompute, PluginApiClient $client, ?array $preDownloaded = null): ?string
-    {
+    private function reconcileChecksum(
+        string $component,
+        string $componentdir,
+        string $version,
+        string $downloadurl,
+        ?string $downloadmd5,
+        bool $forceRecompute,
+        PluginApiClient $client,
+        ?array $preDownloaded = null,
+    ): ?string {
         $checksumfile = $componentdir . '/checksum';
         $existing = $this->readVersionFile($checksumfile);
         if (!$forceRecompute && $existing !== null) {
@@ -308,10 +323,30 @@ class PluginListUpdate52Handler extends BaseHandler
             return null;
         }
 
+        if ($downloadmd5 !== null && $downloadmd5 !== '') {
+            // moodle.org already computed and published this - trust it
+            // rather than downloading the zip a second time just to
+            // re-derive the same value ourselves.
+            if ($preDownloaded !== null && is_dir($preDownloaded[1])) {
+                $this->removeDirectory($preDownloaded[1]);
+            }
+            $md5 = strtolower($downloadmd5);
+            file_put_contents($checksumfile, $md5 . "\n");
+            return "PIN    $component: checksum $md5 for $version";
+        }
+
+        // Fallback: this plugins.json entry has no downloadmd5 (rare) -
+        // download the zip ourselves and hash it instead of leaving the
+        // checksum unpinned. downloadPluginZip() already confirms the
+        // zip's own version.php agrees it's really $component before
+        // returning it.
         $tempdir = null;
         try {
             [$downloadedfile, $tempdir] = $preDownloaded ?? $this->downloadPluginZip($component, $version, $downloadurl, $client);
-            $sha256 = hash_file('sha256', $downloadedfile);
+            $md5 = md5_file($downloadedfile);
+            if ($md5 === false) {
+                throw new \RuntimeException("md5_file() failed for $downloadedfile");
+            }
         } catch (\RuntimeException $e) {
             throw new \RuntimeException("could not pin checksum for $version: " . $e->getMessage());
         } finally {
@@ -320,9 +355,9 @@ class PluginListUpdate52Handler extends BaseHandler
             }
         }
 
-        file_put_contents($checksumfile, $sha256 . "\n");
+        file_put_contents($checksumfile, $md5 . "\n");
 
-        return "PIN    $component: checksum $sha256 for $version";
+        return "PIN    $component: checksum $md5 for $version";
     }
 
     /**
@@ -343,6 +378,10 @@ class PluginListUpdate52Handler extends BaseHandler
         $downloadedfile = $tempdir . '/' . $component . '.zip';
 
         if (PluginZipCache::fetch($component, $version, $downloadedfile)) {
+            // Even a cache hit is verified: the cache may have been
+            // populated by an older build without this check, or by a
+            // stale/incorrect downloadurl at the time it was stored.
+            PluginZipCache::assertZipComponent($downloadedfile, $component);
             return [$downloadedfile, $tempdir];
         }
 
@@ -359,6 +398,12 @@ class PluginListUpdate52Handler extends BaseHandler
             @unlink($downloadedfile);
             throw new \RuntimeException("Downloaded file from $downloadurl is not a valid, non-empty zip archive.");
         }
+
+        // Before doing anything else with it (pinning a checksum, caching
+        // it, letting a caller extract it, ...), confirm the zip we just
+        // downloaded really is $component - catches a stale/incorrect
+        // downloadurl silently serving the wrong plugin's content.
+        PluginZipCache::assertZipComponent($downloadedfile, $component);
 
         PluginZipCache::store($component, $version, $downloadedfile);
 
