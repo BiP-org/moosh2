@@ -176,29 +176,29 @@ run_moosh() {
         fi
     done
     
-    # Capture both stdout and stderr, and preserve exit code
-    # Use eval to properly handle quoted arguments
-    LAST_OUT=$(eval "$PHP $MOOSH" "$@" 2>&1)
-    local rc=$?
-    
-    # DEBUG: If debug is enabled, output the command and exit code
-    if is_debug_enabled; then
-        echo "DEBUG: Command: $LAST_CMD" >&2
-        echo "DEBUG: Exit code: $rc" >&2
-        if [ -n "$LAST_OUT" ]; then
-            echo "DEBUG: Output:" >&2
-            echo "$LAST_OUT" | sed 's/^/DEBUG:   /' >&2
-        fi
+    # Run the command and capture both stdout and stderr
+    # IMPORTANT: Use eval with proper escaping to handle arguments with spaces
+    local output
+    if output=$(eval "$PHP $MOOSH" "$@" 2>&1); then
+        # Command succeeded, capture output
+        LAST_OUT="$output"
+        return 0
+    else
+        # Command failed, capture output and preserve exit code
+        local rc=$?
+        LAST_OUT="$output"
+        return $rc
     fi
-    
-    return $rc
 }
 
-# Helper to capture output when run_moosh is used with command substitution
-# This ensures OUT is always set, even on failure
-capture_moosh() {
+# Helper function for tests that need to capture output in a variable
+# Usage: OUT=$(run_moosh_capture args...)
+# This ensures OUT is always set and the exit code is preserved
+run_moosh_capture() {
     run_moosh "$@"
+    local rc=$?
     echo "$LAST_OUT"
+    return $rc
 }
 
 assert_output_contains() {
@@ -279,7 +279,8 @@ print_summary() {
 
     # Add summary to GitHub Actions step summary
     if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
-        echo "## Test Summary: moosh2 plugin:clamscan" >> "$GITHUB_STEP_SUMMARY"
+        local test_name="${0##*/}"
+        echo "## Test Summary: $test_name" >> "$GITHUB_STEP_SUMMARY"
         echo "" >> "$GITHUB_STEP_SUMMARY"
         echo "- ✅ **$PASS** tests passed" >> "$GITHUB_STEP_SUMMARY"
         echo "- ❌ **$FAIL** tests failed" >> "$GITHUB_STEP_SUMMARY"
