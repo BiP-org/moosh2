@@ -242,5 +242,183 @@ echo ""
 
 rm -rf "$LISTDIR/tiny_fontfamily"
 
+# --- bin/get_latest_plugin_version.sh for non-package_ components ---
+#
+# updatePackageComponent()'s script-based lookup used to only ever be
+# reached for package_* components. It's now reached for ANY component
+# that ships bin/get_latest_plugin_version.sh, regardless of its name -
+# these tests cover that with a fake local_scripted component so they
+# don't depend on anything real on moodle.org.
+
+echo "--- Test: non-package_ component with bin/get_latest_plugin_version.sh uses the script, not plugins.json ---"
+mkdir -p "$LISTDIR/local_scripted/bin"
+cat > "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "2099010100"
+EOS
+chmod +x "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh"
+
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 local_scripted
+EC=$?
+assert_exit_code "Exit code 0 for dry run" 0 "$EC"
+assert_output_contains "Dry-run message shows the script's version" "2099010100" "$OUT"
+if [ ! -f "$LISTDIR/local_scripted/version" ]; then
+    echo "  PASS: dry run didn't write a version file"
+    ((PASS++))
+else
+    echo "  FAIL: version file was written despite dry run"
+    ((FAIL++))
+fi
+
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run local_scripted
+EC=$?
+assert_exit_code "Exit code 0 for --run" 0 "$EC"
+if [ -f "$LISTDIR/local_scripted/version" ] && [ "$(cat "$LISTDIR/local_scripted/version")" = "2099010100" ]; then
+    echo "  PASS: version came from bin/get_latest_plugin_version.sh (2099010100), not plugins.json"
+    ((PASS++))
+else
+    echo "  FAIL: expected local_scripted/version to be 2099010100 (got: $(cat "$LISTDIR/local_scripted/version" 2>/dev/null))"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: script also gets picked up via auto-discovery (no plugin name given) ---"
+rm -f "$LISTDIR/local_scripted/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+if [ -f "$LISTDIR/local_scripted/version" ] && [ "$(cat "$LISTDIR/local_scripted/version")" = "2099010100" ]; then
+    echo "  PASS: local_scripted was picked up and updated without being named explicitly"
+    ((PASS++))
+else
+    echo "  FAIL: expected local_scripted/version to be 2099010100 after an unfiltered --run"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: script runs with cwd and env vars pointing at --moodle-root ---"
+FAKEROOT=$(mktemp -d)
+SCRIPT_LOG="$LISTDIR/local_scripted_env.log"
+rm -f "$LISTDIR/local_scripted/version" "$SCRIPT_LOG"
+cat > "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh" <<EOS
+#!/usr/bin/env bash
+{
+    echo "PWD=\$(pwd -P)"
+    echo "CONFIG_DIR=\$__config_plugin_directory"
+    echo "MOODLE_ROOT=\$__moodle_root_directory"
+} > "$SCRIPT_LOG"
+echo "2099010101"
+EOS
+chmod +x "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh"
+
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --moodle-root="$FAKEROOT" --run local_scripted
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+LOG=$(cat "$SCRIPT_LOG" 2>/dev/null || echo "")
+EXPECTED_PWD=$(cd "$FAKEROOT" && pwd -P)
+EXPECTED_CONFIGDIR=$(cd "$LISTDIR/local_scripted" && pwd -P)
+if [[ "$LOG" == *"PWD=$EXPECTED_PWD"* ]]; then
+    echo "  PASS: script ran with cwd set to --moodle-root"
+    ((PASS++))
+else
+    echo "  FAIL: expected cwd $EXPECTED_PWD in script log, got: $LOG"
+    ((FAIL++))
+fi
+if [[ "$LOG" == *"CONFIG_DIR=$EXPECTED_CONFIGDIR"* ]]; then
+    echo "  PASS: __config_plugin_directory pointed at the component directory"
+    ((PASS++))
+else
+    echo "  FAIL: expected CONFIG_DIR=$EXPECTED_CONFIGDIR in script log, got: $LOG"
+    ((FAIL++))
+fi
+if [[ "$LOG" == *"MOODLE_ROOT=$FAKEROOT"* ]]; then
+    echo "  PASS: __moodle_root_directory matched --moodle-root"
+    ((PASS++))
+else
+    echo "  FAIL: expected MOODLE_ROOT=$FAKEROOT in script log, got: $LOG"
+    ((FAIL++))
+fi
+rm -rf "$FAKEROOT"
+rm -f "$SCRIPT_LOG"
+echo ""
+
+echo "--- Test: version pinned to 0 skips the script entirely, even with the script present ---"
+rm -f "$LISTDIR/local_scripted/version"
+echo "0" > "$LISTDIR/local_scripted/version"
+cat > "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+# If this ever runs, the sentinel below would end up in version - it must not.
+echo "2099010199"
+EOS
+chmod +x "$LISTDIR/local_scripted/bin/get_latest_plugin_version.sh"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run local_scripted
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "SKIP message for pinned version 0" "pinned to version 0" "$OUT"
+PINNED=$(cat "$LISTDIR/local_scripted/version")
+if [ "$PINNED" = "0" ]; then
+    echo "  PASS: version file left at 0, script's 2099010199 was never written"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay 0, got '$PINNED'"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/local_scripted"
+echo ""
+
+echo "--- Test: script present but not executable reports an error ---"
+mkdir -p "$LISTDIR/local_not_executable/bin"
+cat > "$LISTDIR/local_not_executable/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "2099010100"
+EOS
+chmod -x "$LISTDIR/local_not_executable/bin/get_latest_plugin_version.sh"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run local_not_executable
+EC=$?
+assert_exit_code "Nonzero exit for non-executable script" 1 "$EC"
+assert_output_contains "Error names the component" "local_not_executable" "$OUT"
+assert_output_contains "Error mentions not executable" "not executable" "$OUT"
+rm -rf "$LISTDIR/local_not_executable"
+echo ""
+
+echo "--- Test: script that exits non-zero surfaces its own output in the error ---"
+mkdir -p "$LISTDIR/local_failing/bin"
+cat > "$LISTDIR/local_failing/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "boom: something went wrong" >&2
+exit 3
+EOS
+chmod +x "$LISTDIR/local_failing/bin/get_latest_plugin_version.sh"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run local_failing
+EC=$?
+assert_exit_code "Nonzero exit for failing script" 1 "$EC"
+assert_output_contains "Error mentions exit status" "exited with status 3" "$OUT"
+assert_output_contains "Error surfaces the script's own message" "boom: something went wrong" "$OUT"
+rm -rf "$LISTDIR/local_failing"
+echo ""
+
+echo "--- Test: script that outputs a non-integer version reports an error ---"
+mkdir -p "$LISTDIR/local_badversion/bin"
+cat > "$LISTDIR/local_badversion/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "not-a-version"
+EOS
+chmod +x "$LISTDIR/local_badversion/bin/get_latest_plugin_version.sh"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run local_badversion
+EC=$?
+assert_exit_code "Nonzero exit for non-integer version output" 1 "$EC"
+assert_output_contains "Error mentions invalid integer version" "did not report a valid integer version" "$OUT"
+rm -rf "$LISTDIR/local_badversion"
+echo ""
+
+echo "--- Test: package_ component without the script still errors as before ---"
+mkdir -p "$LISTDIR/package_missing_script"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_missing_script
+EC=$?
+assert_exit_code "Nonzero exit when a package_ component has no script" 1 "$EC"
+assert_output_contains "Error mentions the missing script" "could not find package_missing_script/bin/get_latest_plugin_version.sh" "$OUT"
+rm -rf "$LISTDIR/package_missing_script"
+echo ""
+
 rm -rf "$LISTDIR"
 print_summary

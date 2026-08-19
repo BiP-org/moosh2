@@ -67,7 +67,7 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addArgument('plugin_name', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'Zero or more Frankenstyle component names. None given: every subdirectory of --directory is treated as a candidate.')
             ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory to scan for plugin subdirectories.', '.')
             ->addOption('moodle-version', null, InputOption::VALUE_REQUIRED, 'Moodle major version to match plugin compatibility against (e.g. 4.5). Defaults to the version of the bootstrapped Moodle site.')
-            ->addOption('moodle-root', 'm', InputOption::VALUE_REQUIRED, "Working directory used when invoking a package_*'s bin/get_latest_plugin_version.sh. Defaults to the parent directory of --directory.")
+            ->addOption('moodle-root', 'm', InputOption::VALUE_REQUIRED, "Working directory used when invoking a component's bin/get_latest_plugin_version.sh (package_* components, or any other component that ships one). Defaults to the parent directory of --directory.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
             ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin a sha256 checksum next to version.");
@@ -127,7 +127,16 @@ class PluginListUpdate52Handler extends BaseHandler
             }
 
             try {
-                $message = str_starts_with($component, 'package_')
+                // package_* components are always expected to carry their
+                // own bin/get_latest_plugin_version.sh (updatePackageComponent()
+                // errors if it's missing, same as before this component ever
+                // supported the script). Any other component is free to opt
+                // into the same script-based lookup simply by shipping that
+                // script - if it's not there, we fall back to the standard
+                // plugins.json lookup exactly as before.
+                $usesScript = str_starts_with($component, 'package_')
+                    || is_file($componentdir . '/bin/get_latest_plugin_version.sh');
+                $message = $usesScript
                     ? $this->updatePackageComponent($component, $componentdir, $moodleroot, $dryRun, $client, $output)
                     : $this->updateStandardComponent($component, $componentdir, $dryRun, $client, $output);
                 $output->writeln($message);
@@ -366,10 +375,13 @@ class PluginListUpdate52Handler extends BaseHandler
     }
 
     /**
-     * Handle a package_* component: defer to its own
+     * Handle a component that resolves its latest version via its own
      * bin/get_latest_plugin_version.sh, mirroring the calling convention
      * used by get_latest_plugin_version() in moodle_plugins_lib.rc (no
      * arguments, cwd set to the Moodle root, called via its full path).
+     * Every package_* component is routed here (and must ship the script);
+     * any other component is routed here too if - and only if - it happens
+     * to ship that same script.
      *
      * @throws \RuntimeException
      */
