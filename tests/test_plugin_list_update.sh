@@ -72,63 +72,24 @@ else
 fi
 echo ""
 
-echo "--- Test: checksum is pinned as an MD5 (moodle.org's own downloadmd5), not a locally-computed sha256 ---"
+echo "--- Test: --run pins an md5 checksum (32 hex chars), not sha256 ---"
+# install_plugins.php's own checksum handling (moodle_official::get_plugin_download_info(),
+# helper::download_cached()) is md5-based - the pinned checksum file has to
+# be too, or a repo shared between the two tools would disagree on what the
+# checksum file even means.
 CHECKSUM_FILE="$LISTDIR/mod_attendance/checksum"
 if [ ! -f "$CHECKSUM_FILE" ]; then
     echo "  FAIL: $CHECKSUM_FILE was not created"
-    echo "  --- plugin:list-update output ---"
-    echo "$OUT"
     ((FAIL++))
 else
     CHECKSUM=$(cat "$CHECKSUM_FILE")
-    # An md5 is 32 lowercase hex chars; the old sha256-based logic would
-    # have written 64. Deliberately not pinned to one exact expected value
-    # here (unlike the version check above) since the actual latest
-    # mod_attendance version - and so its downloadmd5 - drifts over time;
-    # the format is what distinguishes "pinned from plugins.json's
-    # downloadmd5" from "we went back to hashing the zip ourselves".
-    if [[ "$CHECKSUM" =~ ^[a-f0-9]{32}$ ]]; then
-        echo "  PASS: checksum looks like an md5 ($CHECKSUM)"
+    if [[ "$CHECKSUM" =~ ^[0-9a-f]{32}$ ]]; then
+        echo "  PASS: checksum file holds a 32-char md5 hex digest ($CHECKSUM)"
         ((PASS++))
     else
-        echo "  FAIL: checksum doesn't look like a 32-char lowercase-hex md5: '$CHECKSUM' (length ${#CHECKSUM})"
+        echo "  FAIL: checksum file doesn't look like an md5 digest: '$CHECKSUM'"
         ((FAIL++))
     fi
-fi
-echo ""
-
-echo "--- Test: pinned checksum matches plugins.json's own downloadmd5 for that version ---"
-if [ -n "${CHECKSUM:-}" ]; then
-    PINNED_VERSION=$(cat "$LISTDIR/mod_attendance/version")
-    EXPECTED_MD5=$(php -r '
-$json = @file_get_contents("https://download.moodle.org/api/1.3/pluglist.php");
-if ($json === false) {
-    exit(0); // network unavailable here - the caller treats empty output as SKIP
-}
-$data = json_decode($json);
-foreach ($data->plugins as $p) {
-    if ($p->component === "mod_attendance") {
-        foreach ($p->versions as $v) {
-            if ((string) $v->version === $argv[1]) {
-                echo $v->downloadmd5 ?? "";
-                exit(0);
-            }
-        }
-    }
-}
-' "$PINNED_VERSION")
-
-    if [ -z "$EXPECTED_MD5" ]; then
-        echo "  SKIP: could not fetch/locate downloadmd5 for mod_attendance $PINNED_VERSION from plugins.json (network issue?)"
-    elif [ "$CHECKSUM" = "$EXPECTED_MD5" ]; then
-        echo "  PASS: pinned checksum matches plugins.json's downloadmd5 exactly ($EXPECTED_MD5)"
-        ((PASS++))
-    else
-        echo "  FAIL: pinned checksum ($CHECKSUM) doesn't match plugins.json's downloadmd5 ($EXPECTED_MD5) for version $PINNED_VERSION"
-        ((FAIL++))
-    fi
-else
-    echo "  SKIP: no checksum was captured by the previous test"
 fi
 echo ""
 
@@ -426,6 +387,88 @@ fi
 rm -rf "$LISTDIR/local_scripted"
 echo ""
 
+# --- install_plugins.php update-versions compatibility ---
+#
+# Both tools manage the exact same declarative-plugin-list layout, so they
+# have to agree on which `version` values mean "leave this alone" rather
+# than "an out of date version to bump". install_plugins.php's
+# plugin_update_version() skips on any `$current_version <= 0`; plugin:list-apply
+# additionally recognizes the "uninstall"/"remove-files" spellings. All of
+# those must be left untouched here too - most importantly "-1", since
+# treating it as an ordinary version to bump would silently overwrite a
+# remove-files-only pin with a real version number.
+
+echo "--- Test: version pinned to -1 is skipped, not overwritten ---"
+mkdir -p "$LISTDIR/mod_removefilespin"
+echo "-1" > "$LISTDIR/mod_removefilespin/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_removefilespin
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "SKIP message explains the remove-files pin" "remove-files" "$OUT"
+PINNED=$(cat "$LISTDIR/mod_removefilespin/version")
+if [ "$PINNED" = "-1" ]; then
+    echo "  PASS: version file left at -1, not overwritten with a real version"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay -1, got '$PINNED'"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/mod_removefilespin"
+echo ""
+
+echo "--- Test: version pinned to the string 'uninstall' is skipped ---"
+mkdir -p "$LISTDIR/mod_uninstallstrpin"
+echo "uninstall" > "$LISTDIR/mod_uninstallstrpin/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_uninstallstrpin
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "SKIP message explains the uninstall pin" "marked for uninstall" "$OUT"
+PINNED=$(cat "$LISTDIR/mod_uninstallstrpin/version")
+if [ "$PINNED" = "uninstall" ]; then
+    echo "  PASS: version file left at 'uninstall', not overwritten"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay 'uninstall', got '$PINNED'"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/mod_uninstallstrpin"
+echo ""
+
+echo "--- Test: version pinned to the string 'remove-files' is skipped ---"
+mkdir -p "$LISTDIR/mod_removefilesstrpin"
+echo "remove-files" > "$LISTDIR/mod_removefilesstrpin/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_removefilesstrpin
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "SKIP message explains the remove-files pin" "marked for remove-files-only" "$OUT"
+PINNED=$(cat "$LISTDIR/mod_removefilesstrpin/version")
+if [ "$PINNED" = "remove-files" ]; then
+    echo "  PASS: version file left at 'remove-files', not overwritten"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay 'remove-files', got '$PINNED'"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/mod_removefilesstrpin"
+echo ""
+
+echo "--- Test: any other non-positive version (install_plugins.php's <= 0 rule) is skipped ---"
+mkdir -p "$LISTDIR/mod_negativepin"
+echo "-2" > "$LISTDIR/mod_negativepin/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_negativepin
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+PINNED=$(cat "$LISTDIR/mod_negativepin/version")
+if [ "$PINNED" = "-2" ]; then
+    echo "  PASS: version file left at -2, not overwritten"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay -2, got '$PINNED'"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/mod_negativepin"
+echo ""
+
 echo "--- Test: script present but not executable reports an error ---"
 mkdir -p "$LISTDIR/local_not_executable/bin"
 cat > "$LISTDIR/local_not_executable/bin/get_latest_plugin_version.sh" <<'EOS'
@@ -478,6 +521,140 @@ EC=$?
 assert_exit_code "Nonzero exit when a package_ component has no script" 1 "$EC"
 assert_output_contains "Error mentions the missing script" "could not find package_missing_script/bin/get_latest_plugin_version.sh" "$OUT"
 rm -rf "$LISTDIR/package_missing_script"
+echo ""
+
+# --- <component>/<component>.php (install_plugins.php's PHP package_base convention) ---
+#
+# Covers package_kaltura-style components: no bin/get_latest_plugin_version.sh, just a
+# <component>/<component>.php class meant to run inside install_plugins.php itself. These tests
+# use a minimal install_plugins.php stub that only implements the `get-latest-version` contract
+# (stdout = exactly the resolved integer, nonzero exit + stderr on failure) rather than a real
+# Moodle-bootstrapped install_plugins.php, so they don't depend on GitHub or a live Moodle site.
+
+echo "--- Test: <component>/<component>.php with no bin/ script uses the install_plugins.php bridge ---"
+mkdir -p "$LISTDIR/package_kaltura"
+touch "$LISTDIR/package_kaltura/package_kaltura.php"
+cat > "$LISTDIR/install_plugins.php" <<'EOS'
+<?php
+// Stub: only implements the get-latest-version contract this test needs.
+if (($argv[1] ?? '') === 'get-latest-version' && ($argv[2] ?? '') === 'package_kaltura') {
+    echo "2099010100\n";
+    exit(0);
+}
+fwrite(STDERR, "stub does not know how to handle: " . implode(' ', array_slice($argv, 1)) . "\n");
+exit(1);
+EOS
+
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 package_kaltura
+EC=$?
+assert_exit_code "Exit code 0 for dry run" 0 "$EC"
+assert_output_contains "Dry-run message shows the resolved version" "2099010100" "$OUT"
+if [ ! -f "$LISTDIR/package_kaltura/version" ]; then
+    echo "  PASS: dry run didn't write a version file"
+    ((PASS++))
+else
+    echo "  FAIL: version file was written despite dry run"
+    ((FAIL++))
+fi
+
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_kaltura
+EC=$?
+assert_exit_code "Exit code 0 for --run" 0 "$EC"
+if [ -f "$LISTDIR/package_kaltura/version" ] && [ "$(cat "$LISTDIR/package_kaltura/version")" = "2099010100" ]; then
+    echo "  PASS: version came from install_plugins.php get-latest-version (2099010100), not a bin/ script"
+    ((PASS++))
+else
+    echo "  FAIL: expected package_kaltura/version to be 2099010100 (got: $(cat "$LISTDIR/package_kaltura/version" 2>/dev/null))"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: bin/get_latest_plugin_version.sh takes priority over <component>/<component>.php when both exist ---"
+mkdir -p "$LISTDIR/package_kaltura/bin"
+cat > "$LISTDIR/package_kaltura/bin/get_latest_plugin_version.sh" <<'EOS'
+#!/usr/bin/env bash
+echo "2099010199"
+EOS
+chmod +x "$LISTDIR/package_kaltura/bin/get_latest_plugin_version.sh"
+rm -f "$LISTDIR/package_kaltura/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_kaltura
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+if [ -f "$LISTDIR/package_kaltura/version" ] && [ "$(cat "$LISTDIR/package_kaltura/version")" = "2099010199" ]; then
+    echo "  PASS: bin/ script's version (2099010199) was used, not the install_plugins.php bridge's"
+    ((PASS++))
+else
+    echo "  FAIL: expected package_kaltura/version to be 2099010199 (got: $(cat "$LISTDIR/package_kaltura/version" 2>/dev/null))"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/package_kaltura/bin"
+rm -f "$LISTDIR/package_kaltura/version"
+echo ""
+
+echo "--- Test: version pinned to 0 skips the install_plugins.php bridge entirely ---"
+echo "0" > "$LISTDIR/package_kaltura/version"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_kaltura
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "SKIP message for pinned version 0" "pinned to version 0" "$OUT"
+PINNED=$(cat "$LISTDIR/package_kaltura/version")
+if [ "$PINNED" = "0" ]; then
+    echo "  PASS: version file left at 0, install_plugins.php stub was never invoked"
+    ((PASS++))
+else
+    echo "  FAIL: expected version to stay 0, got '$PINNED'"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --install-plugins-script overrides the default --directory/install_plugins.php lookup ---"
+rm -f "$LISTDIR/package_kaltura/version"
+ALTDIR=$(mktemp -d)
+cat > "$ALTDIR/alt_install_plugins.php" <<'EOS'
+<?php
+if (($argv[1] ?? '') === 'get-latest-version' && ($argv[2] ?? '') === 'package_kaltura') {
+    echo "2099010177\n";
+    exit(0);
+}
+exit(1);
+EOS
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --install-plugins-script="$ALTDIR/alt_install_plugins.php" --run package_kaltura
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+if [ -f "$LISTDIR/package_kaltura/version" ] && [ "$(cat "$LISTDIR/package_kaltura/version")" = "2099010177" ]; then
+    echo "  PASS: --install-plugins-script's stub was used instead of --directory/install_plugins.php"
+    ((PASS++))
+else
+    echo "  FAIL: expected package_kaltura/version to be 2099010177 (got: $(cat "$LISTDIR/package_kaltura/version" 2>/dev/null))"
+    ((FAIL++))
+fi
+rm -rf "$ALTDIR"
+echo ""
+
+echo "--- Test: <component>/<component>.php present but install_plugins.php missing reports an error ---"
+rm -f "$LISTDIR/package_kaltura/version" "$LISTDIR/install_plugins.php"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_kaltura
+EC=$?
+assert_exit_code "Nonzero exit when install_plugins.php can't be found" 1 "$EC"
+assert_output_contains "Error names the component" "package_kaltura" "$OUT"
+assert_output_contains "Error mentions install_plugins.php" "install_plugins.php" "$OUT"
+assert_output_contains "Error suggests --install-plugins-script" "--install-plugins-script" "$OUT"
+rm -rf "$LISTDIR/package_kaltura"
+echo ""
+
+echo "--- Test: install_plugins.php stub exiting non-zero surfaces its stderr in the error ---"
+mkdir -p "$LISTDIR/package_unresolvable"
+touch "$LISTDIR/package_unresolvable/package_unresolvable.php"
+cat > "$LISTDIR/install_plugins.php" <<'EOS'
+<?php
+fwrite(STDERR, "boom: plugin not found upstream\n");
+exit(1);
+EOS
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run package_unresolvable
+EC=$?
+assert_exit_code "Nonzero exit when install_plugins.php itself fails" 1 "$EC"
+assert_output_contains "Error surfaces the stub's stderr message" "boom: plugin not found upstream" "$OUT"
+rm -rf "$LISTDIR/package_unresolvable" "$LISTDIR/install_plugins.php"
 echo ""
 
 rm -rf "$LISTDIR"

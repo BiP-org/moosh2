@@ -14,10 +14,30 @@
  *   - `-v|--version` is gone (Symfony Console reserves -v/-vv/-vvv for
  *     verbosity). The equivalent is `--moodle-version` (long form only).
  *   - No Moosh\PluginChecksum step (no moosh2 equivalent, out of scope for
- *     this port) — checksum pinning uses plugins.json's own `downloadmd5`
- *     field for each version rather than downloading and hashing the zip
- *     ourselves (falling back to that only if a version's entry is
- *     missing one), and it isn't checked against a pinned expectation.
+ *     this port) — checksum pinning still downloads and hashes the zip via
+ *     PluginZipCache, it just isn't checked against a pinned expectation.
+ *
+ * Checksum algorithm: md5, matching install_plugins.php's
+ * moodle_official::get_plugin_download_info() / helper::download_cached(),
+ * which verify a download against plugins.json's `downloadmd5` field. This
+ * command does the same: when plugins.json supplies a downloadmd5 for the
+ * resolved version, the freshly downloaded zip is checked against it (a
+ * mismatch aborts before anything is written), and the value pinned to
+ * `<component>/checksum` is the md5 - not a self-computed sha256 - so the
+ * checksum file means the same thing regardless of which tool wrote it.
+ *
+ * Compatible with install_plugins.php's `update-versions` command: both
+ * operate on the same declarative-plugin-list layout (one directory per
+ * Frankenstyle component holding a `version` file), so a repository can be
+ * managed with either interchangeably. In particular, a `version` file
+ * pinned to a non-positive value (0/"uninstall", -1/"remove-files", or any
+ * other value install_plugins.php's `$current_version <= 0` check would
+ * skip) is left untouched by this command too — see sentinelSkipReason().
+ * Also: some package_* components (e.g. package_kaltura) only exist as
+ * install_plugins.php's own PHP package_base subclass
+ * (`<component>/<component>.php`), not a bin/get_latest_plugin_version.sh
+ * script - those are resolved by shelling out to install_plugins.php's
+ * `get-latest-version` command, see updateInstallPluginsPhpComponent().
  *
  * @copyright  2012 onwards Tomasz Muras
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -38,6 +58,21 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class PluginListUpdate52Handler extends BaseHandler
 {
+    // Same sentinel values (and their human-readable spellings) recognized
+    // by plugin:list-apply's normalizeRequestedVersion() - a `version` file
+    // holding one of these means "don't touch me", not "an out of date
+    // version to bump". Recognizing only the exact string '0' here (as an
+    // earlier revision did) is a compatibility bug against both
+    // plugin:list-apply and install_plugins.php's update-versions, whose
+    // plugin_update_version() skips on *any* version <= 0 (0 = uninstall,
+    // -1 = remove-files-only): a plugin pinned to -1 would otherwise get
+    // its sentinel silently overwritten with a real version number here,
+    // un-pinning it behind the user's back.
+    private const SENTINEL_UNINSTALL = '0';
+    private const SENTINEL_UNINSTALL_STR = 'uninstall';
+    private const SENTINEL_REMOVE_FILES = '-1';
+    private const SENTINEL_REMOVE_FILES_STR = 'remove-files';
+
     /** @var string|null resolved Moodle release to match plugin compatibility against, e.g. '4.5' */
     private ?string $moodleRelease = null;
 
@@ -46,6 +81,9 @@ class PluginListUpdate52Handler extends BaseHandler
 
     /** @var bool stashed --no-checksum, read once in handle() so the recursive helper methods don't need InputInterface threaded through */
     private bool $noChecksum = false;
+
+    /** @var string|null stashed --install-plugins-script, read once in handle() (see updateInstallPluginsPhpComponent()) */
+    private ?string $installPluginsScriptOption = null;
 
     public function getBootstrapLevel(): ?BootstrapLevel
     {
@@ -70,9 +108,10 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory to scan for plugin subdirectories.', '.')
             ->addOption('moodle-version', null, InputOption::VALUE_REQUIRED, 'Moodle major version to match plugin compatibility against (e.g. 4.5). Defaults to the version of the bootstrapped Moodle site.')
             ->addOption('moodle-root', 'm', InputOption::VALUE_REQUIRED, "Working directory used when invoking a component's bin/get_latest_plugin_version.sh (package_* components, or any other component that ships one). Defaults to the parent directory of --directory.")
+            ->addOption('install-plugins-script', null, InputOption::VALUE_REQUIRED, "Path to install_plugins.php, used for package_* components that ship a PHP package handler (<component>/<component>.php, e.g. package_kaltura/package_kaltura.php) instead of a bin/get_latest_plugin_version.sh script. Defaults to install_plugins.php inside --directory, matching where install_plugins.php's own __DIR__-relative paths expect it to live.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
-            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't pin an md5 checksum next to version.");
+            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin an md5 checksum next to version.");
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview what would change for every plugin directory found in the current directory', '');
@@ -85,6 +124,7 @@ class PluginListUpdate52Handler extends BaseHandler
     {
         $this->moodleRelease = $input->getOption('moodle-version') ?? (string) moodle_major_version();
         $this->noChecksum = (bool) $input->getOption('no-checksum');
+        $this->installPluginsScriptOption = $input->getOption('install-plugins-script');
 
         $token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
         $client = new PluginApiClient($input->getOption('proxy'), $token);
@@ -129,18 +169,43 @@ class PluginListUpdate52Handler extends BaseHandler
             }
 
             try {
-                // package_* components are always expected to carry their
-                // own bin/get_latest_plugin_version.sh (updatePackageComponent()
-                // errors if it's missing, same as before this component ever
-                // supported the script). Any other component is free to opt
-                // into the same script-based lookup simply by shipping that
-                // script - if it's not there, we fall back to the standard
-                // plugins.json lookup exactly as before.
-                $usesScript = str_starts_with($component, 'package_')
-                    || is_file($componentdir . '/bin/get_latest_plugin_version.sh');
-                $message = $usesScript
-                    ? $this->updatePackageComponent($component, $componentdir, $moodleroot, $dryRun, $client, $output)
-                    : $this->updateStandardComponent($component, $componentdir, $dryRun, $client, $output);
+                // Three ways a component's "latest version" can be
+                // resolved, checked in this order:
+                //   1. bin/get_latest_plugin_version.sh - the original
+                //      script-based convention. package_* components are
+                //      always expected to carry one of these OR (2) below;
+                //      any other component is free to opt in simply by
+                //      shipping the script.
+                //   2. <component>/<component>.php - install_plugins.php's
+                //      own PHP-class package_base convention (e.g.
+                //      package_kaltura/package_kaltura.php). Not every
+                //      package ships a shell script; some (like Kaltura,
+                //      which talks to the GitHub releases API) only exist
+                //      as one of these classes. Resolved by shelling out to
+                //      install_plugins.php itself - see
+                //      updateInstallPluginsPhpComponent() - rather than
+                //      reimplementing package_base's PHP-class contract
+                //      here, since these classes call back into
+                //      install_plugins.php's own moodle::/helper::/
+                //      cli_output:: helpers and aren't meant to run
+                //      standalone.
+                //   3. Neither present: package_* errors (nothing else to
+                //      try), anything else falls back to the standard
+                //      plugins.json lookup exactly as before.
+                $hasShellScript = is_file($componentdir . '/bin/get_latest_plugin_version.sh');
+                $hasPhpPackage = is_file($componentdir . '/' . $component . '.php');
+
+                if ($hasShellScript) {
+                    $message = $this->updatePackageComponent($component, $componentdir, $moodleroot, $dryRun, $client, $output);
+                } elseif ($hasPhpPackage) {
+                    $message = $this->updateInstallPluginsPhpComponent($component, $componentdir, $basedir, $dryRun, $output);
+                } elseif (str_starts_with($component, 'package_')) {
+                    throw new \RuntimeException(
+                        "could not find $component/bin/get_latest_plugin_version.sh or $component/$component.php",
+                    );
+                } else {
+                    $message = $this->updateStandardComponent($component, $componentdir, $dryRun, $client, $output);
+                }
                 $output->writeln($message);
             } catch (\RuntimeException $e) {
                 $output->writeln('ERROR  ' . $component . ': ' . $e->getMessage());
@@ -182,8 +247,8 @@ class PluginListUpdate52Handler extends BaseHandler
         $versionfile = $componentdir . '/version';
         $currentversion = $this->readVersionFile($versionfile);
 
-        if ($currentversion === '0') {
-            return "SKIP   $component: pinned to version 0 (marked for uninstall)";
+        if ($currentversion !== null && ($skipReason = $this->sentinelSkipReason($currentversion)) !== null) {
+            return "SKIP   $component: pinned to version $currentversion ($skipReason)";
         }
 
         $latest = $this->findLatestCompatibleVersion($component);
@@ -295,34 +360,31 @@ class PluginListUpdate52Handler extends BaseHandler
     }
 
     /**
-     * Make sure `<componentdir>/checksum` holds the MD5 checksum that
-     * moodle.org's own plugin directory publishes for $version - the
-     * `downloadmd5` field of plugins.json
-     * (https://download.moodle.org/api/1.3/pluglist.php) - only
-     * downloading and hashing the zip ourselves as a fallback for the
-     * rare plugins.json entry missing that field.
-     */
-    /**
-     * @param string|null $downloadmd5 the `downloadmd5` field from this
-     *   version's plugins.json entry, if present
+     * Make sure `<componentdir>/checksum` holds the md5 of $version's zip,
+     * downloading it (via the shared PluginZipCache, same as
+     * plugin:clamscan) only when that's not already the case.
+     *
+     * Matches install_plugins.php: the same md5 algorithm, and - when
+     * plugins.json supplies one - verified against $expectedMd5 the same
+     * way helper::download_cached() verifies its $expected_md5 argument,
+     * so a corrupted or tampered download is caught before it's ever
+     * pinned or extracted.
+     *
+     * @param string|null $expectedMd5 the `downloadmd5` plugins.json
+     *   supplied for this version, or null if it didn't have one (some
+     *   entries omit it - install_plugins.php falls back to downloading
+     *   without verification in that case, and so does this).
      * @param array{0: string, 1: string}|null $preDownloaded [downloadedFile,
      *   tempDir] already fetched by updateStandardComponent() while probing
-     *   Marketplace reachability - reused as the fallback path's source
-     *   (when $downloadmd5 is absent) instead of downloading the same zip
-     *   again; otherwise just cleaned up. Always consumed (and its tempDir
-     *   removed) by this method when passed.
-     * @throws \RuntimeException if the fallback path's download/hash fails
+     *   Marketplace reachability - reused here instead of downloading the
+     *   same zip a second time. Always consumed (and its tempDir removed)
+     *   by this method when passed, whether or not a checksum ends up
+     *   being (re)computed.
+     * @throws \RuntimeException if the zip can't be downloaded, or if it
+     *   doesn't match $expectedMd5
      */
-    private function reconcileChecksum(
-        string $component,
-        string $componentdir,
-        string $version,
-        string $downloadurl,
-        ?string $downloadmd5,
-        bool $forceRecompute,
-        PluginApiClient $client,
-        ?array $preDownloaded = null,
-    ): ?string {
+    private function reconcileChecksum(string $component, string $componentdir, string $version, string $downloadurl, ?string $expectedMd5, bool $forceRecompute, PluginApiClient $client, ?array $preDownloaded = null): ?string
+    {
         $checksumfile = $componentdir . '/checksum';
         $existing = $this->readVersionFile($checksumfile);
         if (!$forceRecompute && $existing !== null) {
@@ -332,36 +394,22 @@ class PluginListUpdate52Handler extends BaseHandler
             return null;
         }
 
-        if ($downloadmd5 !== null && $downloadmd5 !== '') {
-            // moodle.org already computed and published this - trust it
-            // rather than downloading the zip a second time just to
-            // re-derive the same value ourselves.
-            if ($preDownloaded !== null && is_dir($preDownloaded[1])) {
-                $this->removeDirectory($preDownloaded[1]);
-            }
-            $md5 = strtolower($downloadmd5);
-            file_put_contents($checksumfile, $md5 . "\n");
-            return "PIN    $component: checksum $md5 for $version";
-        }
-
-        // Fallback: this plugins.json entry has no downloadmd5 (rare) -
-        // download the zip ourselves and hash it instead of leaving the
-        // checksum unpinned. downloadPluginZip() already confirms the
-        // zip's own version.php agrees it's really $component before
-        // returning it.
         $tempdir = null;
         try {
             [$downloadedfile, $tempdir] = $preDownloaded ?? $this->downloadPluginZip($component, $version, $downloadurl, $client);
-            $md5 = md5_file($downloadedfile);
-            if ($md5 === false) {
-                throw new \RuntimeException("md5_file() failed for $downloadedfile");
-            }
+            $md5 = hash_file('md5', $downloadedfile);
         } catch (\RuntimeException $e) {
             throw new \RuntimeException("could not pin checksum for $version: " . $e->getMessage());
         } finally {
             if ($tempdir !== null && is_dir($tempdir)) {
                 $this->removeDirectory($tempdir);
             }
+        }
+
+        if ($expectedMd5 !== null && $expectedMd5 !== '' && !hash_equals($expectedMd5, $md5)) {
+            throw new \RuntimeException(
+                "checksum mismatch for $version: plugins.json expects $expectedMd5, downloaded file is $md5",
+            );
         }
 
         file_put_contents($checksumfile, $md5 . "\n");
@@ -387,10 +435,6 @@ class PluginListUpdate52Handler extends BaseHandler
         $downloadedfile = $tempdir . '/' . $component . '.zip';
 
         if (PluginZipCache::fetch($component, $version, $downloadedfile)) {
-            // Even a cache hit is verified: the cache may have been
-            // populated by an older build without this check, or by a
-            // stale/incorrect downloadurl at the time it was stored.
-            PluginZipCache::assertZipComponent($downloadedfile, $component);
             return [$downloadedfile, $tempdir];
         }
 
@@ -407,12 +451,6 @@ class PluginListUpdate52Handler extends BaseHandler
             @unlink($downloadedfile);
             throw new \RuntimeException("Downloaded file from $downloadurl is not a valid, non-empty zip archive.");
         }
-
-        // Before doing anything else with it (pinning a checksum, caching
-        // it, letting a caller extract it, ...), confirm the zip we just
-        // downloaded really is $component - catches a stale/incorrect
-        // downloadurl silently serving the wrong plugin's content.
-        PluginZipCache::assertZipComponent($downloadedfile, $component);
 
         PluginZipCache::store($component, $version, $downloadedfile);
 
@@ -443,8 +481,8 @@ class PluginListUpdate52Handler extends BaseHandler
         $versionfile = $componentdir . '/version';
         $currentversion = $this->readVersionFile($versionfile);
 
-        if ($currentversion === '0') {
-            return "SKIP   $component: pinned to version 0 (marked for uninstall)";
+        if ($currentversion !== null && ($skipReason = $this->sentinelSkipReason($currentversion)) !== null) {
+            return "SKIP   $component: pinned to version $currentversion ($skipReason)";
         }
 
         $latest = $this->runGetLatestPluginVersionScript($script, $moodleroot);
@@ -481,6 +519,103 @@ class PluginListUpdate52Handler extends BaseHandler
     }
 
     /**
+     * Handle a component whose latest version is resolved through
+     * install_plugins.php's own PHP-class package_base convention -
+     * `<component>/<component>.php` defining `install_plugins\<component>
+     * extends package_base` (e.g. package_kaltura/package_kaltura.php,
+     * which talks to the GitHub releases API rather than moodle.org).
+     *
+     * These classes call back into install_plugins.php's own moodle::,
+     * helper::, and cli_output:: statics and are only ever meant to run
+     * inside that script, so rather than reimplementing package_base here,
+     * this shells out to `php install_plugins.php get-latest-version
+     * <component>` (see runInstallPluginsPhpGetLatestVersion()) and lets
+     * install_plugins.php's own package_base::get_handler() resolve it -
+     * exactly the same class instantiation install_plugins.php's own
+     * `update-versions` / `plugin-update-version` commands use.
+     *
+     * @throws \RuntimeException
+     */
+    private function updateInstallPluginsPhpComponent(string $component, string $componentdir, string $basedir, bool $dryRun, OutputInterface $output): string
+    {
+        $versionfile = $componentdir . '/version';
+        $currentversion = $this->readVersionFile($versionfile);
+
+        if ($currentversion !== null && ($skipReason = $this->sentinelSkipReason($currentversion)) !== null) {
+            return "SKIP   $component: pinned to version $currentversion ($skipReason)";
+        }
+
+        $installPluginsPhp = $this->installPluginsScriptOption ?? ($basedir . '/install_plugins.php');
+        if (!is_file($installPluginsPhp)) {
+            throw new \RuntimeException(
+                "$component ships a PHP package handler ($component/$component.php) but install_plugins.php " .
+                "was not found at $installPluginsPhp - pass --install-plugins-script to point at it.",
+            );
+        }
+
+        $latest = $this->runInstallPluginsPhpGetLatestVersion($installPluginsPhp, $component);
+
+        return $this->applyVersion($component, $versionfile, $currentversion, $latest, $dryRun);
+    }
+
+    /**
+     * Runs `php <install_plugins.php> get-latest-version <component>` and
+     * returns its resolved latest version.
+     *
+     * Deliberately keeps stdout and stderr on separate pipes (unlike
+     * runGetLatestPluginVersionScript()'s `2>&1`): install_plugins.php's
+     * cli_output::warning()/info()/verbose() all write to stdout, and a
+     * package_base subclass is free to call them (moodle_official::
+     * get_latest_plugin_version() does, for its "no exact release match,
+     * falling back to X" case) - merging that into the same stream as the
+     * version number would break the "stdout is exactly one integer"
+     * contract. install_plugins.php's `get-latest-version` command sends
+     * any such diagnostic noise to stderr and keeps stdout to just the
+     * number for exactly this reason; a nonzero exit surfaces stderr (with
+     * that noise included) in the error message instead.
+     *
+     * @throws \RuntimeException
+     */
+    private function runInstallPluginsPhpGetLatestVersion(string $installPluginsPhp, string $component): string
+    {
+        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($installPluginsPhp)
+            . ' get-latest-version ' . escapeshellarg($component);
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $process = proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            throw new \RuntimeException("could not start install_plugins.php for $component");
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitcode = proc_close($process);
+
+        if ($exitcode !== 0) {
+            $detail = trim($stderr) !== '' ? trim($stderr) : trim($stdout);
+            throw new \RuntimeException(
+                "install_plugins.php get-latest-version $component exited with status $exitcode: $detail",
+            );
+        }
+
+        $latest = trim($stdout);
+        if (!preg_match('/^-?[0-9]+$/', $latest)) {
+            throw new \RuntimeException(
+                "install_plugins.php get-latest-version did not report a valid integer version for $component: '$latest'",
+            );
+        }
+
+        return $latest;
+    }
+
+    /**
      * Reconcile a component's on-disk version file with a newly-resolved
      * latest version, writing the file only when something actually needs
      * to change (and never downgrading a locally newer/pinned version).
@@ -508,6 +643,43 @@ class PluginListUpdate52Handler extends BaseHandler
         }
         $this->writeVersionFile($versionfile, $latestversion);
         return "UPDATE $component: $currentversion -> $latestversion";
+    }
+
+    /**
+     * Whether $currentversion pins a component to a "don't touch it" state
+     * rather than a real, bumpable version - and if so, a short label
+     * describing why, for the SKIP message.
+     *
+     * Matches, case-insensitively:
+     *   - "0" or "uninstall"      (plugin:list-apply's SENTINEL_UNINSTALL)
+     *   - "-1" or "remove-files"  (plugin:list-apply's SENTINEL_REMOVE_FILES)
+     *   - install_plugins.php's plain `$current_version <= 0` rule: any
+     *     other non-positive integer (e.g. a hand-edited "-2") is treated
+     *     the same way, so a repo shared between the two tools can't end
+     *     up with one of them silently reviving a plugin the other
+     *     considers pinned off.
+     *
+     * @return string|null a human-readable reason, or null if $currentversion
+     *   is an ordinary version that update logic should proceed with
+     */
+    private function sentinelSkipReason(string $currentversion): ?string
+    {
+        $trimmed = trim($currentversion);
+        $lower = strtolower($trimmed);
+
+        if ($trimmed === self::SENTINEL_UNINSTALL || $lower === self::SENTINEL_UNINSTALL_STR) {
+            return 'marked for uninstall';
+        }
+
+        if ($trimmed === self::SENTINEL_REMOVE_FILES || $lower === self::SENTINEL_REMOVE_FILES_STR) {
+            return 'marked for remove-files-only';
+        }
+
+        if (preg_match('/^-?[0-9]+$/', $trimmed) === 1 && (int) $trimmed <= 0) {
+            return 'not a positive version';
+        }
+
+        return null;
     }
 
     private function readVersionFile(string $versionfile): ?string
