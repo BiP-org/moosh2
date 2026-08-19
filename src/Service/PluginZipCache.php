@@ -171,4 +171,74 @@ final class PluginZipCache
 
         return copy($downloadedfile, self::getCachePath($component, $version));
     }
+
+    /**
+     * Confirm a downloaded (or cached) plugin zip's own version.php
+     * actually declares $expectedComponent, before any other step -
+     * pinning a checksum, populating the shared cache, extracting it into
+     * $CFG->dirroot, resolving its version.php dependencies, ... - ever
+     * touches it. plugins.json's component field is only ever a claim
+     * about what a downloadurl is *supposed* to serve; this checks what it
+     * actually served, protecting against a stale/incorrect downloadurl,
+     * a misconfigured mirror, or a Marketplace/API mixup silently pinning
+     * or installing the wrong plugin under the requested component's name.
+     *
+     * Reads only the shallowest version.php in the archive (mirroring how
+     * plugin:list-apply's own findPluginDir() locates the plugin root) via
+     * ZipArchive::getFromName() - the zip is never extracted to disk for
+     * this check.
+     *
+     * @throws \RuntimeException if the zip can't be opened, contains no
+     *   version.php, that version.php doesn't declare $plugin->component
+     *   at all, or declares a different one
+     */
+    public static function assertZipComponent(string $zipPath, string $expectedComponent): void
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            throw new \RuntimeException("Failed to open ZIP archive to verify its component ($expectedComponent): $zipPath");
+        }
+
+        try {
+            $versionPhpEntry = null;
+            $shallowestDepth = null;
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if ($name === false || (!str_ends_with($name, '/version.php') && $name !== 'version.php')) {
+                    continue;
+                }
+                $depth = substr_count(rtrim($name, '/'), '/');
+                if ($shallowestDepth === null || $depth < $shallowestDepth) {
+                    $shallowestDepth = $depth;
+                    $versionPhpEntry = $name;
+                }
+            }
+
+            if ($versionPhpEntry === null) {
+                throw new \RuntimeException("Zip for $expectedComponent doesn't contain a version.php at all: $zipPath");
+            }
+
+            $source = $zip->getFromName($versionPhpEntry);
+            if ($source === false) {
+                throw new \RuntimeException("Could not read $versionPhpEntry from the zip for $expectedComponent: $zipPath");
+            }
+        } finally {
+            $zip->close();
+        }
+
+        $actualComponent = VersionPhpParser::parseSource($source)['component'];
+
+        if ($actualComponent === null) {
+            throw new \RuntimeException(
+                "$versionPhpEntry in the zip for $expectedComponent doesn't declare \$plugin->component - refusing to trust it: $zipPath",
+            );
+        }
+
+        if ($actualComponent !== $expectedComponent) {
+            throw new \RuntimeException(
+                "Zip requested for $expectedComponent actually contains $actualComponent (per $versionPhpEntry) - "
+                . "refusing to use it. This usually means a stale/incorrect downloadurl. Zip: $zipPath",
+            );
+        }
+    }
 }

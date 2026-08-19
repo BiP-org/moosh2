@@ -647,6 +647,15 @@ class PluginListApply52Handler extends BaseHandler
             // ZipArchive - see PluginZipCache::assertZipMagicBytes().
             PluginZipCache::assertZipMagicBytes($zipFile);
 
+            // Before doing anything else with it - extracting it,
+            // resolving its version.php dependencies, moving it into
+            // $CFG->dirroot, ... - confirm the zip's own version.php
+            // actually declares the Frankenstyle component we asked for.
+            // Catches a stale/incorrect downloadurl (or a Marketplace/API
+            // mixup) silently installing the wrong plugin under this
+            // component's name.
+            PluginZipCache::assertZipComponent($zipFile, $component);
+
             $extractDir = $tempDir . '/extracted';
             mkdir($extractDir, 0755, true);
             $zip = new \ZipArchive();
