@@ -65,9 +65,27 @@ echo ""
 
 echo "--- Test: Scan the plugin in the current directory ---"
 CWDDIR=$(mktemp -d)
-run_moosh plugin:download -p "$MOODLE_PATH" auth_oidc
+# The previous test ("Scan a downloaded plugin (clean)") already downloaded
+# auth_oidc once via plugin:clamscan, which populates moosh2's shared plugin
+# zip cache (~/.moosh/moodleplugins, or $MOOSH_CACHE_DIR). Reuse that cached
+# copy here instead of hitting download.moodle.org again for the exact same
+# file a few hundred milliseconds later: a second, immediate download of the
+# same resource is exactly the kind of request some CDNs/APIs rate-limit,
+# and CI runners are more likely to be sharing an already-flagged IP range
+# than a local dev machine is. Only fall back to a real download if, for
+# whatever reason, nothing ended up cached.
+CACHE_DIR="${MOOSH_CACHE_DIR:-$HOME/.moosh/moodleplugins}"
+CACHED_ZIP=$(ls "$CACHE_DIR"/auth_oidc-*.zip 2>/dev/null | head -n1)
+if [ -n "$CACHED_ZIP" ]; then
+    LAST_CMD="(reused cached copy: $CACHED_ZIP)"
+else
+    # Not cd'd into CWDDIR yet, so plugin:download (which writes to getcwd())
+    # writes auth_oidc.zip into the directory we're still sitting in.
+    run_moosh plugin:download -p "$MOODLE_PATH" auth_oidc
+    CACHED_ZIP=$(ls "$(pwd)"/auth_oidc.zip 2>/dev/null | head -n1)
+fi
 cd "$CWDDIR"
-unzip -q -o "$OLDPWD"/*.zip -d . 2>/dev/null || true
+unzip -q -o "$CACHED_ZIP" -d . 2>/dev/null || true
 EMPTYRULEDIR2=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR2"
 OUT=$(cd auth_oidc 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
