@@ -88,7 +88,15 @@ cd "$CWDDIR"
 unzip -q -o "$CACHED_ZIP" -d . 2>/dev/null || true
 EMPTYRULEDIR2=$(mktemp -d)
 write_nomatch_db "$EMPTYRULEDIR2"
-OUT=$(cd auth_oidc 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
+# Don't assume the zip's top-level folder is named after the frankenstyle
+# component: moodle.org zips are named after the plugin's install path, not
+# its frankenstyle name (e.g. auth_oidc extracts to a folder called "oidc",
+# since it installs to auth/oidc). Locate the plugin root the same way
+# moosh2 itself does: the first directory (depth-first) containing a
+# version.php.
+PLUGIN_ROOT=$(find "$CWDDIR" -mindepth 1 -maxdepth 3 -name version.php -print -quit)
+PLUGIN_ROOT=$(dirname -- "${PLUGIN_ROOT:-/nonexistent}")
+OUT=$(cd "$PLUGIN_ROOT" 2>/dev/null && $PHP $MOOSH plugin:clamscan -d "$EMPTYRULEDIR2" 2>&1)
 EC=$?
 cd - >/dev/null
 assert_exit_code "Exit code 0 scanning cwd" 0 "$EC"
