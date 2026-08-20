@@ -93,6 +93,47 @@ else
 fi
 echo ""
 
+echo "--- Test: pinned checksum matches plugins.json's own downloadmd5 for that version ---"
+# Independent check against the live moodle.org API (not moosh2's own cached copy of
+# plugins.json - that would just be confirming reconcileChecksum() agrees with itself).
+# This is the same value install_plugins.php's helper::download_cached() verifies a
+# download against, so it's the real cross-tool compatibility check for the checksum file.
+ATTENDANCE_VERSION=$(cat "$LISTDIR/mod_attendance/version" 2>/dev/null || true)
+PINNED_CHECKSUM=$(cat "$CHECKSUM_FILE" 2>/dev/null || true)
+if [ -z "$ATTENDANCE_VERSION" ] || [ -z "$PINNED_CHECKSUM" ]; then
+    echo "  FAIL: mod_attendance/version or /checksum missing from the previous test, cannot verify"
+    ((FAIL++))
+else
+    EXPECTED_MD5=$(curl -fsSL --max-time 30 'https://download.moodle.org/api/1.3/pluglist.php' | php -r '
+        $data = json_decode(stream_get_contents(STDIN));
+        if (!$data) { exit(1); }
+        $version = $argv[1];
+        foreach ($data->plugins as $plugin) {
+            if ($plugin->component !== "mod_attendance") { continue; }
+            foreach ($plugin->versions as $v) {
+                if ((string)$v->version === $version) {
+                    echo $v->downloadmd5 ?? "";
+                    exit(0);
+                }
+            }
+        }
+        exit(1);
+    ' "$ATTENDANCE_VERSION")
+    FETCH_EC=$?
+    if [ $FETCH_EC -ne 0 ]; then
+        echo "  SKIP: could not fetch/find mod_attendance version $ATTENDANCE_VERSION in the live moodle.org plugin list"
+    elif [ -z "$EXPECTED_MD5" ]; then
+        echo "  SKIP: plugins.json has no downloadmd5 for mod_attendance version $ATTENDANCE_VERSION, nothing to compare against"
+    elif [ "$EXPECTED_MD5" = "$PINNED_CHECKSUM" ]; then
+        echo "  PASS: pinned checksum ($PINNED_CHECKSUM) matches plugins.json's downloadmd5 for version $ATTENDANCE_VERSION"
+        ((PASS++))
+    else
+        echo "  FAIL: pinned checksum ($PINNED_CHECKSUM) does not match plugins.json's downloadmd5 ($EXPECTED_MD5) for version $ATTENDANCE_VERSION"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
 echo "--- Test: Re-running --run reports already up to date ---"
 FIRST_VERSION=$(cat "$LISTDIR/mod_attendance/version")
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run
