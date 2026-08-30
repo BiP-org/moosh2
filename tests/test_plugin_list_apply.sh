@@ -195,6 +195,57 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
+# Unknown plugin type (e.g. atto_* after the Atto editor was removed
+# from core) requested for uninstall
+# ═══════════════════════════════════════════════════════════════════
+#
+# core_component::get_plugin_types() only returns plugin types this
+# Moodle currently ships. A stale declarative-list entry for a type
+# Moodle no longer knows about (or never did) has no install path to
+# resolve. If its version file says "uninstall", there's nothing
+# installed to check and nothing to remove - it must be skipped rather
+# than treated as a hard failure.
+
+UNKNOWNDIR=$(mktemp -d)
+mkdir -p "$UNKNOWNDIR/zzznosuchtype_thing"
+
+echo "--- Test: Sentinel 0 for an unknown plugin type is skipped, not an error ---"
+echo 0 > "$UNKNOWNDIR/zzznosuchtype_thing/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$UNKNOWNDIR"
+EC=$?
+assert_exit_code "Exit code 0 - unknown type + uninstall is not a failure" 0 "$EC"
+assert_output_contains "Shows SKIP for the unknown component" "SKIP    zzznosuchtype_thing" "$OUT"
+assert_output_contains "Explains why it was skipped" "requested is uninstall" "$OUT"
+assert_output_not_contains "Does not report it as an ERROR" "ERROR   zzznosuchtype_thing" "$OUT"
+echo ""
+
+echo "--- Test: String sentinel 'uninstall' for an unknown plugin type is skipped too ---"
+echo "uninstall" > "$UNKNOWNDIR/zzznosuchtype_thing/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$UNKNOWNDIR"
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows SKIP for the unknown component with string sentinel" "SKIP    zzznosuchtype_thing" "$OUT"
+echo ""
+
+echo "--- Test: --run also skips cleanly instead of crashing on the missing path ---"
+echo 0 > "$UNKNOWNDIR/zzznosuchtype_thing/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$UNKNOWNDIR" --run
+EC=$?
+assert_exit_code "Exit code 0 with --run" 0 "$EC"
+assert_output_contains "Shows SKIP for the unknown component with --run" "SKIP    zzznosuchtype_thing" "$OUT"
+echo ""
+
+echo "--- Test: An unknown plugin type with a real requested version still errors ---"
+echo 1 > "$UNKNOWNDIR/zzznosuchtype_thing/version"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$UNKNOWNDIR"
+EC=$?
+assert_exit_code "Nonzero exit - unresolvable component with a real install request" 1 "$EC"
+assert_output_contains "Still reports unknown component as an error" "ERROR   zzznosuchtype_thing: unknown component" "$OUT"
+echo ""
+
+rm -rf "$UNKNOWNDIR"
+
+# ═══════════════════════════════════════════════════════════════════
 # Remove files only (requested == -1 or "remove-files"), database left untouched
 # ═══════════════════════════════════════════════════════════════════
 
