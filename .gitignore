@@ -3,3 +3,5 @@
 moosh.phar
 moosh.phar.zip
 debian/files
+/*.gz
+/*.patch
