@@ -53,7 +53,8 @@ class PluginReleaseNotes52Handler extends BaseHandler
 
         $client = new MarketplaceReleaseNotesClient($proxy, $token);
 
-        $versions = [$targetVersion];
+        // Cheap no-op check first, before any network call - --since >=
+        // version never needs to touch the plugin directory or Marketplace.
         if ($since !== null) {
             $since = (string) $since;
 
@@ -61,26 +62,41 @@ class PluginReleaseNotes52Handler extends BaseHandler
                 $output->writeln("No versions of '$component' between $since and $targetVersion (nothing newer than --since).");
                 return Command::SUCCESS;
             }
+        }
 
-            try {
-                $apiClient = new PluginApiClient($proxy, $token);
-                $plugin = $apiClient->findPlugin($component);
-            } catch (\RuntimeException $e) {
-                $output->writeln('<error>' . self::describeHttpFailure($e) . '</error>');
-                return Command::FAILURE;
-            }
+        // The plugin directory (plugins.json) is the source of truth for
+        // "does this plugin/version exist at all" - the Marketplace scrape
+        // in the loop below only tells us whether *release notes* exist for
+        // a version, which is a different question (older versions often
+        // have no notes page even though the version itself is real).
+        try {
+            $apiClient = new PluginApiClient($proxy, $token);
+            $plugin = $apiClient->findPlugin($component);
+        } catch (\RuntimeException $e) {
+            $output->writeln('<error>' . self::describeHttpFailure($e) . '</error>');
+            return Command::FAILURE;
+        }
 
-            if ($plugin === null) {
-                $output->writeln("<error>Plugin '$component' not found in the moodle.org plugin directory.</error>");
-                return Command::FAILURE;
-            }
+        if ($plugin === null) {
+            $output->writeln("<error>Plugin '$component' not found in the moodle.org plugin directory.</error>");
+            return Command::FAILURE;
+        }
 
+        $versions = [$targetVersion];
+        if ($since !== null) {
             $inRange = self::selectVersionsInRange($plugin->versions, $since, $targetVersion);
             // If plugins.json doesn't list anything strictly between since and
             // target (e.g. a very new plugin, or plugins.json only ever
             // carries the latest version), fall back to just the target
             // version rather than showing nothing.
             $versions = $inRange !== [] ? $inRange : [$targetVersion];
+        } else {
+            $knownVersions = self::knownVersionStrings($plugin->versions);
+            if (!in_array($targetVersion, $knownVersions, true)) {
+                $output->writeln("<error>Unknown version '$targetVersion' of plugin '$component'.</error>");
+                $output->writeln('Versions found: ' . implode(', ', $knownVersions));
+                return Command::FAILURE;
+            }
         }
 
         $results = [];
@@ -191,6 +207,28 @@ class PluginReleaseNotes52Handler extends BaseHandler
         // auto-casts numeric string keys), so cast back to strings after
         // sorting numerically.
         $result = array_keys($inRange);
+        sort($result, SORT_NUMERIC);
+
+        return array_map('strval', $result);
+    }
+
+    /**
+     * All build numbers plugins.json knows about for a plugin, deduplicated
+     * and sorted ascending (oldest first).
+     *
+     * @param list<object{version: int|string}> $versions plugins.json's
+     *   $plugin->versions array (may contain duplicate build numbers
+     *   across differing Moodle-compatibility entries)
+     * @return list<string>
+     */
+    private static function knownVersionStrings(array $versions): array
+    {
+        $known = [];
+        foreach ($versions as $version) {
+            $known[(string) (int) $version->version] = true;
+        }
+
+        $result = array_keys($known);
         sort($result, SORT_NUMERIC);
 
         return array_map('strval', $result);
