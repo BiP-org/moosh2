@@ -159,7 +159,7 @@ jobs:
           cp "$tmpdir"/moosh2_*.deb "$GITHUB_WORKSPACE/dist/"
 
       - name: Upload Debian package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.branch_info.outputs.artifact_name }}
           path: |
