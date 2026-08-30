@@ -21,14 +21,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Psalm Security Scan
-        uses: docker://ghcr.io/psalm/psalm-security-scan
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
         with:
-          working_dir: plugin
+          php-version: '8.3'
+          extensions: zip
+          tools: composer
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist
+
+      - name: Run Psalm security/taint analysis
+        run: vendor/bin/psalm --taint-analysis --no-cache --output-format=github --report=results.sarif
 
       - name: Upload Psalm SARIF results
         if: ${{ !cancelled() }}
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: plugin/results.sarif
+          sarif_file: results.sarif
           category: psalm
