@@ -34,6 +34,13 @@ assert_exit_code "Exit code non-zero for invalid format" 1 "$EC"
 assert_output_contains "Reports invalid format" "Invalid --format" "$OUT"
 echo ""
 
+echo "--- Test: --since >= version is a clean no-op, not an error ---"
+run_moosh plugin:releasenotes atto_wiris 2024110400 --since=2025041400
+EC=$?
+assert_exit_code "Exit code 0 when --since is not older than version" 0 "$EC"
+assert_output_contains "Explains nothing to show" "nothing newer than --since" "$OUT"
+echo ""
+
 # The remaining tests hit the live marketplace.moodle.com site and are
 # best-effort: they're skipped (not failed) if the site is unreachable,
 # since CI runners may not have outbound access to it, and Moodle
@@ -75,6 +82,29 @@ else
     run_moosh plugin:releasenotes this_plugin_does_not_exist_xyz 2025041400
     EC=$?
     assert_exit_code "Exit code non-zero for unknown plugin" 1 "$EC"
+    echo ""
+
+    echo "--- Test: --since range spans multiple versions ---"
+    run_moosh plugin:releasenotes atto_wiris 2025041400 --since=2023010100
+    EC=$?
+    assert_exit_code "Exit code 0 for a multi-version range" 0 "$EC"
+    assert_output_contains "Shows a version count summary" "version" "$OUT"
+    assert_output_contains "Includes the target release" "8.9.0" "$OUT"
+    echo ""
+
+    echo "--- Test: --since range as JSON ---"
+    run_moosh plugin:releasenotes atto_wiris 2025041400 --since=2023010100 --format=json
+    EC=$?
+    assert_exit_code "Exit code 0 for range JSON" 0 "$EC"
+    if echo "$OUT" | "$PHP" -r 'json_decode(stream_get_contents(STDIN), false, 512, JSON_THROW_ON_ERROR);' 2>/dev/null; then
+        echo "  PASS: output is valid JSON"
+        ((PASS++))
+    else
+        echo "  FAIL: output is not valid JSON"
+        echo "$OUT"
+        ((FAIL++))
+    fi
+    assert_output_contains "JSON range includes a versions array" "\"versions\"" "$OUT"
     echo ""
 fi
 
