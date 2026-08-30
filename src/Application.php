@@ -158,6 +158,7 @@ use Moosh2\Command\Plugin\PluginListApplyCommand;
 use Moosh2\Command\Plugin\PluginListCommand;
 use Moosh2\Command\Plugin\PluginListUpdateCommand;
 use Moosh2\Command\Plugin\PluginReinstallCommand;
+use Moosh2\Command\Plugin\PluginReleaseNotesCommand;
 use Moosh2\Command\Plugin\PluginUninstallCommand;
 use Moosh2\Command\Plugin\PluginUsageCommand;
 use Moosh2\Command\Question\QuestionDeleteCommand;
@@ -495,6 +496,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new PluginListCommand($this->moodleVersion));
         $this->addCommand(new PluginListUpdateCommand($this->moodleVersion));
         $this->addCommand(new PluginReinstallCommand($this->moodleVersion));
+        $this->addCommand(new PluginReleaseNotesCommand($this->moodleVersion));
         $this->addCommand(new PluginUninstallCommand($this->moodleVersion));
         $this->addCommand(new PluginUsageCommand($this->moodleVersion));
         $this->addCommand(new QuizDeleteAttemptCommand($this->moodleVersion));
