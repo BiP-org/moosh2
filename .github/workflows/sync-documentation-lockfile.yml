@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'documentation/package.json'
+      - '.github/workflows/sync-documentation-lockfile.yml'
 
 permissions:
   contents: write
@@ -44,7 +45,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BIP_BOT_GITHUB_ACTION_PAT }}
           commit-message: "chore(deps): sync package-lock.json with package.json [skip lockfile-sync]"
           branch: chore/sync-lockfile-${{ github.ref_name }}
           base: ${{ github.ref_name }}
