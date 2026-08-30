@@ -197,15 +197,34 @@ class PluginListApply52Handler extends BaseHandler
      */
     private function applyComponent(string $component, string $componentdir, OutputInterface $output): void
     {
-        $componentpath = $this->getComponentPath($component, $componentdir);
-        $current = $this->getInstalledVersion($component, $componentdir, $componentpath);
+        // Read the requested version first (before resolving the install
+        // path): a plugin type Moodle no longer knows about (e.g. atto_*
+        // after the Atto editor was removed from core) can never be
+        // resolved to a path, but if the declarative list says "uninstall"
+        // for it, there's nothing to do - skip instead of erroring, since
+        // there's no path to check and nothing installed to remove.
         $requested = $this->getRequestedVersion($component, $componentdir);
-
-        $output->writeln('-----');
         if ($requested === null || $requested === '') {
             throw new \RuntimeException('could not determine requested version, exiting');
         }
-        
+
+        try {
+            $componentpath = $this->getComponentPath($component, $componentdir);
+        } catch (\RuntimeException $e) {
+            if ($this->isUninstallSentinel($requested)) {
+                $output->writeln(
+                    "SKIP    $component: " . $e->getMessage() .
+                    ' (requested is uninstall - nothing to do)',
+                );
+                return;
+            }
+            throw $e;
+        }
+
+        $current = $this->getInstalledVersion($component, $componentdir, $componentpath);
+
+        $output->writeln('-----');
+
         // Display human-readable version for output
         $displayRequested = $this->getDisplayVersion($requested);
         $displayCurrent = $this->getDisplayVersion($current);
