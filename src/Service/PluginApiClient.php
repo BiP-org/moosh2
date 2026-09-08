@@ -19,6 +19,31 @@ final class PluginApiClient
     private const API_URL = 'https://download.moodle.org/api/1.3/pluglist.php';
     private const CACHE_TTL = 86400; // 24 hours
 
+    /**
+     * User-Agent strings to try, in order, for every request. Moodle core
+     * itself never calls pluglist.php (see the "TODO" note in
+     * \core\update\api - only pluginfo.php, one plugin at a time, is used
+     * by Moodle's own "check for available updates"), so there's no
+     * literal reference request to copy. But \core\update\api's own HTTP
+     * calls go through Moodle core's `curl` wrapper (lib/filelib.php),
+     * whose default - used for every download.moodle.org API call a real
+     * Moodle site makes - is 'MoodleBot/1.0'. download.moodle.org can't
+     * afford to block that string without breaking every Moodle site's
+     * update-check feature, which makes it the safest first guess for
+     * whatever is filtering plainer/generic-looking User-Agents (curl's
+     * own default UA, empty UAs, etc.) with a 403.
+     *
+     * If MoodleBot/1.0 is ever rejected too, fetchWithUserAgentFallback()
+     * falls through to these as a last resort - ordinary browser/tool UAs
+     * that don't look like a bot at all.
+     */
+    private const USER_AGENTS = [
+        'MoodleBot/1.0',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'curl/8.5.0',
+        'Wget/1.21.3',
+    ];
+
     private ?string $proxy;
     private ?string $token;
 
@@ -69,10 +94,7 @@ final class PluginApiClient
             return false;
         }
 
-        $content = file_get_contents(self::API_URL, false, $this->createStreamContext(expectJson: true, url: self::API_URL));
-        if ($content === false) {
-            throw self::httpFailure('Failed to fetch plugin list from ' . self::API_URL, $http_response_header ?? null);
-        }
+        $content = $this->fetchWithUserAgentFallback(self::API_URL, expectJson: true);
         file_put_contents($cachePath, $content);
 
         return true;
@@ -174,14 +196,62 @@ final class PluginApiClient
      */
     public function downloadFile(string $url, string $targetPath): void
     {
-        $content = file_get_contents($url, false, $this->createStreamContext(url: $url));
-        if ($content === false) {
-            throw self::httpFailure("Failed to download from $url", $http_response_header ?? null);
-        }
+        $content = $this->fetchWithUserAgentFallback($url, expectJson: false);
 
         if (file_put_contents($targetPath, $content) === false) {
             throw new \RuntimeException("Failed to write to $targetPath");
         }
+    }
+
+    /**
+     * GET $url, retrying with each of self::USER_AGENTS in turn whenever a
+     * request comes back HTTP 403 specifically - download.moodle.org has,
+     * at times, blocked plainer/generic-looking User-Agent strings while
+     * allowing others through (see self::USER_AGENTS for the reasoning
+     * behind the order), so a single 403 doesn't necessarily mean the
+     * resource itself is off-limits.
+     *
+     * Any other outcome - success, or a failure that isn't 403 (404, 429,
+     * 5xx, or no HTTP response at all e.g. DNS/TLS/network failure) - is
+     * returned/thrown immediately on the first attempt, without burning
+     * through the rest of the list: those aren't User-Agent-related, so
+     * retrying with a different one wouldn't help.
+     *
+     * @param bool $expectJson true for the plugins.json API call, false for
+     *   binary zip downloads.
+     * @return string the response body
+     * @throws HttpRequestException on a non-403 failure, or if every
+     *   User-Agent in the list was also rejected with 403 - the message
+     *   lists all of them, since at that point it's more likely
+     *   moodle.org is blocking the request's network/IP outright rather
+     *   than filtering by User-Agent.
+     */
+    private function fetchWithUserAgentFallback(string $url, bool $expectJson): string
+    {
+        $lastException = null;
+        $tried = [];
+
+        foreach (self::USER_AGENTS as $userAgent) {
+            $tried[] = $userAgent;
+
+            $content = @file_get_contents($url, false, $this->createStreamContext($expectJson, $url, $userAgent));
+            if ($content !== false) {
+                return $content;
+            }
+
+            $exception = self::httpFailure("Failed to fetch $url", $http_response_header ?? null);
+            if ($exception->getStatusCode() !== 403) {
+                throw $exception;
+            }
+            $lastException = $exception;
+        }
+
+        throw new HttpRequestException(
+            "Failed to fetch $url: rejected with HTTP 403 using every User-Agent tried (" . implode(', ', $tried) . '). '
+            . 'download.moodle.org may be blocking this network/IP outright, rather than filtering by User-Agent.',
+            403,
+            $lastException?->getStatusText(),
+        );
     }
 
     /**
@@ -261,17 +331,15 @@ final class PluginApiClient
 
     /**
      * @param bool $expectJson true for the plugins.json API call, false for
-     *   binary zip downloads - moodle.org has previously blocked requests
-     *   from unusual/obviously-automated User-Agent strings (we hit and
-     *   fixed the identical issue in moosh 1.x), so this deliberately uses a
-     *   generic, curl-like UA rather than identifying as "moosh2".
+     *   binary zip downloads.
      * @param string|null $url the request URL, used only to decide whether
      *   the Marketplace bearer token applies (see isMarketplaceHost())
+     * @param string $userAgent see self::USER_AGENTS / fetchWithUserAgentFallback()
      * @return resource
      */
-    private function createStreamContext(bool $expectJson = false, ?string $url = null)
+    private function createStreamContext(bool $expectJson, ?string $url, string $userAgent)
     {
-        $header = "User-Agent: curl/7.81.0\r\n"
+        $header = "User-Agent: $userAgent\r\n"
             . "Connection: close\r\n";
         if ($expectJson) {
             $header .= "Accept: application/json\r\n";
