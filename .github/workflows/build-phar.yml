@@ -93,7 +93,7 @@ jobs:
         # feature branches still build and verify the phar (as a normal
         # workflow artifact) but never touch the shared release.
         if: steps.branch_info.outputs.is_stable == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: phar-latest
           name: moosh2.phar (latest build)
