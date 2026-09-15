@@ -20,6 +20,27 @@ final class PluginApiClient
     private const CACHE_TTL = 86400; // 24 hours
 
     /**
+     * Last-resort mirror of API_URL's response, used only when every
+     * attempt to reach download.moodle.org directly - across all of
+     * USER_AGENTS - has failed (see fetchPluginListContent()). This is a
+     * plain, periodically-refreshed copy of the same JSON, not an
+     * independent data source - see
+     * https://gist.github.com/BiP-bot/661ec5dff93929f10a95f3021dec2483.
+     * It's run by BiP-bot (the org this fork belongs to), so this is a
+     * first-party fallback, not a random third-party one - but since its
+     * content ends up feeding downloadurl/checksum values that later get
+     * fetched and installed as-is by plugin:install, anyone who could ever
+     * write to that gist could tamper with plugin installs that fall back
+     * to it. Only ever used as a fallback after the real API has already
+     * failed, and only if it parses as JSON (see fetchPluginListContent()).
+     *
+     * Override with the MOOSH2_PLUGLIST_MIRROR_URL env var; set it to an
+     * empty string to disable the fallback entirely and only ever use
+     * download.moodle.org.
+     */
+    private const API_FALLBACK_URL = 'https://gist.githubusercontent.com/BiP-bot/661ec5dff93929f10a95f3021dec2483/raw/moodle-pluglist.json';
+
+    /**
      * User-Agent strings to try, in order, for every request. Moodle core
      * itself never calls pluglist.php (see the "TODO" note in
      * \core\update\api - only pluginfo.php, one plugin at a time, is used
@@ -94,10 +115,65 @@ final class PluginApiClient
             return false;
         }
 
-        $content = $this->fetchWithUserAgentFallback(self::API_URL, expectJson: true);
+        $content = $this->fetchPluginListContent();
         file_put_contents($cachePath, $content);
 
         return true;
+    }
+
+    /**
+     * Fetch the plugins.json body, falling back to API_FALLBACK_URL if
+     * download.moodle.org itself couldn't be reached at all - not just
+     * with one User-Agent, but after fetchWithUserAgentFallback() already
+     * exhausted every one of USER_AGENTS. The mirror is a last resort for
+     * when moodle.org is blocking this network/IP outright (see
+     * fetchWithUserAgentFallback()'s own final error message) - not a
+     * substitute for fixing that.
+     *
+     * Whatever the primary failure was is what gets reported to the
+     * caller if the fallback doesn't pan out either (wrong/unset mirror
+     * URL, mirror itself unreachable, or its content isn't valid JSON) -
+     * download.moodle.org is what actually matters here, the mirror was
+     * only ever a backstop for it.
+     */
+    private function fetchPluginListContent(): string
+    {
+        try {
+            return $this->fetchWithUserAgentFallback(self::API_URL, expectJson: true);
+        } catch (HttpRequestException $primaryException) {
+            $fallbackUrl = $this->getFallbackUrl();
+            if ($fallbackUrl === null) {
+                throw $primaryException;
+            }
+
+            try {
+                $content = $this->fetchWithUserAgentFallback($fallbackUrl, expectJson: true);
+            } catch (HttpRequestException) {
+                throw $primaryException;
+            }
+
+            json_decode($content);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw $primaryException;
+            }
+
+            return $content;
+        }
+    }
+
+    /**
+     * @return string|null API_FALLBACK_URL, the MOOSH2_PLUGLIST_MIRROR_URL
+     *   override, or null if that override is set to an empty string
+     *   (fallback disabled).
+     */
+    private function getFallbackUrl(): ?string
+    {
+        $override = getenv('MOOSH2_PLUGLIST_MIRROR_URL');
+        if ($override !== false) {
+            return $override === '' ? null : $override;
+        }
+
+        return self::API_FALLBACK_URL;
     }
 
     private static function isCacheFresh(string $cachePath): bool
