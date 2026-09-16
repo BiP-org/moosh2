@@ -52,6 +52,14 @@ final class ClamscanRunner
         if (!is_array($databases)) {
             $databases = ($databases === '' || $databases === null) ? [] : [$databases];
         }
+
+        // Always include the moosh2 custom signature directory if it exists.
+        $signatureManager = new ClamavSignatureManager();
+        $signatureDir = $signatureManager->getSignatureDir();
+        if (is_dir($signatureDir)) {
+            array_unshift($databases, $signatureDir);
+        }
+
         foreach ($databases as $database) {
             $args[] = '-d';
             $args[] = escapeshellarg($database);
