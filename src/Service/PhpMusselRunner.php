@@ -1,0 +1,166 @@
+<?php
+
+namespace Moosh2\Service;
+
+use phpMussel\Core\Loader;
+use phpMussel\Core\Scanner;
+
+class PhpMusselRunner
+{
+    public const EXIT_CLEAN         = 0;
+    public const EXIT_MALWARE_FOUND = 1;
+    public const EXIT_ERROR         = 2;
+
+    private PhpMusselSignatureManager $signatureManager;
+
+    public function __construct(?PhpMusselSignatureManager $signatureManager = null)
+    {
+        $this->signatureManager = $signatureManager ?? new PhpMusselSignatureManager();
+    }
+
+    /**
+     * @return array{exitCode:int, output:string, infectedFiles:array<string>}
+     */
+    public function scan(string $pluginRoot): array
+    {
+        $configPath = $this->signatureManager->getConfigPath();
+        if (!is_file($configPath) || !is_readable($configPath)) {
+            return [
+                'exitCode'      => self::EXIT_ERROR,
+                'output'        => "phpMussel configuration not found at $configPath.\n"
+                    . 'Run: moosh plugin:phpmuslescan:update-signatures',
+                'infectedFiles' => [],
+            ];
+        }
+
+        $signatureDir = $this->signatureManager->getSignatureDir();
+        if (!is_dir($signatureDir)) {
+            return [
+                'exitCode'      => self::EXIT_ERROR,
+                'output'        => "phpMussel signatures directory not found at $signatureDir.\n"
+                    . 'Run: moosh plugin:phpmuslescan:update-signatures',
+                'infectedFiles' => [],
+            ];
+        }
+
+        // Cache and quarantine dirs are required by the Loader constructor.
+        // Create them under ~/.moosh2/ so the vendor dir stays untouched.
+        $cacheDir = $this->signatureManager->getCacheDir();
+        $quarantineDir = $this->signatureManager->getQuarantineDir();
+        foreach ([$cacheDir, $quarantineDir] as $dir) {
+            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                return [
+                    'exitCode'      => self::EXIT_ERROR,
+                    'output'        => "Could not create $dir",
+                    'infectedFiles' => [],
+                ];
+            }
+        }
+
+        // Collect files (relative-path keys → absolute paths).
+        $rootPrefix = rtrim($pluginRoot, '/') . '/';
+        $files = [];
+        foreach ($this->iterateFiles($pluginRoot) as $absolute) {
+            $relative = str_starts_with($absolute, $rootPrefix)
+                ? substr($absolute, strlen($rootPrefix))
+                : $absolute;
+            $files[$relative] = $absolute;
+        }
+
+        if ($files === []) {
+            return [
+                'exitCode'      => self::EXIT_CLEAN,
+                'output'        => "No files to scan in $pluginRoot",
+                'infectedFiles' => [],
+            ];
+        }
+
+        try {
+            // Exactly one Loader per scan: it installs a global error
+            // handler in its constructor and restores it in __destruct(),
+            // so chaining two would nest handlers.
+            $loader = new Loader($configPath, $cacheDir, $quarantineDir, $signatureDir);
+            $scanner = new Scanner($loader);
+        } catch (\Throwable $e) {
+            return [
+                'exitCode'      => self::EXIT_ERROR,
+                'output'        => 'phpMussel initialisation failed: ' . $e->getMessage(),
+                'infectedFiles' => [],
+            ];
+        }
+
+        // Format 1: integer results per scanned item. This is the
+        // authoritative signal for the exit code because it distinguishes
+        // "clean" (1) from every failure mode (-5..0).
+        $intResults = $scanner->scan($files, 1);
+
+        // Only re-run with Format 3 (human-readable) if anything needs
+        // reporting — avoids a redundant pass on the common all-clean case.
+        $needsDetail = false;
+        foreach ($intResults as $result) {
+            if ((int) $result !== 1) {
+                $needsDetail = true;
+                break;
+            }
+        }
+        $strResults = $needsDetail ? $scanner->scan($files, 3) : [];
+
+        $infected = [];
+        $errors   = [];
+        $lines    = [];
+        $lines[]  = "Scanning $pluginRoot with phpMussel";
+        $lines[]  = "Signatures: $signatureDir";
+        $lines[]  = '';
+
+        foreach ($intResults as $key => $result) {
+            $result = (int) $result;
+
+            if ($result === 2) {
+                $infected[] = $key;
+                $msg = $strResults[$key] ?? null;
+                $lines[] = 'INFECTED: ' . ($msg !== null ? $msg : $key);
+            } elseif ($result < 0) {
+                $errors[] = $key;
+                $msg = $strResults[$key] ?? null;
+                $lines[] = 'SCAN ERROR: ' . ($msg !== null ? $msg : "$key (code $result)");
+            } elseif ($result === 0) {
+                $lines[] = "SKIP: $key (target not found)";
+            }
+            // $result === 1: clean — no output.
+        }
+
+        $lines[] = '';
+        $lines[] = '----------- SCAN SUMMARY -----------';
+        $lines[] = 'Scanned files:  ' . count($files);
+        $lines[] = 'Infected files: ' . count($infected);
+        $lines[] = 'Scan errors:    ' . count($errors);
+
+        $exitCode = self::EXIT_CLEAN;
+        if ($infected !== []) {
+            $exitCode = self::EXIT_MALWARE_FOUND;
+        } elseif ($errors !== []) {
+            $exitCode = self::EXIT_ERROR;
+        }
+
+        return [
+            'exitCode'      => $exitCode,
+            'output'        => implode("\n", $lines),
+            'infectedFiles' => $infected,
+        ];
+    }
+
+    /**
+     * @return \Generator<string>
+     */
+    private function iterateFiles(string $root): \Generator
+    {
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($it as $file) {
+            if ($file->isFile()) {
+                yield $file->getPathname();
+            }
+        }
+    }
+}

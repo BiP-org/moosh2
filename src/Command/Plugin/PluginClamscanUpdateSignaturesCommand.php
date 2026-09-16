@@ -14,7 +14,7 @@ class PluginClamscanUpdateSignaturesCommand extends Command
         $this
             ->setName('plugin:clamscan:update-signatures')
             ->setDescription('Download or update additional ClamAV signatures used by plugin:clamscan')
-            ->setHelp('Downloads ClamAV signature files from InterServer (interserver256.hdb, interservertopline.db, shell.ldb, whitelist.fp) into ~/.moosh2/clamav-signatures/. The directory is created automatically on first run and requires no root access. Returns a non-zero exit code if any signature file fails to download. Requires network access to sigs.interserver.net.')
+            ->setHelp('Downloads ClamAV signature files from InterServer (interserver256.hdb, interservertopline.db, shell.ldb, whitelist.fp) into ~/.moosh2/clamav-signatures/. The directory is created automatically on first run and requires no root access. Returns a non-zero exit code if any signature file fails to download. Requires network access to sigs.interserver.net.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

@@ -28,6 +28,7 @@ assert_output_contains "Help shows --directory" "--directory" "$OUT"
 assert_output_contains "Help shows --keep-going" "--keep-going" "$OUT"
 assert_output_contains "Help shows --run" "--run" "$OUT"
 assert_output_contains "Help shows --token" "--token" "$OUT"
+assert_output_contains "Help shows --scanner" "--scanner" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
@@ -364,6 +365,164 @@ run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory=/tmp/does_not_exist_$$
 EC=$?
 assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════
+# Malware scanner selection (--scanner)
+# ═══════════════════════════════════════════════════════════════════
+#
+# plugin:list-apply runs a malware scanner after every successful install.
+# The scanner is selected via --scanner, defaulting to "clamscan" so the
+# pre-existing behaviour is unchanged. This section covers the four
+# supported values, the invalid-value error path, and the graceful-skip
+# behaviour when a scanner's signatures are unavailable.
+
+SCANDIR=$(mktemp -d)
+mkdir -p "$SCANDIR/mod_attendance"
+echo "$REAL_VERSION" > "$SCANDIR/mod_attendance/version"
+
+PHP_SIGDIR="${HOME}/.moosh2/phpmussel-signatures"
+
+# Force a real install so the post-install scan path actually fires. If
+# the plugin is already at the requested version, applyComponent()
+# returns early and never reaches runScanners().
+reset_mod_attendance() {
+    sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+}
+
+echo "--- Test: --scanner=none skips scanning entirely ---"
+reset_mod_attendance
+rm -rf "$SCANDIR/.clamav" "$SCANDIR/.phpmussel"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=none
+EC=$?
+assert_exit_code "Exit code 0 with --scanner=none" 0 "$EC"
+assert_output_contains "Plugin still installed" "INSTALLED mod_attendance" "$OUT"
+assert_output_not_contains "No clamscan invocation" "Starting malware scan" "$OUT"
+assert_output_not_contains "No phpMussel invocation" "Starting phpMussel scan" "$OUT"
+if [ ! -d "$SCANDIR/.clamav/report" ] && [ ! -d "$SCANDIR/.phpmussel/report" ]; then
+    echo "  PASS: no scanner report directories were created"
+    ((PASS++))
+else
+    echo "  FAIL: scanner report directories exist despite --scanner=none"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --scanner=bogus is rejected before anything is applied ---"
+reset_mod_attendance
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=bogus
+EC=$?
+assert_exit_code "Nonzero exit for invalid scanner value" 1 "$EC"
+assert_output_contains "Names the invalid value" "Unknown --scanner value" "$OUT"
+assert_output_contains "Lists valid values" "clamscan" "$OUT"
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: nothing was installed when scanner validation failed"
+    ((PASS++))
+else
+    echo "  FAIL: plugin was installed despite invalid --scanner value"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --scanner=bogus is also rejected during a dry run ---"
+# Scanner validation happens before the dry-run check, so even a preview
+# invocation must reject a bad value rather than silently defaulting.
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --scanner=bogus
+EC=$?
+assert_exit_code "Nonzero exit for invalid scanner value on dry run" 1 "$EC"
+assert_output_contains "Names the invalid value on dry run" "Unknown --scanner value" "$OUT"
+echo ""
+
+echo "--- Test: --directory validation runs before --scanner validation ---"
+# With both a bad --directory and a bad --scanner, the directory error must
+# be reported first: there's no point validating a scanner against a
+# directory that can't be scanned at all, and pointing the user at a
+# scanner typo when the real problem is the path would be misleading.
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory=/tmp/does_not_exist_$$_order --scanner=bogus
+EC=$?
+assert_exit_code "Nonzero exit for bad directory + bad scanner" 1 "$EC"
+assert_output_contains "Reports the directory error" "Directory not found" "$OUT"
+assert_output_not_contains "Does not report the scanner error" "Unknown --scanner value" "$OUT"
+echo ""
+
+echo "--- Test: --scanner=phpmussel without signatures warns and installs anyway ---"
+# Move the signature directory aside so scanWithPhpMussel() takes its
+# "no signatures available" branch. A missing scanner is a WARN, not a
+# failure, matching the existing ClamAV behaviour when clamscan itself
+# is absent.
+PHP_SIGBACKUP=""
+if [ -d "$PHP_SIGDIR" ]; then
+    PHP_SIGBACKUP=$(mktemp -d)
+    mv "$PHP_SIGDIR" "$PHP_SIGBACKUP/phpmussel-signatures"
+fi
+reset_mod_attendance
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=phpmussel
+EC=$?
+assert_exit_code "Exit code 0 - missing signatures is a WARN, not a failure" 0 "$EC"
+assert_output_contains "Warns about missing phpMussel signatures" "no phpMussel signatures" "$OUT"
+assert_output_contains "Plugin still installed" "INSTALLED mod_attendance" "$OUT"
+if [ -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: plugin was installed despite the skipped phpMussel scan"
+    ((PASS++))
+else
+    echo "  FAIL: plugin was not installed when phpMussel scan was skipped"
+    ((FAIL++))
+fi
+if [ -n "$PHP_SIGBACKUP" ] && [ -d "$PHP_SIGBACKUP/phpmussel-signatures" ]; then
+    mv "$PHP_SIGBACKUP/phpmussel-signatures" "$PHP_SIGDIR"
+fi
+rm -rf "$PHP_SIGBACKUP"
+echo ""
+
+echo "--- Test: --scanner=phpmussel with signatures present runs cleanly ---"
+# Only runs when plugin:phpmuslescan:update-signatures has already been
+# executed (e.g. by test_plugin_phpmuslescan.sh, which this suite assumes
+# may run alongside this one).
+if [ -d "$PHP_SIGDIR" ] && [ -f "$PHP_SIGDIR/phpmussel.ini" ]; then
+    reset_mod_attendance
+    rm -rf "$SCANDIR/.phpmussel"
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=phpmussel
+    EC=$?
+    assert_exit_code "Exit code 0 for a clean plugin under phpMussel" 0 "$EC"
+    assert_output_contains "Invokes phpMussel" "Starting phpMussel scan" "$OUT"
+    assert_output_contains "Plugin installed" "INSTALLED mod_attendance" "$OUT"
+    if [ -s "$SCANDIR/.phpmussel/report/phpmussel.log" ]; then
+        echo "  PASS: phpMussel report log was written"
+        ((PASS++))
+    else
+        echo "  FAIL: expected a non-empty report at $SCANDIR/.phpmussel/report/phpmussel.log"
+        ((FAIL++))
+    fi
+else
+    echo "  SKIP: no phpMussel signatures present (run test_plugin_phpmuslescan.sh first)"
+fi
+echo ""
+
+echo "--- Test: --scanner=both runs clamscan and phpMussel ---"
+if [ -d "$PHP_SIGDIR" ] && [ -f "$PHP_SIGDIR/phpmussel.ini" ] && command -v clamscan >/dev/null 2>&1; then
+    reset_mod_attendance
+    rm -rf "$SCANDIR/.clamav" "$SCANDIR/.phpmussel"
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=both
+    EC=$?
+    assert_exit_code "Exit code 0 for --scanner=both on a clean plugin" 0 "$EC"
+    assert_output_contains "Invokes phpMussel" "Starting phpMussel scan" "$OUT"
+    assert_output_contains "Plugin installed" "INSTALLED mod_attendance" "$OUT"
+    if [ -s "$SCANDIR/.phpmussel/report/phpmussel.log" ]; then
+        echo "  PASS: phpMussel report log was written under --scanner=both"
+        ((PASS++))
+    else
+        echo "  FAIL: phpMussel report log missing under --scanner=both"
+        ((FAIL++))
+    fi
+else
+    echo "  SKIP: requires both phpMussel signatures and clamscan in PATH"
+fi
+echo ""
+
+# Restore a clean state so the following sections see mod_attendance at
+# the version they expect.
+reset_mod_attendance
+rm -rf "$SCANDIR"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
