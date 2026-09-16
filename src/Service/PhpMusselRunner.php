@@ -114,17 +114,27 @@ class PhpMusselRunner
 
         foreach ($intResults as $key => $result) {
             $result = (int) $result;
+            // phpMussel returns result keys in the form
+            // "HASH:FILESIZE:FILENAME" regardless of how the input was
+            // keyed, and the human-readable Format 3/4 message names the
+            // signature but NOT the file. Extract the filename so every
+            // line below names what was actually flagged — a report that
+            // says "something was infected" without saying which file is
+            // useless to the operator.
+            $filename = $this->filenameFromKey((string) $key);
 
             if ($result === 2) {
-                $infected[] = $key;
+                $infected[] = $filename;
                 $msg = $strResults[$key] ?? null;
-                $lines[] = 'INFECTED: ' . ($msg !== null ? $msg : $key);
+                $lines[] = 'INFECTED: ' . $filename
+                    . ($msg !== null ? ' — ' . $msg : '');
             } elseif ($result < 0) {
-                $errors[] = $key;
+                $errors[] = $filename;
                 $msg = $strResults[$key] ?? null;
-                $lines[] = 'SCAN ERROR: ' . ($msg !== null ? $msg : "$key (code $result)");
+                $lines[] = 'SCAN ERROR: ' . $filename
+                    . ($msg !== null ? ' — ' . $msg : " (code $result)");
             } elseif ($result === 0) {
-                $lines[] = "SKIP: $key (target not found)";
+                $lines[] = "SKIP: $filename (target not found)";
             }
             // $result === 1: clean — no output.
         }
@@ -162,5 +172,17 @@ class PhpMusselRunner
                 yield $file->getPathname();
             }
         }
+    }
+
+    /**
+     * phpMussel returns per-item result keys as "HASH:FILESIZE:FILENAME".
+     * Extract just the filename for report output. Falls back to the
+     * whole key if there's no colon — better to print something than
+     * nothing.
+     */
+    private function filenameFromKey(string $key): string
+    {
+        $pos = strrpos($key, ':');
+        return $pos === false ? $key : substr($key, $pos + 1);
     }
 }
