@@ -49,6 +49,8 @@ namespace Moosh2\Command\Plugin;
 use Moosh2\Bootstrap\BootstrapLevel;
 use Moosh2\Command\BaseHandler;
 use Moosh2\Service\ClamscanRunner;
+use Moosh2\Service\PhpMusselRunner;
+use Moosh2\Service\PhpMusselSignatureManager;
 use Moosh2\Service\PluginApiClient;
 use Moosh2\Service\PluginZipCache;
 use Moosh2\Service\VersionPhpParser;
@@ -62,10 +64,21 @@ class PluginListApply52Handler extends BaseHandler
 {
     private const SENTINEL_REMOVE_FILES = '-1';
     private const SENTINEL_UNINSTALL = '0';
-    
+
     // String versions of sentinels for more readable config files
     private const SENTINEL_REMOVE_FILES_STR = 'remove-files';
     private const SENTINEL_UNINSTALL_STR = 'uninstall';
+
+    /**
+     * Scanner name → relative path (from $configPluginDirectory) of the
+     * report log that scanner writes to. Used to build the post-install
+     * failure message so it points at the log that actually exists, not
+     * at every scanner's log regardless of which one ran.
+     */
+    private const SCANNER_REPORT_PATHS = [
+        'clamscan'  => '.clamav/report/clamav.log',
+        'phpmussel' => '.phpmussel/report/phpmussel.log',
+    ];
 
     /** @var string absolute path to the declarative plugin list directory (--directory) */
     private string $configPluginDirectory = '';
@@ -77,6 +90,9 @@ class PluginListApply52Handler extends BaseHandler
     private ?string $proxy = null;
     private ?string $token = null;
 
+    /** @var string[] which malware scanners to run after each install ('clamscan' and/or 'phpmussel') */
+    private array $scanners = ['clamscan'];
+
     public function configureCommand(Command $command): void
     {
         $command
@@ -84,12 +100,14 @@ class PluginListApply52Handler extends BaseHandler
             ->addOption('directory', 'd', InputOption::VALUE_REQUIRED, 'Directory holding one subdirectory per plugin (the declarative plugin list).', 'plugins')
             ->addOption('keep-going', 'k', InputOption::VALUE_NONE, "Don't abort on the first component that fails; process the rest and report every failure at the end.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
-            ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.');
+            ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
+            ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner to run after each install: clamscan, phpmussel, both, or none.', 'clamscan');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
             $command->addExampleUsage('Actually apply them', '--run');
             $command->addExampleUsage('Apply only mod_board', '--run mod_board');
+            $command->addExampleUsage('Scan installs with both ClamAV and phpMussel', '--run --scanner=both');
         }
     }
 
@@ -102,11 +120,14 @@ class PluginListApply52Handler extends BaseHandler
         $this->token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
         $this->moodleroot = rtrim($CFG->dirroot, '/');
 
-        // Default to moodleroot/plugins if the option is not explicitly set.
+        // Validate --directory before --scanner. The scanner value can't be
+        // acted on at all if there's no directory to scan, and a bad
+        // directory is the more fundamental error - reporting it first
+        // avoids sending users off to fix a scanner typo when the real
+        // problem is that they pointed at the wrong path.
         $basedir = $input->getOption('directory');
         if ($basedir === 'plugins') {
-            // Check if the option was explicitly provided or using default.
-            // Since default is 'plugins', we need to resolve it relative to moodleroot.
+            // Option wasn't explicitly provided; default to moodleroot/plugins.
             $basedir = $this->moodleroot . '/plugins';
         } else {
             $basedir = rtrim($basedir, '/');
@@ -120,6 +141,13 @@ class PluginListApply52Handler extends BaseHandler
             return Command::FAILURE;
         }
         $this->configPluginDirectory = realpath($basedir);
+
+        try {
+            $this->scanners = $this->parseScannerOption((string) $input->getOption('scanner'));
+        } catch (\RuntimeException $e) {
+            $output->writeln('<e>' . $e->getMessage() . '</e>');
+            return Command::FAILURE;
+        }
 
         $components = $input->getArgument('plugin_name');
         if (empty($components)) {
@@ -281,11 +309,17 @@ class PluginListApply52Handler extends BaseHandler
             throw new \RuntimeException("requested: $displayRequested could not be upgraded, $displayCurrent is still deployed, exiting");
         }
 
-        $scanresult = $this->scanForMalware($component, $componentpath, $output);
-        if ($scanresult !== ClamscanRunner::EXIT_CLEAN) {
+        $scan = $this->runScanners($component, $componentpath, $output);
+        if ($scan['exitCode'] !== ClamscanRunner::EXIT_CLEAN) {
+            // Point only at the log the failing scanner actually wrote,
+            // not at every scanner's log regardless of which ran.
+            $relativeLog = self::SCANNER_REPORT_PATHS[$scan['failedScanner']] ?? '';
+            $logPath = $relativeLog !== ''
+                ? "{$this->configPluginDirectory}/{$relativeLog}"
+                : $this->configPluginDirectory;
             throw new \RuntimeException(
-                'malware scan ' . ($scanresult === ClamscanRunner::EXIT_MALWARE_FOUND ? 'found malware' : 'failed')
-                . " (exit $scanresult) after installing - see {$this->configPluginDirectory}/.clamav/report/clamav.log",
+                'malware scan ' . ($scan['exitCode'] === ClamscanRunner::EXIT_MALWARE_FOUND ? 'found malware' : 'failed')
+                . " (exit {$scan['exitCode']}) after installing - see $logPath",
             );
         }
 
@@ -319,12 +353,12 @@ class PluginListApply52Handler extends BaseHandler
     /**
      * Normalize a requested version string to one of the sentinel constants
      * or the numeric version.
-     * 
+     *
      * Recognizes:
      *   - "-1" or "remove-files" (case-insensitive) -> SENTINEL_REMOVE_FILES
      *   - "0" or "uninstall" (case-insensitive) -> SENTINEL_UNINSTALL
      *   - Any other numeric string -> returned as-is
-     * 
+     *
      * @param string $requested The raw requested version from the version file
      * @return string Normalized version string (sentinel constant or numeric)
      * @throws \RuntimeException if the version is not a valid integer or recognized sentinel
@@ -333,21 +367,21 @@ class PluginListApply52Handler extends BaseHandler
     {
         $trimmed = trim($requested);
         $lower = strtolower($trimmed);
-        
+
         // Check for string sentinels first (case-insensitive)
         if ($lower === strtolower(self::SENTINEL_REMOVE_FILES_STR)) {
             return self::SENTINEL_REMOVE_FILES;
         }
-        
+
         if ($lower === strtolower(self::SENTINEL_UNINSTALL_STR)) {
             return self::SENTINEL_UNINSTALL;
         }
-        
+
         // Check for numeric sentinels
         if ($trimmed === self::SENTINEL_REMOVE_FILES || $trimmed === self::SENTINEL_UNINSTALL) {
             return $trimmed;
         }
-        
+
         // Must be a valid integer
         if (!preg_match('/^-?[0-9]+$/', $trimmed)) {
             throw new \RuntimeException(
@@ -355,7 +389,7 @@ class PluginListApply52Handler extends BaseHandler
                 "(valid: -1, 0, 'remove-files', 'uninstall')"
             );
         }
-        
+
         return $trimmed;
     }
 
@@ -366,7 +400,7 @@ class PluginListApply52Handler extends BaseHandler
     private function isRemoveFilesSentinel(string $version): bool
     {
         $trimmed = trim($version);
-        return $trimmed === self::SENTINEL_REMOVE_FILES || 
+        return $trimmed === self::SENTINEL_REMOVE_FILES ||
                strtolower($trimmed) === strtolower(self::SENTINEL_REMOVE_FILES_STR);
     }
 
@@ -377,7 +411,7 @@ class PluginListApply52Handler extends BaseHandler
     private function isUninstallSentinel(string $version): bool
     {
         $trimmed = trim($version);
-        return $trimmed === self::SENTINEL_UNINSTALL || 
+        return $trimmed === self::SENTINEL_UNINSTALL ||
                strtolower($trimmed) === strtolower(self::SENTINEL_UNINSTALL_STR);
     }
 
@@ -920,13 +954,73 @@ class PluginListApply52Handler extends BaseHandler
     }
 
     // -------------------------------------------------------------------
-    // malware scan (reuses Moosh2\Service\ClamscanRunner)
+    // malware scanning
     // -------------------------------------------------------------------
+
+    /**
+     * Parse the --scanner option value into a list of scanner names.
+     *
+     * @return string[] zero or more of 'clamscan', 'phpmussel'
+     * @throws \RuntimeException on an unrecognised value
+     */
+    private function parseScannerOption(string $value): array
+    {
+        return match (strtolower(trim($value))) {
+            'none'      => [],
+            'clamscan'  => ['clamscan'],
+            'phpmussel' => ['phpmussel'],
+            'both'      => ['clamscan', 'phpmussel'],
+            default     => throw new \RuntimeException(
+                "Unknown --scanner value '$value' (valid: clamscan, phpmussel, both, none)",
+            ),
+        };
+    }
+
+    /**
+     * Run every scanner selected via --scanner, and return the worst exit
+     * code observed (CLEAN < MALWARE_FOUND < ERROR) together with the name
+     * of the scanner that produced it (or null when everything was clean).
+     * The caller uses failedScanner to point at the log the failing
+     * scanner actually wrote.
+     *
+     * Throws only for configuration errors; scanner unavailability is a
+     * WARN + CLEAN skip, matching the pre-existing ClamAV-only behaviour.
+     *
+     * A MALWARE_FOUND result short-circuits the remaining scanners: once
+     * the install has already failed, there's no value in running the
+     * second scanner on top.
+     *
+     * @return array{exitCode:int, failedScanner:?string}
+     */
+    private function runScanners(string $component, string $componentpath, OutputInterface $output): array
+    {
+        if ($this->scanners === []) {
+            return ['exitCode' => ClamscanRunner::EXIT_CLEAN, 'failedScanner' => null];
+        }
+
+        $worst = ClamscanRunner::EXIT_CLEAN;
+        $failedScanner = null;
+        foreach ($this->scanners as $scanner) {
+            $result = match ($scanner) {
+                'clamscan'  => $this->scanWithClamav($component, $componentpath, $output),
+                'phpmussel' => $this->scanWithPhpMussel($component, $componentpath, $output),
+                default     => throw new \RuntimeException("Unknown scanner '$scanner'"),
+            };
+            if ($result > $worst) {
+                $worst = $result;
+                $failedScanner = $scanner;
+            }
+            if ($result === ClamscanRunner::EXIT_MALWARE_FOUND) {
+                break;
+            }
+        }
+        return ['exitCode' => $worst, 'failedScanner' => $failedScanner];
+    }
 
     /**
      * @return int one of ClamscanRunner::EXIT_CLEAN / EXIT_MALWARE_FOUND / EXIT_ERROR
      */
-    private function scanForMalware(string $component, string $componentpath, OutputInterface $output): int
+    private function scanWithClamav(string $component, string $componentpath, OutputInterface $output): int
     {
         $binary = ClamscanRunner::findBinary();
         if ($binary === null) {
@@ -970,6 +1064,52 @@ class PluginListApply52Handler extends BaseHandler
         return $exitcode;
     }
 
+    /**
+     * @return int one of ClamscanRunner::EXIT_CLEAN / EXIT_MALWARE_FOUND / EXIT_ERROR
+     */
+    private function scanWithPhpMussel(string $component, string $componentpath, OutputInterface $output): int
+    {
+        $signatureManager = new PhpMusselSignatureManager();
+        $signatureDir = $signatureManager->getSignatureDir();
+        $configPath = $signatureManager->getConfigPath();
+
+        // Require BOTH signature files AND the phpmussel.ini that activates
+        // them. A directory with .hdb/.ndb/.db/.fdb files but no config is
+        // an interrupted update-signatures run: phpMussel's Loader would
+        // fall back to its ~40-file default active list, find none of them,
+        // and every scan would return EXIT_ERROR. Treating that as a hard
+        // install failure would be inconsistent with the "no signatures at
+        // all" case, which is already a warn-and-skip. The two conditions
+        // are the same failure from the operator's point of view: the
+        // scanner isn't usable, so skip it and let the install proceed.
+        if (!$this->dirHasFilesMatching($signatureDir, ['hdb', 'ndb', 'db', 'fdb'])
+            || !is_file($configPath)) {
+            $output->writeln(
+                "WARN: no phpMussel signatures available at $signatureDir (or config missing at $configPath), "
+                . "skipping phpMussel scan for $component (run: moosh plugin:phpmuslescan:update-signatures)",
+            );
+            return ClamscanRunner::EXIT_CLEAN;
+        }
+
+        if (!file_exists($componentpath)) {
+            throw new \RuntimeException("cannot scan $component: target path does not exist: $componentpath");
+        }
+
+        $reportdir = $this->configPluginDirectory . '/.phpmussel/report';
+        @mkdir($reportdir, 0755, true);
+
+        $output->writeln("Starting phpMussel scan for $component at $componentpath");
+        $runner = new PhpMusselRunner($signatureManager);
+        $result = $runner->scan($componentpath);
+
+        foreach (explode("\n", $result['output']) as $line) {
+            $output->writeln($line);
+        }
+        file_put_contents($reportdir . '/phpmussel.log', $result['output']);
+
+        return $result['exitCode'];
+    }
+
     private function dirHasFilesMatching(string $dir, array $extensions): bool
     {
         if (!is_dir($dir)) {
@@ -990,61 +1130,61 @@ class PluginListApply52Handler extends BaseHandler
     // .gitignore bookkeeping
     // -------------------------------------------------------------------
 
-private function addIgnorePathsToGitignore(string $component, string $componentdir, string $componentpath): void
-{
-    if (str_starts_with($component, 'package_')) {
-        [$lines, $exitcode] = $this->runScript($componentdir . '/bin/get_component_ignore_path.sh', []);
-        if ($exitcode !== 0) {
-            throw new \RuntimeException('bin/get_component_ignore_path.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
+    private function addIgnorePathsToGitignore(string $component, string $componentdir, string $componentpath): void
+    {
+        if (str_starts_with($component, 'package_')) {
+            [$lines, $exitcode] = $this->runScript($componentdir . '/bin/get_component_ignore_path.sh', []);
+            if ($exitcode !== 0) {
+                throw new \RuntimeException('bin/get_component_ignore_path.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
+            }
+            $ignorepaths = trim(implode("\n", $lines));
+        } else {
+            $ignorepaths = $componentpath;
         }
-        $ignorepaths = trim(implode("\n", $lines));
-    } else {
-        $ignorepaths = $componentpath;
-    }
 
-    if ($ignorepaths === '') {
-        return;
-    }
+        if ($ignorepaths === '') {
+            return;
+        }
 
-    foreach (preg_split('/\r\n|\r|\n/', $ignorepaths) as $ignorepath) {
-        $ignorepath = trim($ignorepath);
-        if ($ignorepath === '') {
-            continue;
-        }
-        
-        // package_* scripts report paths relative to the Moodle root;
-        // non-package componentpath is already absolute.
-        $absolute = str_starts_with($ignorepath, '/') ? $ignorepath : $this->moodleroot . '/' . $ignorepath;
-        $gitignore = $absolute . '/.gitignore';
-        
-        // Check if we need to add the ignore rule
-        if ($this->shouldAddGitignoreRule($gitignore)) {
-            file_put_contents($gitignore, "\n*", FILE_APPEND);
-            @chmod($gitignore, 0644 | (fileperms($gitignore) & 0777) | 0044);
+        foreach (preg_split('/\r\n|\r|\n/', $ignorepaths) as $ignorepath) {
+            $ignorepath = trim($ignorepath);
+            if ($ignorepath === '') {
+                continue;
+            }
+
+            // package_* scripts report paths relative to the Moodle root;
+            // non-package componentpath is already absolute.
+            $absolute = str_starts_with($ignorepath, '/') ? $ignorepath : $this->moodleroot . '/' . $ignorepath;
+            $gitignore = $absolute . '/.gitignore';
+
+            // Check if we need to add the ignore rule
+            if ($this->shouldAddGitignoreRule($gitignore)) {
+                file_put_contents($gitignore, "\n*", FILE_APPEND);
+                @chmod($gitignore, 0644 | (fileperms($gitignore) & 0777) | 0044);
+            }
         }
     }
-}
 
     /**
-    * Determine if a .gitignore file needs the "*" rule added.
-    * Returns true if:
-    * - The .gitignore file doesn't exist
-    * - The .gitignore exists but doesn't already have a rule that ignores everything
-    *
-    * @param string $gitignore Absolute path to the .gitignore file
-    * @return bool True if the "*" rule should be added
-    */
+     * Determine if a .gitignore file needs the "*" rule added.
+     * Returns true if:
+     * - The .gitignore file doesn't exist
+     * - The .gitignore exists but doesn't already have a rule that ignores everything
+     *
+     * @param string $gitignore Absolute path to the .gitignore file
+     * @return bool True if the "*" rule should be added
+     */
     private function shouldAddGitignoreRule(string $gitignore): bool
     {
         if (!is_file($gitignore)) {
             return true;
         }
-        
+
         $content = file_get_contents($gitignore);
         if ($content === false) {
             return true; // Can't read it, try to append
         }
-        
+
         // Check if there's already a rule that ignores everything in the current directory.
         // This matches: "*" (with optional whitespace), "/*", or just "*" with whitespace.
         // Also handles cases where "*" is on its own line or with comments.
@@ -1055,18 +1195,17 @@ private function addIgnorePathsToGitignore(string $component, string $componentd
             '/^[*][\s]*[^\/]/m',                // "*" with something after it (like "*." or "*~")
             '/^\/[*][\s]*$/m',                  // "/*"
             '/^[\s]*\/[*][\s]*$/m',             // "/*" with whitespace
-            '/^[*][\/]?[\s]*$/m'                // "*" or "*/" 
+            '/^[*][\/]?[\s]*$/m'                // "*" or "*/"
         ];
-        
+
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $content)) {
                 return false; // Already has a rule that ignores everything
             }
         }
-        
+
         return true; // No catch-all rule found, we should add it
     }
-
 
     // -------------------------------------------------------------------
     // package_* bin/ script execution
@@ -1098,10 +1237,10 @@ private function addIgnorePathsToGitignore(string $component, string $componentd
 
         $cwd = getcwd();
         chdir($this->moodleroot);
-        
+
         // Export MOODLEROOT environment variable for the external script.
         putenv('MOODLEROOT=' . $this->moodleroot);
-        
+
         exec($cmd . ' 2>&1', $output, $exitcode);
         chdir($cwd);
 
