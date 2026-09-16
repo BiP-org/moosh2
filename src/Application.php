@@ -152,6 +152,7 @@ use Moosh2\Command\Quiz\QuizDeleteAttemptCommand;
 use Moosh2\Command\Quiz\QuizExportCommand;
 use Moosh2\Command\Quiz\QuizQuestionAddCommand;
 use Moosh2\Command\Plugin\PluginClamscanCommand;
+use Moosh2\Command\Plugin\PluginClamscanUpdateSignaturesCommand;
 use Moosh2\Command\Plugin\PluginDownloadCommand;
 use Moosh2\Command\Plugin\PluginInstallCommand;
 use Moosh2\Command\Plugin\PluginListApplyCommand;
@@ -490,6 +491,7 @@ final class Application extends SymfonyApplication {
         $this->addCommand(new EnrolListCommand($this->moodleVersion));
         $this->addCommand(new EnrolModCommand($this->moodleVersion));
         $this->addCommand(new PluginClamscanCommand($this->moodleVersion));
+        $this->addCommand(new PluginClamscanUpdateSignaturesCommand());
         $this->addCommand(new PluginDownloadCommand($this->moodleVersion));
         $this->addCommand(new PluginInstallCommand($this->moodleVersion));
         $this->addCommand(new PluginListApplyCommand($this->moodleVersion));
