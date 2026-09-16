@@ -61,6 +61,7 @@ EXPECTED_FILES=(
     "whitelist.fp"
     "phpmussel_clamav.hdb"
     "phpmussel.hdb"
+    "phpmussel.ndb"
     "phpmussel.db"
     "phpmussel.fdb"
 )
@@ -73,6 +74,22 @@ for f in "${EXPECTED_FILES[@]}"; do
         ((FAIL++))
     fi
 done
+
+
+# Sanity-check that clamscan can actually load the downloaded directory.
+# This catches malformed / truncated / still-gzipped files that pass the
+# size check above but would make clamscan exit with code 2.
+if command -v clamscan >/dev/null 2>&1; then
+    clamscan -d "$SIGDIR" /dev/null >/dev/null 2>&1
+    if [ $? -le 1 ]; then
+        echo "  PASS: clamscan loaded the downloaded signature directory"
+        ((PASS++))
+    else
+        echo "  FAIL: clamscan could not load $SIGDIR"
+        ((FAIL++))
+    fi
+fi
+
 echo ""
 
 if ! command -v clamscan >/dev/null 2>&1; then

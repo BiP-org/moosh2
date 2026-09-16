@@ -6,18 +6,24 @@ class ClamavSignatureManager
 {
     private string $signatureDir;
 
-    /** @var array<string, string> URL => filename mapping */
+    /**
+     * URL => target filename (the name the file will have on disk,
+     * i.e. the *decompressed* name — ClamAV cannot read .gz databases).
+     *
+     * @var array<string, string>
+     */
     private const SOURCES = [
-        // InterServer
+        // InterServer (plain-text signature files served directly)
         'https://sigs.interserver.net/interserver256.hdb'    => 'interserver256.hdb',
         'https://sigs.interserver.net/interservertopline.db' => 'interservertopline.db',
         'https://sigs.interserver.net/shell.ldb'              => 'shell.ldb',
         'https://sigs.interserver.net/whitelist.fp'           => 'whitelist.fp',
-        // phpMussel — ClamAV-compatible
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/clamav/clamav.hdb'       => 'phpmussel_clamav.hdb',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.hdb'       => 'phpmussel.hdb',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.db'        => 'phpmussel.db',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.fdb'       => 'phpmussel.fdb',
+        // phpMussel — GitHub serves these gzipped (note the .gz suffix)
+        'https://raw.githubusercontent.com/phpMussel/Signatures/master/clamav/clamav.hdb.gz' => 'phpmussel_clamav.hdb',
+        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.hdb.gz' => 'phpmussel.hdb',
+        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.ndb.gz' => 'phpmussel.ndb',
+        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.db.gz'  => 'phpmussel.db',
+        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.fdb.gz' => 'phpmussel.fdb',
     ];
 
     public function __construct(?string $signatureDir = null)
@@ -31,9 +37,6 @@ class ClamavSignatureManager
         return $this->signatureDir;
     }
 
-    /**
-     * Ensure the signature directory exists.
-     */
     public function ensureDirectory(): void
     {
         if (!is_dir($this->signatureDir)) {
@@ -44,7 +47,7 @@ class ClamavSignatureManager
     /**
      * Download/update all signature files.
      *
-     * @return array<string, string> filename => status message
+     * @return array<string, string> target filename => status message
      */
     public function update(): array
     {
@@ -53,23 +56,40 @@ class ClamavSignatureManager
 
         foreach (self::SOURCES as $url => $filename) {
             $target = $this->signatureDir . '/' . $filename;
-            $content = @file_get_contents($url, false, stream_context_create([
-                'http' => ['timeout' => 60, 'user_agent' => 'moosh2-clamav-updater/1.0'],
+
+            $raw = @file_get_contents($url, false, stream_context_create([
+                'http' => [
+                    'timeout'         => 60,
+                    'user_agent'      => 'moosh2-clamav-updater/1.0',
+                    'follow_location' => 1,
+                ],
             ]));
 
-            if ($content === false || $content === '') {
+            if ($raw === false || $raw === '') {
                 $results[$filename] = "FAILED (could not download from $url)";
                 continue;
             }
 
+            // phpMussel serves .gz on GitHub. ClamAV itself only reads
+            // uncompressed .hdb/.ndb/.db/.fdb/.fp/.ldb/.ign2 files, so
+            // decompress here before writing to disk.
+            if (str_ends_with($url, '.gz')) {
+                $decoded = @gzdecode($raw);
+                if ($decoded === false || $decoded === '') {
+                    $results[$filename] = "FAILED (could not gunzip $url)";
+                    continue;
+                }
+                $raw = $decoded;
+            }
+
             // Basic sanity: signature files should not be tiny HTML error pages.
-            if (strlen($content) < 100 || str_contains($content, '<!DOCTYPE html>')) {
+            if (strlen($raw) < 50 || str_contains(substr($raw, 0, 512), '<!DOCTYPE html>')) {
                 $results[$filename] = "FAILED (invalid content from $url)";
                 continue;
             }
 
-            file_put_contents($target, $content);
-            $results[$filename] = sprintf('OK (%d bytes)', strlen($content));
+            file_put_contents($target, $raw);
+            $results[$filename] = sprintf('OK (%d bytes)', strlen($raw));
         }
 
         return $results;
