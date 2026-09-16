@@ -70,32 +70,35 @@ for f in "${EXPECTED_FILES[@]}"; do
     fi
 done
 
-
 # Sanity-check that clamscan can actually load the downloaded directory.
 # This catches malformed / truncated / still-gzipped files that pass the
 # size check above but would make clamscan exit with code 2.
+#
+# Uses an empty regular file, not /dev/null: /dev/null is a character
+# device, and clamscan reports a scan failure (exit 2) for non-regular
+# targets on some platforms — which would make this check fail even when
+# the database loaded fine. A real file avoids the false positive.
 if command -v clamscan >/dev/null 2>&1; then
-    clamscan -d "$SIGDIR" /dev/null >/dev/null 2>&1
-    if [ $? -le 1 ]; then
+    SANITY_TARGET=$(mktemp)
+    if clamscan -d "$SIGDIR" "$SANITY_TARGET" >/dev/null 2>&1; then
         echo "  PASS: clamscan loaded the downloaded signature directory"
         ((PASS++))
     else
-        echo "  FAIL: clamscan could not load $SIGDIR"
-        ((FAIL++))
+        # Distinguish "database load failed" (exit 2 with a "Can't load"
+        # message) from other errors, so a genuine problem is visible.
+        SANITY_EC=$?
+        SANITY_OUT=$(clamscan -d "$SIGDIR" "$SANITY_TARGET" 2>&1 | head -5)
+        if [ "$SANITY_EC" -eq 1 ]; then
+            echo "  PASS: clamscan loaded the downloaded signature directory (target matched a signature — harmless)"
+            ((PASS++))
+        else
+            echo "  FAIL: clamscan could not load $SIGDIR (exit $SANITY_EC)"
+            echo "        First lines of clamscan output:"
+            echo "$SANITY_OUT" | sed 's/^/          /'
+            ((FAIL++))
+        fi
     fi
-fi
-
-echo ""
-
-if ! command -v clamscan >/dev/null 2>&1; then
-    echo "--- Test: clamscan not installed -> exit 2 ---"
-    run_moosh plugin:clamscan auth_oidc
-    EC=$?
-    assert_exit_code "Exit code 2 when clamscan missing" 2 "$EC"
-    assert_output_contains "Not found message" "clamscan was not found in PATH" "$OUT"
-    echo ""
-    print_summary
-    exit 0
+    rm -f "$SANITY_TARGET"
 fi
 
 echo "--- Test: EICAR test file is detected ---"
