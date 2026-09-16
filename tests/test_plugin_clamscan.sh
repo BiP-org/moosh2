@@ -59,11 +59,6 @@ EXPECTED_FILES=(
     "interservertopline.db"
     "shell.ldb"
     "whitelist.fp"
-    "phpmussel_clamav.hdb"
-    "phpmussel.hdb"
-    "phpmussel.ndb"
-    "phpmussel.db"
-    "phpmussel.fdb"
 )
 for f in "${EXPECTED_FILES[@]}"; do
     if [ -f "$SIGDIR/$f" ] && [ -s "$SIGDIR/$f" ]; then

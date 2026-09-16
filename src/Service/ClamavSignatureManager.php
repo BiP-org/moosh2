@@ -18,12 +18,6 @@ class ClamavSignatureManager
         'https://sigs.interserver.net/interservertopline.db' => 'interservertopline.db',
         'https://sigs.interserver.net/shell.ldb'              => 'shell.ldb',
         'https://sigs.interserver.net/whitelist.fp'           => 'whitelist.fp',
-        // phpMussel — GitHub serves these gzipped (note the .gz suffix)
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/clamav/clamav.hdb.gz' => 'phpmussel_clamav.hdb',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.hdb.gz' => 'phpmussel.hdb',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.ndb.gz' => 'phpmussel.ndb',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.db.gz'  => 'phpmussel.db',
-        'https://raw.githubusercontent.com/phpMussel/Signatures/master/misc/phpmussel.fdb.gz' => 'phpmussel.fdb',
     ];
 
     public function __construct(?string $signatureDir = null)
