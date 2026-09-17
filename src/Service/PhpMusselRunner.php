@@ -11,6 +11,39 @@ class PhpMusselRunner
     public const EXIT_MALWARE_FOUND = 1;
     public const EXIT_ERROR         = 2;
 
+    /**
+     * Repo/CI metadata directories that are never part of a plugin's
+     * shipped payload. Skipped entirely (not descended into) rather than
+     * scanned-then-filtered: phpMussel's "filename manipulation" heuristic
+     * false-positives on dotfiles (a name with no basename before the
+     * first "." reads as an all-extension filename), and there's no
+     * value in scanning VCS/CI internals anyway.
+     *
+     * @var array<string>
+     */
+    private const EXCLUDED_DIRS = [
+        '.git',
+        '.github',
+        '.gitlab',
+        '.svn',
+        '.hg',
+    ];
+
+    /**
+     * Individual CI/repo-metadata dotfiles that can live at any level of
+     * the tree (not just the root) and are excluded for the same reason
+     * as EXCLUDED_DIRS above.
+     *
+     * @var array<string>
+     */
+    private const EXCLUDED_FILES = [
+        '.gitlab-ci.yml',
+        '.gitlab-ci.yaml',
+        '.travis.yml',
+        '.gitignore',
+        '.gitattributes',
+    ];
+
     private PhpMusselSignatureManager $signatureManager;
 
     public function __construct(?PhpMusselSignatureManager $signatureManager = null)
@@ -164,9 +197,23 @@ class PhpMusselRunner
      */
     private function iterateFiles(string $root): \Generator
     {
-        $it = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)
+        // SKIP_DOTS only skips the "." and ".." entries — it does NOT skip
+        // files/directories whose own name starts with a dot (.git,
+        // .github, .gitlab-ci.yml, ...). Those are filtered explicitly
+        // below via a RecursiveCallbackFilterIterator so excluded
+        // directories are never descended into at all.
+        $inner = new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS);
+        $filter = new \RecursiveCallbackFilterIterator(
+            $inner,
+            function (\SplFileInfo $current) {
+                $name = $current->getFilename();
+                if ($current->isDir()) {
+                    return !in_array($name, self::EXCLUDED_DIRS, true);
+                }
+                return !in_array($name, self::EXCLUDED_FILES, true);
+            },
         );
+        $it = new \RecursiveIteratorIterator($filter);
         foreach ($it as $file) {
             if ($file->isFile()) {
                 yield $file->getPathname();
