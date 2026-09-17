@@ -11,6 +11,7 @@ import { OutputFormatsPage } from '@/pages/OutputFormatsPage';
 import { CommandsPage } from '@/pages/CommandsPage';
 import { CommandDetailPage } from '@/pages/CommandDetailPage';
 import { SuperCombosPage } from '@/pages/SuperCombosPage';
+import { PluginListsPage } from '@/pages/PluginListsPage';
 
 function ScrollToHash() {
   const { pathname, hash } = useLocation();
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/commands" element={<CommandsPage />} />
               <Route path="/commands/:category/:command" element={<CommandDetailPage />} />
               <Route path="/super-combos" element={<SuperCombosPage />} />
+              <Route path="/plugin-lists" element={<PluginListsPage />} />
             </Route>
           </Routes>
         </HashRouter>

@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
   SidebarHeader,
 } from '@/components/ui/sidebar';
-import { Terminal, BookOpen, Layers, Settings, FileOutput, Home, Zap } from 'lucide-react';
+import { Terminal, BookOpen, Layers, Settings, FileOutput, Home, Zap, Package } from 'lucide-react';
 import { commands } from '@/data/commands';
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
   { to: '/global-options', label: 'Global Options', icon: Settings },
   { to: '/output-formats', label: 'Output Formats', icon: FileOutput },
   { to: '/super-combos', label: 'Super Combos', icon: Zap },
+  { to: '/plugin-lists', label: 'Plugin Lists', icon: Package },
   { to: '/commands', label: 'All Commands', icon: Terminal },
 ];
 
