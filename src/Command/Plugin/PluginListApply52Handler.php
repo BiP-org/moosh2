@@ -441,7 +441,7 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException('bin/get_requested_version.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
             }
-            $requested = trim(implode("\n", $lines));
+            $requested = $this->lastScriptLine($lines);
         } else {
             $requested = $this->readVersionFile($componentdir . '/version');
             if ($requested === null) {
@@ -464,7 +464,7 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException('bin/get_installed_version.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
             }
-            return trim(implode("\n", $lines));
+            return $this->lastScriptLine($lines);
         }
 
         $versionphp = $componentpath . '/version.php';
@@ -503,7 +503,7 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException('bin/get_component_path.sh exited with status ' . $exitcode . ': ' . implode("\n", $lines));
             }
-            $relative = trim(implode("\n", $lines));
+            $relative = $this->lastScriptLine($lines);
             if ($relative === '') {
                 throw new \RuntimeException('bin/get_component_path.sh produced no output');
             }
@@ -1245,6 +1245,36 @@ class PluginListApply52Handler extends BaseHandler
         chdir($cwd);
 
         return [$output, $exitcode];
+    }
+
+    /**
+     * Extract the actual return value from a runScript() capture.
+     *
+     * runScript() merges stderr into stdout (`2>&1`), and for package_*
+     * scripts that source moodle_plugins_lib.rc - currently only
+     * bin/get_installed_version.sh, bin/get_requested_version.sh and
+     * bin/get_component_path.sh - that library enables `set -x` whenever
+     * GitHub Actions debug logging is on (RUNNER_DEBUG=1), which writes a
+     * full shell trace to stderr. Without this, $lines would be a huge
+     * trace dump with the real value only as its last line, so any
+     * comparison against it (e.g. installed-version-equals-requested)
+     * would always fail - not because the check is wrong, but purely
+     * because debug logging happened to be enabled. These scripts only
+     * ever emit their actual result as the final line of output, so take
+     * that line specifically instead of the whole capture.
+     *
+     * Do NOT use this for bin/get_component_ignore_path.sh - that script
+     * legitimately returns multiple lines (one path per line), all of
+     * which are needed; see addIgnorePathsToGitignore().
+     *
+     * @param string[] $lines full captured stdout+stderr from runScript()
+     */
+    private function lastScriptLine(array $lines): string
+    {
+        if ($lines === []) {
+            return '';
+        }
+        return trim((string) $lines[array_key_last($lines)]);
     }
 
     // -------------------------------------------------------------------
