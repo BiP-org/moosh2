@@ -598,6 +598,138 @@ fi
 rm -rf "$DEPDIR"
 echo ""
 
+# ═══════════════════════════════════════════════════════════════════
+# Regression: package_* value-checks must survive RUNNER_DEBUG=1
+# ═══════════════════════════════════════════════════════════════════
+#
+# getInstalledVersion()/getRequestedVersion()/getComponentPath() shell out
+# to bin/*.sh for package_* components and capture stdout+stderr together
+# (runScript() uses `2>&1`). Real-world package_* plugins (e.g. Kaltura's)
+# have bin/get_installed_version.sh source a shared library that enables
+# `set -x` whenever GitHub Actions debug logging is on (RUNNER_DEBUG=1).
+# Before the fix, that trace was captured as part of "the installed
+# version" instead of being discarded, so the comparison against the
+# requested version never matched and every install under debug logging
+# was reported as "could not be upgraded" - regardless of whether the
+# file was actually there. This uses a minimal self-contained fixture
+# (no real plugin, no network) that reproduces just the one thing that
+# matters: a package_* script sourcing a library that does `set -x`
+# under RUNNER_DEBUG=1.
+
+PKGDIR=$(mktemp -d)
+mkdir -p "$PKGDIR/package_mooshtest/bin"
+
+# Stand-in for the shared library real package_* plugins source (e.g.
+# moodle_plugins_lib.rc). Only what matters for this regression: `set -x`
+# under RUNNER_DEBUG=1, plus a trivial installed-version lookup.
+cat > "$PKGDIR/mini_lib.rc" <<'RC'
+#!/bin/bash
+if [ "${RUNNER_DEBUG}" = "1" ]; then
+    set -x
+fi
+get_installed_version_mini() {
+    if [ -f "local/mooshtest/version.php" ]; then
+        grep -oP '\$plugin->version\s*=\s*\K[0-9]+' local/mooshtest/version.php
+    else
+        echo -1
+    fi
+}
+RC
+
+echo "2024010100" > "$PKGDIR/package_mooshtest/version"
+
+cat > "$PKGDIR/package_mooshtest/bin/get_requested_version.sh" <<'SH'
+#!/bin/bash
+__componentdir="$( cd -- "$(dirname "$0")/.." >/dev/null 2>&1; pwd -P )"
+cat "${__componentdir}/version"
+SH
+
+cat > "$PKGDIR/package_mooshtest/bin/get_component_path.sh" <<'SH'
+#!/bin/bash
+echo "local/mooshtest"
+SH
+
+cat > "$PKGDIR/package_mooshtest/bin/get_component_ignore_path.sh" <<'SH'
+#!/bin/bash
+# no extra ignore paths needed for this fixture
+true
+SH
+
+cat > "$PKGDIR/package_mooshtest/bin/install_requested_version.sh" <<'SH'
+#!/bin/bash
+set -e
+mkdir -p local/mooshtest
+cat > local/mooshtest/version.php <<PHP
+<?php
+\$plugin->version = ${2};
+\$plugin->component = 'local_mooshtest';
+PHP
+SH
+
+# The one script that matters: sources the shared (mini) library exactly
+# the way real package_* plugins source moodle_plugins_lib.rc, so it is
+# exposed to the same set -x pollution if runScript()'s value extraction
+# regresses.
+cat > "$PKGDIR/package_mooshtest/bin/get_installed_version.sh" <<'SH'
+#!/bin/bash
+__config_plugin_directory="$( cd -- "$(dirname "$0")/../.." >/dev/null 2>&1 ; pwd -P )"
+. "${__config_plugin_directory}"/mini_lib.rc
+get_installed_version_mini
+SH
+
+chmod +x "$PKGDIR"/package_mooshtest/bin/*.sh
+
+rm -rf "$MOODLE_PATH/local/mooshtest" 2>/dev/null
+
+echo "--- Test: package_* install succeeds normally (RUNNER_DEBUG unset) ---"
+unset RUNNER_DEBUG
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PKGDIR" --run
+EC=$?
+assert_exit_code "Exit code 0 without debug logging" 0 "$EC"
+assert_output_contains "Reports installed" "INSTALLED package_mooshtest" "$OUT"
+assert_output_not_contains "Does not report a bogus upgrade failure" "could not be upgraded" "$OUT"
+echo ""
+
+echo "--- Test: re-checking an already-installed package_* under RUNNER_DEBUG=1 ---"
+export RUNNER_DEBUG=1
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PKGDIR" --run
+EC=$?
+unset RUNNER_DEBUG
+assert_exit_code "Exit code 0 with debug logging on" 0 "$EC"
+assert_output_contains "Shows already-at, not a false upgrade failure" "already at" "$OUT"
+assert_output_not_contains "Does not report a bogus upgrade failure under debug logging" "could not be upgraded" "$OUT"
+echo ""
+
+echo "--- Test: a FRESH install under RUNNER_DEBUG=1 (the reported regression) ---"
+# This is the exact scenario from the original bug report: RUNNER_DEBUG=1
+# for the whole run (as GitHub Actions sets it whenever debug logging is
+# enabled), and package_* being installed for the first time - not just
+# re-checked. Before the fix, getInstalledVersion() returned the entire
+# `set -x` trace dump instead of "-1"/the real version, so this always
+# threw "could not be upgraded" regardless of the actual filesystem state.
+rm -rf "$MOODLE_PATH/local/mooshtest" 2>/dev/null
+echo "2024010200" > "$PKGDIR/package_mooshtest/version"
+export RUNNER_DEBUG=1
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PKGDIR" --run
+EC=$?
+unset RUNNER_DEBUG
+assert_exit_code "Exit code 0 for a fresh install under debug logging" 0 "$EC"
+assert_output_contains "Reports installed despite debug logging being on" "INSTALLED package_mooshtest" "$OUT"
+assert_output_not_contains "Does not falsely report the upgrade as failed" "could not be upgraded" "$OUT"
+if [ -f "$MOODLE_PATH/local/mooshtest/version.php" ]; then
+    echo "  PASS: version.php present after install under debug logging"
+    ((PASS++))
+else
+    echo "  FAIL: version.php missing after install under debug logging"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Cleaning up package_* regression fixture ---"
+rm -rf "$MOODLE_PATH/local/mooshtest" 2>/dev/null
+rm -rf "$PKGDIR"
+echo ""
+
 # ── Cleanup ──────────────────────────────────────────────────────
 
 echo "--- Cleaning up ---"
