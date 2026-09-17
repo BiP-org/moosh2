@@ -27,6 +27,7 @@ class PhpMusselRunner
         '.gitlab',
         '.svn',
         '.hg',
+        '.DS_Store',
     ];
 
     /**
