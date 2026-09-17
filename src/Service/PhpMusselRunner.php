@@ -27,7 +27,6 @@ class PhpMusselRunner
         '.gitlab',
         '.svn',
         '.hg',
-        '.DS_Store',
     ];
 
     /**
@@ -43,6 +42,7 @@ class PhpMusselRunner
         '.travis.yml',
         '.gitignore',
         '.gitattributes',
+        '.DS_Store',
     ];
 
     private PhpMusselSignatureManager $signatureManager;
