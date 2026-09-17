@@ -88,24 +88,32 @@ class PluginPhpmuslescan52Handler extends BaseHandler
         $cwd = rtrim($cwd, '/');
         $versionphp = $cwd . '/version.php';
 
+        if (!is_file($versionphp)) {
+            throw new \RuntimeException(
+                "No plugin name given and no version.php found in $cwd — " .
+                "run this from a plugin's root directory, or pass a plugin name to download and scan.",
+            );
+        }
+
         // Moodle's own webroot also has a version.php (core version:
         // $version/$release/$branch, no $plugin object). Checking only
         // for file-existence means running this command from the Moodle
         // root by mistake silently scans the entire codebase instead of
-        // failing — only a plugin's version.php sets $plugin->component.
-        if (!is_file($versionphp) || !$this->isPluginVersionFile($versionphp)) {
+        // failing — only a plugin's version.php assigns to $plugin->...
+        if (!$this->isPluginVersionFile($versionphp)) {
             throw new \RuntimeException(
-                "No plugin name given and no plugin version.php found in $cwd — " .
-                "run this from a plugin's root directory (not the Moodle root), or pass a plugin name to download and scan.",
+                "No plugin name given and version.php in $cwd doesn't look like a plugin's "
+                . "(no \$plugin->... assignment found — this looks like the Moodle root, not a plugin) — "
+                . "run this from a plugin's root directory, or pass a plugin name to download and scan.",
             );
         }
         return $cwd;
     }
 
     /**
-     * Distinguishes a plugin's version.php (sets $plugin->component) from
-     * Moodle core's root version.php (sets $version/$release/$branch, no
-     * $plugin object) without executing the file.
+     * Distinguishes a plugin's version.php (assigns to $plugin->...) from
+     * Moodle core's root version.php (sets bare $version/$release/$branch,
+     * no $plugin object) without executing the file.
      */
     private function isPluginVersionFile(string $versionphp): bool
     {
@@ -113,7 +121,7 @@ class PluginPhpmuslescan52Handler extends BaseHandler
         if ($contents === false) {
             return false;
         }
-        return (bool) preg_match('/\$plugin\s*->\s*component\b/', $contents);
+        return (bool) preg_match('/\$plugin\s*->\s*[A-Za-z_]/', $contents);
     }
 
     /**
