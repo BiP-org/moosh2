@@ -628,6 +628,7 @@ build_archive_zip() {
     local target="$3"
     local stage
     stage=$(mktemp -d)
+    mkdir -p "$(dirname "$target")"
     mkdir -p "$stage/$component"
     cat > "$stage/$component/version.php" <<PHP
 <?php
