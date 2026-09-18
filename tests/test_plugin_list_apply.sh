@@ -649,6 +649,50 @@ build_archive_zip() {
     stage=$(mktemp -d)
     mkdir -p "$(dirname "$target")"
     mkdir -p "$stage/$component"
+    mkdir -p "$stage/$component/lang/en"
+    cat > "$stage/$component/lang/en/${component#*_}.php" <<PHP
+<?php
+\$plugin->component = '${component}';
+\$plugin->version   = ${version};
+\$plugin->requires  = 2024100700;
+\$plugin->release   = '${version}';
+\$plugin->maturity  = MATURITY_STABLE;
+PHP
+
+    # 2. Generate the missing language pack file
+    # The 'pluginname' string is the only mandatory one for a plugin
+    # to be considered non-defective.
+    local pluginname
+    pluginname=$(echo "$component" | cut -d'_' -f2 | ucfirst) # e.g., mod_attendance -> Attendance
+    cat > "$stage/$component/lang/en/${component#*_}.php" <<PHP
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Language strings for component '${component}'.
+ *
+ * @package    ${component}
+ * @copyright  2026 Your Test Suite
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+\$string['pluginname'] = '${pluginname}';
+PHP
     cat > "$stage/$component/version.php" <<PHP
 <?php
 // Fake plugin built by tests/test_plugin_list_apply.sh. The version must
