@@ -21,6 +21,25 @@ echo ""
 # Clean up any leftover test plugins from previous runs
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 
+# ── Helper: reset compiled cache definitions ──────────────────────
+# Moodle caches its compiled cache definitions in dataroot. After
+# repeated install/uninstall cycles of the same plugin (this suite
+# installs and removes mod_attendance and theme_boost_union many
+# times), a stale definition can survive that references an
+# overrideclass from a since-removed plugin. cache_helper::purge_all(),
+# triggered by upgrade_noncore() inside plugin:list-apply, then fatals
+# with "The override class does not exist." Wiping the compiled
+# definitions forces Moodle to rebuild them from the current
+# filesystem on the next invocation.
+reset_cache_definitions() {
+    if [ -z "${DATAROOT:-}" ] || [ ! -d "$DATAROOT" ]; then
+        echo "  WARNING: DATAROOT not set; skipping cache-definition reset"
+        return 0
+    fi
+    sudo rm -f  "$DATAROOT/cache/core_component.php" 2>/dev/null
+    sudo rm -rf "$DATAROOT/muc" 2>/dev/null
+}
+
 echo "--- Test: Help ---"
 run_moosh plugin:list-apply --help
 assert_output_contains "Help description" "declarative plugin list" "$OUT"
@@ -617,8 +636,8 @@ echo ""
 ARCHDIR=$(mktemp -d)
 mkdir -p "$ARCHDIR/mod_attendance/original"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-
-FAKE_VERSION="999999999999"
+reset_cache_definitions
+FAKE_VERSION="9999999999"
 echo "$FAKE_VERSION" > "$ARCHDIR/mod_attendance/version"
 
 build_archive_zip() {
@@ -632,9 +651,16 @@ build_archive_zip() {
     mkdir -p "$stage/$component"
     cat > "$stage/$component/version.php" <<PHP
 <?php
-\$plugin->version = ${version};
+// Fake plugin built by tests/test_plugin_list_apply.sh. The version must
+// look like a real Moodle version (10-digit YYYYMMDDXX, optional .XX) or
+// upgrade_noncore()/plugin_manager can misparse it and take a code path
+// that fatals inside cache_helper::purge_all() with "The override class
+// does not exist."
 \$plugin->component = '${component}';
-\$plugin->requires = 2022112800;
+\$plugin->version   = ${version};
+\$plugin->requires  = 2024100700;
+\$plugin->release   = '${version}';
+\$plugin->maturity  = MATURITY_STABLE;
 PHP
     php -r '
         $stage = $argv[1];
