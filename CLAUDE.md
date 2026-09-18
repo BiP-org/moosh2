@@ -4,16 +4,20 @@
 
 **moosh2** is a rewrite of [Moosh (Moodle Shell)](https://github.com/tmuras/moosh) using Symfony Console 7.x. It provides CLI commands for managing Moodle installations. Licensed under GNU GPL v3+.
 
+This checkout is **bip-org/moosh2**, a fork of `tmuras/moosh`'s `2.x` branch (241 commits ahead as of issue #82). `composer.json` still names the upstream `tmuras2/moosh` package/homepage — that's upstream metadata, not a sign this fork is unmaintained. Default branch: `2.x`.
+
 - **PHP**: >= 8.3
 - **Moodle**: >= 5.2
-  - **Main dependency**: symfony/console ^7.0
+  - **Main dependencies**: symfony/console ^7.0, phpmussel/core ^3.7 (malware scanning, see `plugin:phpmuslescan`/`plugin:list-apply --scanner`)
+  - **PHP extensions required**: ext-dom, ext-pcre, ext-libxml, ext-zip
 - **Entry points**: `php moosh.php` or `php bin/moosh`
 
 ## Repository Structure
 
 ```
 src/
-├── Application.php              # Main Symfony Application, command registration
+├── Application.php              # Main Symfony Application, command registration,
+│                                 # global option definitions (--moodle-path, --user, ...)
 ├── Attribute/
 │   └── SinceVersion.php         # PHP attribute for Moodle version gating
 ├── Bootstrap/
@@ -24,15 +28,68 @@ src/
 ├── Command/
 │   ├── BaseCommand.php          # Abstract base — bootstraps Moodle then calls handle()
 │   ├── BaseHandler.php          # Abstract base for version-specific handlers
-│   └── Course/
-│       ├── CourseListCommand.php     # course:list command
-│       ├── CourseList52Handler.php   # Moodle 5.2 implementation
-│       └── CourseListHelperTrait.php # Shared course query helpers
-└── Output/
-    └── ResultFormatter.php      # Renders table/CSV/JSON output
+│   ├── BooleanFilterTrait.php, NumericFilterTrait.php, StdinIdsTrait.php
+│   │                             # Shared filter/argument-parsing helpers used across categories
+│   └── <Category>/              # ~55 category directories, each following the
+│                                 # {Name}Command.php + {Name}52Handler.php pattern below.
+│                                 # Notable ones beyond the obvious (Course, User, Activity, ...):
+│       Plugin/                  #   plugin:list-update, plugin:list-apply (declarative plugin
+│                                 #   lists — see below), plugin:install/uninstall/reinstall,
+│                                 #   plugin:clamscan, plugin:phpmuslescan, plugin:releasenotes,
+│                                 #   plugin:usage
+│       Apache/, Nginx/          #   webserver config parsing (missing-file detection)
+│       Sql/                     #   sql:select, sql:drop and friends
+│       Make/                    #   plugin:phar-style build tooling (see src/Service/Make/)
+├── Data/
+│   └── event_map.php            # Static lookup table (event class -> human description) used
+│                                 # by event:* / log export commands
+├── Output/
+│   ├── ResultFormatter.php      # Renders table/CSV/JSON output
+│   └── VerboseLogger.php        # -v/-vv-aware structured logging helper
+└── Service/                     # Business logic shared across command handlers, notably:
+    ├── PluginApiClient.php      # moodle.org plugins.json client (download.moodle.org API +
+    │                             # gist-mirror fallback), used by plugin:list-update/list-apply
+    ├── PluginZipCache.php       # Shared, version-keyed zip cache + zip validation helpers
+    │                             # (magic-byte check, version.php-vs-component check)
+    ├── VersionPhpParser.php     # Reads $plugin->version/->component/->dependencies from a
+    │                             # version.php via tokenizer, never include()/eval()s it
+    ├── ClamscanRunner.php, ClamavSignatureManager.php
+    ├── PhpMusselRunner.php, PhpMusselSignatureManager.php
+    ├── MarketplaceReleaseNotes(Client).php, MarketplaceScrapeException.php
+    ├── Apache/, Nginx/, Moodle/, Make/  # per-domain subdirectories
+    └── SystemClock.php, MockupClock.php, ClockInterface.php  # injectable clock for testability
 tests/
-    └── test_course_list.sh      # Integration test (requires live Moodle + PostgreSQL)
+    ├── common.sh                 # shared helpers: run_moosh, assert_*, print_summary, and a
+    │                             # per-dataroot lock so two test runs can't race the same Moodle
+    ├── run_all_tests.sh          # runs every test_*.sh, with ONLY_TESTS/SKIP_TESTS filters
+    └── test_*.sh                 # ~80 integration test files, one (or a small group) per
+                                  # command, mostly against a live Moodle 5.2 install
 ```
+
+### The declarative plugin list mechanism (`plugin:list-update` / `plugin:list-apply`)
+
+Not covered by the original moosh at all — this fork's largest addition. A "declarative plugin
+list" is a directory with one subdirectory per Frankenstyle component, each holding a `version`
+file (plus optional `checksum`, `requires`, `original/`, and `bin/` for `package_*` pseudo-
+components). `plugin:list-update` resolves the latest compatible version from moodle.org and
+writes `version`/`checksum`; `plugin:list-apply` reconciles a real Moodle install to match. Full
+user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementation pieces:
+
+- `PluginApiClient` — talks to `download.moodle.org/api/1.3/pluglist.php`, with a gist-mirror
+  fallback, and a 24h-TTL cache at `~/.moosh/plugins.json`. `findBestVersion()`'s two "genuinely not
+  on moodle.org" error strings (vs. its third, "not compatible with this Moodle release") are what
+  `plugin:list-apply --archive-fallback` pattern-matches on — don't casually reword them.
+- `PluginListUpdate52Handler` / `PluginListApply52Handler` — the two handlers, each dispatching on
+  three resolution paths per component (`bin/get_latest_plugin_version.sh` / `<component>.php` /
+  plain `plugins.json` lookup for update; `package_*` bin/ scripts vs. everything else for apply).
+- `--archive` (list-update) / `--archive-fallback` (list-apply) — long-term archival of the pinned
+  zip + a full `pluglist.php` snapshot for CI/forensics (NIS2/DSGVO traceability), and installing
+  from that archive if a version is later withdrawn from moodle.org. Both opt-in, never default.
+  `package_*` is unrelated to this — it exists solely for one-zip-contains-several-plugins bundles
+  (Kaltura is the only real-world example), not as any kind of "graduation path" for archived
+  components.
+- `checksum` (an MD5, pinned by list-update from `plugins.json`'s own `downloadmd5`) is verified by
+  list-apply before every install — hard failure on mismatch, warning (not a block) when absent.
 
 ## Common Commands
 
@@ -43,8 +100,12 @@ composer install
 # Run the tool against a Moodle installation
 php moosh.php course:list --moodle-path=/path/to/moodle
 
-# Run integration tests (requires MOODLE_DIR pointing to a working Moodle)
+# Run one integration test (requires MOODLE_DIR pointing to a working Moodle)
 MOODLE_DIR=/path/to/moodle bash tests/test_course_list.sh
+
+# Run the whole suite, or a filtered subset
+MOODLE_DIR=/path/to/moodle bash tests/run_all_tests.sh
+ONLY_TESTS=test_plugin_list_apply MOODLE_DIR=/path/to/moodle bash tests/run_all_tests.sh
 ```
 
 There is no unit test suite or linter configured yet. No Makefile.
@@ -143,6 +204,8 @@ VALUE=$(echo "$OUT" | grep foo | cut -d, -f1)
 ```
 
 Always run the relevant test script after making changes to verify no regressions.
+
+`common.sh` also takes a lock inside the Moodle dataroot (`.moosh-tests.lock`) before running, released on exit — so two test runs (locally, or two CI jobs) can't race the same Moodle install/database. A stale lock (dead PID) is reclaimed automatically on the next run; you shouldn't normally need to touch it by hand.
 
 ## Bash Command Style
 

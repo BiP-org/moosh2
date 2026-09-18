@@ -68,10 +68,44 @@ final class PluginApiClient
     private ?string $proxy;
     private ?string $token;
 
+    /** @var string|null which URL (API_URL or the fallback) this instance last actually fetched from */
+    private ?string $lastFetchUrl = null;
+
     public function __construct(?string $proxy = null, ?string $token = null)
     {
         $this->proxy = $proxy;
         $this->token = $token;
+    }
+
+    /**
+     * Path to a plain-text sidecar file recording which URL (API_URL or the
+     * mirror) last actually supplied the content at getCachePath() - kept
+     * so that a later `plugin:list-update --archive` run (see §3.1 of
+     * issue #82) can record accurate provenance even when this run reused
+     * an already-fresh cache and never called fetchPluginListContent()
+     * itself.
+     */
+    public static function getCacheSourcePath(): string
+    {
+        return self::getCachePath() . '.source';
+    }
+
+    /**
+     * The URL (API_URL or the MOOSH2_PLUGLIST_MIRROR_URL-overridden
+     * fallback) that supplied the content currently sitting at
+     * getCachePath(), as recorded the last time it was actually fetched -
+     * not necessarily by this object instance. Returns null if the cache
+     * predates this tracking (upgraded from an older moosh2) or the
+     * sidecar file is otherwise missing/unreadable.
+     */
+    public static function getPluginListSourceUrl(): ?string
+    {
+        $path = self::getCacheSourcePath();
+        if (!is_file($path)) {
+            return null;
+        }
+        $content = trim((string) file_get_contents($path));
+        return $content === '' ? null : $content;
     }
 
     /**
@@ -117,6 +151,11 @@ final class PluginApiClient
 
         $content = $this->fetchPluginListContent();
         file_put_contents($cachePath, $content);
+        // Record which URL actually supplied this content, for --archive's
+        // provenance file (§3.1 of issue #82) - written next to the cache
+        // itself (not tracked only on this instance) since a later
+        // command/process may reuse the cache without ever fetching again.
+        file_put_contents(self::getCacheSourcePath(), $this->lastFetchUrl . "\n");
 
         return true;
     }
@@ -139,7 +178,9 @@ final class PluginApiClient
     private function fetchPluginListContent(): string
     {
         try {
-            return $this->fetchWithUserAgentFallback(self::API_URL, expectJson: true);
+            $content = $this->fetchWithUserAgentFallback(self::API_URL, expectJson: true);
+            $this->lastFetchUrl = self::API_URL;
+            return $content;
         } catch (HttpRequestException $primaryException) {
             $fallbackUrl = $this->getFallbackUrl();
             if ($fallbackUrl === null) {
@@ -157,6 +198,7 @@ final class PluginApiClient
                 throw $primaryException;
             }
 
+            $this->lastFetchUrl = $fallbackUrl;
             return $content;
         }
     }

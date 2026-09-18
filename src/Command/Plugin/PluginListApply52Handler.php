@@ -93,6 +93,18 @@ class PluginListApply52Handler extends BaseHandler
     /** @var string[] which malware scanners to run after each install ('clamscan' and/or 'phpmussel') */
     private array $scanners = ['clamscan'];
 
+    /** @var bool stashed --archive-fallback (issue #82 §3.2) */
+    private bool $archiveFallback = false;
+
+    /** @var bool stashed --suppress-lifecycle-warnings (issue #82 §6.3) */
+    private bool $suppressLifecycleWarnings = false;
+
+    /** @var string stashed --archive-annotation-level ("warning"|"notice"), issue #82 §6.3 */
+    private string $archiveAnnotationLevel = 'warning';
+
+    /** @var array<string,string> component => archived version, for this run's end-of-run summary (§6.3) */
+    private array $archivedComponents = [];
+
     public function configureCommand(Command $command): void
     {
         $command
@@ -101,7 +113,18 @@ class PluginListApply52Handler extends BaseHandler
             ->addOption('keep-going', 'k', InputOption::VALUE_NONE, "Don't abort on the first component that fails; process the rest and report every failure at the end.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
-            ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner to run after each install: clamscan, phpmussel, both, or none.', 'clamscan');
+            ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner to run after each install: clamscan, phpmussel, both, or none.', 'clamscan')
+            ->addOption('archive-fallback', null, InputOption::VALUE_NONE,
+                "When a component can't be resolved on moodle.org (withdrawn/expired version), install from "
+                . "<component>/original/*.zip if one was archived (see plugin:list-update --archive) instead "
+                . "of failing.")
+            ->addOption('archive-annotation-level', null, InputOption::VALUE_REQUIRED,
+                'GitHub Actions annotation level for the archived-component lifecycle summary: '
+                . '"warning" (default) or "notice".', 'warning')
+            ->addOption('suppress-lifecycle-warnings', null, InputOption::VALUE_NONE,
+                'Silence both the missing-checksum warning (see --archive-fallback) and the archived-'
+                . 'component summary for this run - e.g. a baseline "reproduce current production state" '
+                . 'run that should not repeat warnings a later, real upgrade run will already surface.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
@@ -149,6 +172,15 @@ class PluginListApply52Handler extends BaseHandler
             return Command::FAILURE;
         }
 
+        $this->archiveFallback = (bool) $input->getOption('archive-fallback');
+        $this->suppressLifecycleWarnings = (bool) $input->getOption('suppress-lifecycle-warnings');
+        $this->archiveAnnotationLevel = strtolower((string) $input->getOption('archive-annotation-level'));
+        if (!in_array($this->archiveAnnotationLevel, ['warning', 'notice'], true)) {
+            $output->writeln('<e>--archive-annotation-level must be "warning" or "notice"</e>');
+            return Command::FAILURE;
+        }
+        $this->archivedComponents = [];
+
         $components = $input->getArgument('plugin_name');
         if (empty($components)) {
             $components = $this->discoverComponents($this->configPluginDirectory);
@@ -188,12 +220,33 @@ class PluginListApply52Handler extends BaseHandler
             }
         }
 
+        if (!empty($this->archivedComponents) && !$this->suppressLifecycleWarnings) {
+            $labels = [];
+            foreach ($this->archivedComponents as $comp => $ver) {
+                $labels[] = "$comp ($ver)";
+            }
+            $summary = 'Archived component(s) in use (action needed - no longer available on moodle.org): '
+                . implode(', ', $labels);
+            if ($this->isRunningInCi()) {
+                $output->writeln("::{$this->archiveAnnotationLevel} title=Archived plugin components in use::$summary");
+            } else {
+                $output->writeln($summary);
+            }
+        }
+
         if (!empty($failed)) {
             $output->writeln('Failed component(s): ' . implode(', ', $failed));
             return Command::FAILURE;
         }
 
         return Command::SUCCESS;
+    }
+
+    /** True under GitHub Actions (and most other CI systems, which set the same $CI convention). */
+    private function isRunningInCi(): bool
+    {
+        $ci = getenv('CI');
+        return $ci !== false && $ci !== '' && strtolower($ci) !== 'false';
     }
 
     /**
@@ -324,7 +377,15 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $this->addIgnorePathsToGitignore($component, $componentdir, $componentpath);
-        $output->writeln("INSTALLED $component: $displayCurrent -> $displayRequested");
+
+        if (isset($this->archivedComponents[$component])) {
+            $output->writeln(
+                "ARCHIVED $component: installed from local archive ({$this->archivedComponents[$component]}) "
+                . '- not available on moodle.org, see plugin:list-update --archive documentation',
+            );
+        } else {
+            $output->writeln("INSTALLED $component: $displayCurrent -> $displayRequested");
+        }
     }
 
     private function runAlwaysRunHookIfPresent(string $component, string $componentdir, OutputInterface $output): void
@@ -685,15 +746,39 @@ class PluginListApply52Handler extends BaseHandler
         raise_memory_limit(MEMORY_EXTRA);
 
         $client = new PluginApiClient($this->proxy, $this->token);
-        $version = $client->findBestVersion($component, (string) moodle_major_version(), $requestedversion, true);
 
         $tempDir = sys_get_temp_dir() . '/moosh_plugin_list_apply_' . uniqid();
         mkdir($tempDir, 0755, true);
 
+        $usedArchive = false;
+        $archivedVersion = null;
+
         try {
-            $output->writeln("Downloading $component {$version->version}");
             $zipFile = $tempDir . '/' . $component . '.zip';
-            $client->downloadFile($version->downloadurl, $zipFile);
+
+            try {
+                $version = $client->findBestVersion($component, (string) moodle_major_version(), $requestedversion, true);
+                $output->writeln("Downloading $component {$version->version}");
+                $client->downloadFile($version->downloadurl, $zipFile);
+            } catch (\RuntimeException $e) {
+                // §3.2: only a "component missing entirely" / "version not
+                // found" failure is eligible for the archive fallback - a
+                // genuine network failure, bad token, or malformed
+                // plugins.json should still fail loudly, not be silently
+                // swallowed as if it were a legitimate withdrawn-version
+                // scenario. Also never on by default - --archive-fallback
+                // must be explicitly requested.
+                if (!$this->archiveFallback || !self::isPluginNotFoundError($e)) {
+                    throw $e;
+                }
+                $archivedVersion = $this->installFromArchive($component, $componentdir, $requestedversion, $zipFile, $output);
+                if ($archivedVersion === null) {
+                    // No archive found (or none usable) either - re-throw
+                    // the original moodle.org failure, unchanged.
+                    throw $e;
+                }
+                $usedArchive = true;
+            }
 
             // Fail fast on anything that isn't actually a zip (an error
             // page, a truncated download, ...) before ever handing it to
@@ -706,8 +791,18 @@ class PluginListApply52Handler extends BaseHandler
             // actually declares the Frankenstyle component we asked for.
             // Catches a stale/incorrect downloadurl (or a Marketplace/API
             // mixup) silently installing the wrong plugin under this
-            // component's name.
+            // component's name. Applies identically to an archive-sourced
+            // zip - a drifted archive shouldn't install under the wrong
+            // component's name either.
             PluginZipCache::assertZipComponent($zipFile, $component);
+
+            // §3.4: verify (or warn about a missing) pinned checksum - for
+            // a freshly-downloaded zip and an archive-sourced one alike.
+            $this->verifyChecksum($component, $componentdir, $zipFile, $usedArchive, $output);
+
+            if ($usedArchive) {
+                $this->archivedComponents[$component] = $archivedVersion;
+            }
 
             $extractDir = $tempDir . '/extracted';
             mkdir($extractDir, 0755, true);
@@ -746,6 +841,119 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $this->resetPluginCaches();
+    }
+
+    /**
+     * §3.2: does $e's message match one of PluginApiClient::findBestVersion()'s
+     * two "this component/version genuinely isn't on moodle.org" failure
+     * strings - as opposed to its third ("not supported for Moodle
+     * $release") or any other \RuntimeException, which a local archive
+     * can't fix and shouldn't be treated as if it could.
+     */
+    private static function isPluginNotFoundError(\RuntimeException $e): bool
+    {
+        $message = $e->getMessage();
+        if (str_contains($message, 'not found in the moodle.org directory')) {
+            return true;
+        }
+        return (bool) preg_match('/^Could not find .* version/', $message);
+    }
+
+    /**
+     * §3.2: install-from-archive fallback. Looks for exactly one zip under
+     * <componentdir>/original/ (written by plugin:list-update --archive,
+     * see issue #82 §3.1) and copies it to $targetZipPath so the caller
+     * can fall straight through into the same
+     * assertZipMagicBytes/assertZipComponent/extract/dependency-resolve/
+     * move pipeline used for a fresh moodle.org download - not a separate,
+     * hand-rolled install path.
+     *
+     * @return string|null the archived version (parsed from the zip's
+     *   filename), or null if no archive exists - the caller re-throws the
+     *   original moodle.org failure in that case
+     * @throws \RuntimeException if more than one zip is found under
+     *   original/ (ambiguous - the archive convention keeps exactly one at
+     *   a time) or the copy itself fails
+     */
+    private function installFromArchive(string $component, string $componentdir, string $requestedversion, string $targetZipPath, OutputInterface $output): ?string
+    {
+        $archivedir = $componentdir . '/original';
+        if (!is_dir($archivedir)) {
+            return null;
+        }
+
+        $zips = glob($archivedir . '/*.zip') ?: [];
+        if (count($zips) === 0) {
+            return null;
+        }
+        if (count($zips) > 1) {
+            throw new \RuntimeException(
+                "multiple archived zips found in $archivedir - expected exactly one ("
+                . implode(', ', array_map('basename', $zips)) . ')',
+            );
+        }
+        $archivedZip = $zips[0];
+
+        $output->writeln(
+            "$component: version $requestedversion not resolvable on moodle.org - "
+            . 'falling back to archived zip ' . basename($archivedZip),
+        );
+
+        if (!copy($archivedZip, $targetZipPath)) {
+            throw new \RuntimeException("could not copy archived zip $archivedZip to $targetZipPath");
+        }
+
+        $base = basename($archivedZip, '.zip');
+        $prefix = $component . '-';
+        return str_starts_with($base, $prefix) ? substr($base, strlen($prefix)) : $requestedversion;
+    }
+
+    /**
+     * §3.4: verify a zip (freshly downloaded or archive-sourced, see
+     * $fromArchive) against <componentdir>/checksum, the md5 pinned by
+     * plugin:list-update (PluginListUpdate52Handler::reconcileChecksum()).
+     *
+     * A mismatch is a hard failure - don't install a zip that doesn't
+     * match its pinned checksum, downloaded fresh or from the archive
+     * alike. A missing checksum file only warns (doesn't block) - failing
+     * hard here would break every existing declarative plugin list that
+     * predates this checksum-pinning convention, and some plugins already
+     * fell out of the moodle.org directory before it existed for them, so
+     * plugin:list-update can no longer backfill one on its own.
+     *
+     * @throws \RuntimeException on a checksum mismatch
+     */
+    private function verifyChecksum(string $component, string $componentdir, string $zipFile, bool $fromArchive, OutputInterface $output): void
+    {
+        $checksumfile = $componentdir . '/checksum';
+
+        if (!is_file($checksumfile)) {
+            if ($this->suppressLifecycleWarnings) {
+                return;
+            }
+            $howto = $fromArchive
+                ? "md5sum $componentdir/original/*.zip > $checksumfile"
+                : "md5sum $componentdir/original/*.zip > $checksumfile (once archived via plugin:list-update "
+                    . "--archive), or md5sum <the zip you're sourcing this plugin from> > $checksumfile";
+            $message = "$component: no checksum pinned at $checksumfile - the "
+                . ($fromArchive ? 'archived' : 'downloaded') . ' zip could not be integrity-verified against a '
+                . "known-good value. Create it by hand once you have a trusted zip, e.g.: $howto";
+            if ($this->isRunningInCi()) {
+                $output->writeln("::warning title=Missing plugin checksum::$message");
+            } else {
+                $output->writeln("WARNING $message");
+            }
+            return;
+        }
+
+        $expected = trim((string) file_get_contents($checksumfile));
+        $actual = hash_file('md5', $zipFile);
+        if ($expected === '' || !hash_equals($expected, $actual)) {
+            throw new \RuntimeException(
+                "checksum mismatch for $component: $checksumfile expects '$expected', "
+                . ($fromArchive ? 'archived' : 'downloaded') . " zip is '$actual'",
+            );
+        }
     }
 
     /**

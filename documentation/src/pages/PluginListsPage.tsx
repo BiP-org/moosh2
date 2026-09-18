@@ -190,8 +190,16 @@ export function PluginListsPage() {
   <type>_<name>/                      <- one directory per Frankenstyle component
     version                           <- required (or a bin/ script, see package_*)
     checksum                          <- optional, md5 of the pinned zip (auto-pinned
-                                          by list-update, verified nowhere by
-                                          list-apply itself but useful for audit/CI)
+                                          by list-update --archive or list-update
+                                          itself; verified by list-apply before
+                                          every install/upgrade, see §6)
+    original/                         <- optional, written only by list-update
+                                          --archive, read by list-apply
+                                          --archive-fallback; see §6
+      <component>-<version>.zip
+      pluglist.json
+      pluglist-entry.json
+      pluglist.source
     requires                          <- optional, one Frankenstyle component name
                                           per line; installed first, recursively
     support_status                    <- auto-written by list-update when no version
@@ -309,7 +317,7 @@ local_sharingcart`}</CodeBlock>
     get_component_ignore_path.sh    <- used by list-apply
     install_requested_version.sh    <- used by list-apply
     uninstall_requested_version.sh  <- used by list-apply
-    install_requested_always_run.sh <- used by list-apply, see §6`}</CodeBlock>
+    install_requested_always_run.sh <- used by list-apply, see §7`}</CodeBlock>
 
         <p className="text-muted-foreground">
           Every script is invoked with <InlineCode>cwd</InlineCode> set to the Moodle root, exactly as if you&apos;d{' '}
@@ -514,9 +522,163 @@ echo "$latest"`}</CodeBlock>
         </p>
       </section>
 
-      {/* ── 6. Patching ──────────────────────────────────────────── */}
+      {/* ── 6. Archiving & checksum verification ────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">6. Patching a plugin after installation</h2>
+        <h2 className="text-xl font-semibold">6. Archiving for CI/forensics &amp; checksum verification</h2>
+        <p className="text-muted-foreground">
+          <InlineCode>--archive-fallback</InlineCode> is unrelated to <InlineCode>package_*</InlineCode>
+          (§5) &mdash; that mechanism exists solely so a single download can contain several bundled
+          plugins. This section is about a single, ordinary component whose pinned version is later
+          withdrawn from moodle.org entirely.
+        </p>
+        <p className="text-muted-foreground">
+          moodle.org can, and does, withdraw specific plugin versions from its public directory &mdash;
+          a security issue, a licence change, or the maintainer simply removing an old release. Once
+          that happens, <InlineCode>plugins.json</InlineCode> no longer lists it and{' '}
+          <InlineCode>plugin:list-apply</InlineCode> can&apos;t download it anymore, even though your{' '}
+          <InlineCode>version</InlineCode> file still (correctly) pins it &mdash; and for NIS2/DSGVO-style
+          supply-chain traceability, you may need to prove <em>what was actually live</em> at the moment
+          you pinned it, not just what you can still download today. <InlineCode>--archive</InlineCode> and{' '}
+          <InlineCode>--archive-fallback</InlineCode> exist for exactly this.
+        </p>
+
+        <h3 className="text-lg font-semibold">6.1 plugin:list-update --archive</h3>
+        <p className="text-muted-foreground">
+          Whenever a version bump is actually written (not on a dry run, and not for a component left
+          pinned at <InlineCode>uninstall</InlineCode>/<InlineCode>remove-files</InlineCode>),{' '}
+          <InlineCode>--archive</InlineCode> writes four files into{' '}
+          <InlineCode>{'<component>/original/'}</InlineCode>:
+        </p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>File</TableHead>
+              <TableHead>Contents</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell className="font-mono text-sm">{'<component>-<version>.zip'}</TableCell>
+              <TableCell className="text-muted-foreground">
+                The exact zip that was downloaded and pinned &mdash; reused via the same
+                cache-then-download path as checksum pinning, no separate download.
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-mono text-sm">{'pluglist.json'}</TableCell>
+              <TableCell className="text-muted-foreground">
+                The <strong>full, byte-exact</strong> <InlineCode>pluglist.php</InlineCode> (or mirror)
+                response, not just this component&apos;s entry &mdash; the stronger evidentiary artifact
+                for forensic purposes than anything derived from it. Deliberately left{' '}
+                <strong>uncompressed</strong> so it diffs cleanly in a GitHub pull request; no new HTTP
+                request is made to produce it, since <InlineCode>list-update</InlineCode> already
+                refreshed its own cache earlier in the same run.
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-mono text-sm">{'pluglist-entry.json'}</TableCell>
+              <TableCell className="text-muted-foreground">
+                Just this component&apos;s own entry from the response above &mdash; small and
+                human-readable directly in a PR diff, without needing to open the full snapshot.
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-mono text-sm">{'pluglist.source'}</TableCell>
+              <TableCell className="text-muted-foreground">
+                One line: which URL (moodle.org&apos;s API, or the mirror it falls back to) actually
+                supplied the snapshot above.
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <p className="text-muted-foreground">
+          Only <InlineCode>{'<component>-<version>.zip'}</InlineCode> carries the version in its
+          filename. The other three are deliberately <strong>stable</strong> filenames (matching how{' '}
+          <InlineCode>checksum</InlineCode> itself has never had a version suffix) &mdash; the version
+          is unambiguous from the sibling <InlineCode>version</InlineCode>/<InlineCode>checksum</InlineCode>{' '}
+          files, and a stable name means a later <InlineCode>--archive</InlineCode> run&apos;s pull
+          request shows an actual line-level diff of what changed in the moodle.org catalog, instead of
+          a delete-and-recreate under a new filename every time.
+        </p>
+        <p className="text-muted-foreground">
+          Only one version&apos;s worth of evidence is kept per component, matching the existing{' '}
+          <InlineCode>checksum</InlineCode> convention: a later <InlineCode>--archive</InlineCode> run
+          replaces all four files together. Archiving is <strong>best-effort</strong> &mdash; a failure
+          here is logged as a warning, it never fails the version bump itself.
+        </p>
+        <CodeBlock>{`php moosh2.phar plugin:list-update --directory=plugins --moodle-version=5.1 --run --archive`}</CodeBlock>
+
+        <h3 className="text-lg font-semibold">6.2 plugin:list-apply --archive-fallback</h3>
+        <p className="text-muted-foreground">
+          When moodle.org can&apos;t resolve a requested version or component at all (the withdrawn-version
+          case above &mdash; not a &ldquo;not supported for this Moodle release&rdquo; error, which{' '}
+          <InlineCode>--archive-fallback</InlineCode> never touches), <InlineCode>plugin:list-apply</InlineCode>{' '}
+          normally fails. With <InlineCode>--archive-fallback</InlineCode>, it instead looks for exactly one
+          zip under <InlineCode>{'<component>/original/'}</InlineCode> and installs from that &mdash; through
+          the <strong>same</strong> install pipeline as a normal download: the same zip/component
+          verification, the same <InlineCode>{'$plugin->dependencies'}</InlineCode> resolution, the same
+          malware scan. No archive found (or an unrelated failure) falls straight through to the original
+          error, unchanged.
+        </p>
+        <CodeBlock>{`php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plugins --run --archive-fallback --keep-going`}</CodeBlock>
+        <p className="text-muted-foreground">
+          A component installed this way is reported as <InlineCode>ARCHIVED</InlineCode> instead of{' '}
+          <InlineCode>INSTALLED</InlineCode>, and every such component is listed again in a dedicated
+          end-of-run summary line (<InlineCode>Archived component(s) in use...</InlineCode>) &mdash; the
+          point isn&apos;t just that the install succeeded, it&apos;s that this component now needs an
+          explicit, ongoing decision (keep tracking it manually, find a replacement, or formally accept
+          the risk), not a one-time fix. That summary line is a GitHub Actions{' '}
+          <InlineCode>::warning::</InlineCode> annotation by default under CI; override the level with{' '}
+          <InlineCode>--archive-annotation-level=notice</InlineCode> if warning-level is too loud for your
+          workflow.
+        </p>
+
+        <h3 className="text-lg font-semibold">6.3 Checksum verification</h3>
+        <p className="text-muted-foreground">
+          <InlineCode>plugin:list-apply</InlineCode> now verifies a component&apos;s <InlineCode>checksum</InlineCode>{' '}
+          file (an md5, pinned by <InlineCode>plugin:list-update</InlineCode>) against every zip it&apos;s
+          about to install &mdash; a freshly downloaded one and an archive-sourced one alike. A mismatch is
+          a hard failure; nothing is installed.
+        </p>
+        <p className="text-muted-foreground">
+          A <strong>missing</strong> <InlineCode>checksum</InlineCode> file only warns, it doesn&apos;t
+          block &mdash; failing hard here would break every existing declarative plugin list that predates
+          this convention, and some plugins already fell out of the moodle.org directory before it existed
+          for them, so <InlineCode>plugin:list-update</InlineCode> can no longer backfill one on its own.
+          The warning tells you exactly how to create the file by hand once you have a zip you trust, e.g.:
+        </p>
+        <CodeBlock>{`md5sum plugins/<component>/original/*.zip > plugins/<component>/checksum`}</CodeBlock>
+        <p className="text-muted-foreground">
+          Like the archive summary, this warning is a <InlineCode>::warning::</InlineCode> GitHub Actions
+          annotation under CI (this one is not affected by{' '}
+          <InlineCode>--archive-annotation-level</InlineCode>) and fires on every run that installs/upgrades
+          the component &mdash; it&apos;s meant to nag until fixed, not be silently swallowed after the
+          first run.
+        </p>
+
+        <h3 className="text-lg font-semibold">6.4 --suppress-lifecycle-warnings</h3>
+        <p className="text-muted-foreground">
+          If your CI runs <InlineCode>plugin:list-apply</InlineCode> twice per job &mdash; once to
+          reproduce the currently-deployed production state, once to actually apply the branch&apos;s
+          target versions &mdash; only the second run&apos;s archive/checksum state is new information;
+          the first run would otherwise repeat the exact same warnings on every single invocation for
+          every already-known-archived plugin. <InlineCode>--suppress-lifecycle-warnings</InlineCode> turns
+          off both the missing-checksum warning (§6.3) and the archived-component summary (§6.2) for that
+          one run, without affecting <InlineCode>ARCHIVED</InlineCode>/<InlineCode>INSTALLED</InlineCode>{' '}
+          reporting or anything else:
+        </p>
+        <CodeBlock>{`# job 1: reproduce production - already-known lifecycle state, don't nag about it
+php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plugins-production \\
+    --run --archive-fallback --suppress-lifecycle-warnings
+
+# job 2: apply this branch's target versions - this is the run that should nag
+php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plugins \\
+    --run --archive-fallback --keep-going`}</CodeBlock>
+      </section>
+
+      {/* ── 7. Patching ───────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold">7. Patching a plugin after installation</h2>
         <p className="text-muted-foreground">
           Neither command applies a source patch as part of installing a plugin &mdash; there is no{' '}
           <InlineCode>.patch</InlineCode>/<InlineCode>.diff</InlineCode> file convention built in. Patching is
@@ -609,7 +771,7 @@ done`}</CodeBlock>
           Because the hook only runs on the &ldquo;already at requested version&rdquo; branch, after a fresh
           install (or a version bump) you need <strong>one more</strong>{' '}
           <InlineCode>plugin:list-apply --run</InlineCode> for the patch to actually land. In practice this falls
-          out naturally from a cron/scheduled <InlineCode>plugin:list-apply</InlineCode> (see section 7.2), since
+          out naturally from a cron/scheduled <InlineCode>plugin:list-apply</InlineCode> (see section 8.2), since
           the day after an install is exactly the &ldquo;already at X&rdquo; run. If the patch needs to land in
           the <em>same</em> run as a fresh install/upgrade, either apply it explicitly as a second step after{' '}
           <InlineCode>plugin:list-apply</InlineCode> in the same job, or run{' '}
@@ -623,9 +785,9 @@ done`}</CodeBlock>
         </p>
       </section>
 
-      {/* ── 7. GitHub Actions ────────────────────────────────────── */}
+      {/* ── 8. GitHub Actions ────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">7. GitHub Actions workflows</h2>
+        <h2 className="text-xl font-semibold">8. GitHub Actions workflows</h2>
         <p className="text-muted-foreground">
           Both examples below fetch the published <InlineCode>moosh2.phar</InlineCode> from GitHub Releases (the{' '}
           <InlineCode>phar-latest</InlineCode> tag moosh2&apos;s own <InlineCode>build-phar.yml</InlineCode>{' '}
@@ -637,7 +799,7 @@ done`}</CodeBlock>
             https://github.com/<org>/moosh2/releases/download/phar-latest/moosh2.phar
           chmod +x moosh2.phar`}</CodeBlock>
 
-        <h3 className="text-lg font-semibold">7.1 Scheduled list-update &rarr; PR with a changelog</h3>
+        <h3 className="text-lg font-semibold">8.1 Scheduled list-update &rarr; PR with a changelog</h3>
         <p className="text-muted-foreground">
           Runs weekly, updates every <InlineCode>version</InlineCode> (and <InlineCode>checksum</InlineCode>) file
           that has a newer compatible release, and opens a pull request whose description lists what changed per
@@ -711,11 +873,11 @@ jobs:
           by the runner) naming exactly which plugin needs attention.
         </p>
 
-        <h3 className="text-lg font-semibold">7.2 Scheduled/on-merge list-apply &rarr; deploy, patch, and report failures</h3>
+        <h3 className="text-lg font-semibold">8.2 Scheduled/on-merge list-apply &rarr; deploy, patch, and report failures</h3>
         <p className="text-muted-foreground">
           Applies the plugin list to a real Moodle installation &mdash; typically on merge to the branch the PR
           above targets, and/or on its own daily schedule so{' '}
-          <InlineCode>install_requested_always_run.sh</InlineCode> hooks (patches, see section 6) get a chance to
+          <InlineCode>install_requested_always_run.sh</InlineCode> hooks (patches, see section 7) get a chance to
           run even on days nothing else changed. Runs with <InlineCode>--keep-going</InlineCode> so one broken
           plugin doesn&apos;t block every other one from installing, and opens an issue summarising anything that
           failed.
@@ -788,7 +950,7 @@ jobs:
           </li>
           <li>
             The daily schedule is what makes the <InlineCode>install_requested_always_run.sh</InlineCode> pattern
-            from section 6 actually reliable in practice: a plugin installed by today&apos;s{' '}
+            from section 7 actually reliable in practice: a plugin installed by today&apos;s{' '}
             <InlineCode>push</InlineCode> trigger gets its patch hook run by tomorrow&apos;s{' '}
             <InlineCode>schedule</InlineCode> trigger automatically, with no special-casing needed in the workflow
             itself.
