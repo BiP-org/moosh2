@@ -648,22 +648,11 @@ build_archive_zip() {
     local stage
     stage=$(mktemp -d)
     mkdir -p "$(dirname "$target")"
-    mkdir -p "$stage/$component"
     mkdir -p "$stage/$component/lang/en"
-    cat > "$stage/$component/lang/en/${component#*_}.php" <<PHP
-<?php
-\$plugin->component = '${component}';
-\$plugin->version   = ${version};
-\$plugin->requires  = 2024100700;
-\$plugin->release   = '${version}';
-\$plugin->maturity  = MATURITY_STABLE;
-PHP
 
-    # 2. Generate the missing language pack file
-    # The 'pluginname' string is the only mandatory one for a plugin
-    # to be considered non-defective.
+    # 1. Generate the mandatory English language pack
     local pluginname
-    pluginname=$(echo "$component" | cut -d'_' -f2 | ucfirst) # e.g., mod_attendance -> Attendance
+    pluginname=$(echo "$component" | cut -d'_' -f2 | ucfirst)
     cat > "$stage/$component/lang/en/${component#*_}.php" <<PHP
 <?php
 // This file is part of Moodle - http://moodle.org/
@@ -690,32 +679,32 @@ PHP
  */
 
 defined('MOODLE_INTERNAL') || die();
-
 \$string['pluginname'] = '${pluginname}';
 PHP
+
+    # 2. Generate version.php
     cat > "$stage/$component/version.php" <<PHP
 <?php
-// Fake plugin built by tests/test_plugin_list_apply.sh. The version must
-// look like a real Moodle version (10-digit YYYYMMDDXX, optional .XX) or
-// upgrade_noncore()/plugin_manager can misparse it and take a code path
-// that fatals inside cache_helper::purge_all() with "The override class
-// does not exist."
 \$plugin->component = '${component}';
 \$plugin->version   = ${version};
 \$plugin->requires  = 2024100700;
 \$plugin->release   = '${version}';
 \$plugin->maturity  = MATURITY_STABLE;
 PHP
+
+    # 3. Add both version.php and the lang pack to the archive
     php -r '
         $stage = $argv[1];
         $component = $argv[2];
         $target = $argv[3];
+        $plugin_short = substr($component, strpos($component, "_") + 1);
         $zip = new ZipArchive();
         if ($zip->open($target, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             fwrite(STDERR, "could not open zip $target\n");
             exit(1);
         }
         $zip->addFile($stage . "/$component/version.php", "$component/version.php");
+        $zip->addFile($stage . "/$component/lang/en/{$plugin_short}.php", "$component/lang/en/{$plugin_short}.php");
         $zip->close();
     ' "$stage" "$component" "$target"
     rm -rf "$stage"
