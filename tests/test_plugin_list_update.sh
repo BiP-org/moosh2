@@ -28,6 +28,7 @@ assert_output_contains "Help shows --directory" "--directory" "$OUT"
 assert_output_contains "Help shows --moodle-version" "--moodle-version" "$OUT"
 assert_output_contains "Help shows --run" "--run" "$OUT"
 assert_output_contains "Help shows --token" "--token" "$OUT"
+assert_output_contains "Help shows --archive" "--archive" "$OUT"
 echo ""
 
 LISTDIR=$(mktemp -d)
@@ -221,6 +222,141 @@ run_moosh plugin:list-update --directory=/tmp/does_not_exist_$$_listupdate --moo
 EC=$?
 assert_exit_code "Exit code nonzero" 1 "$EC"
 assert_output_contains "Directory not found error" "Directory not found" "$OUT"
+echo ""
+
+# --- --archive (issue #82 §3.1) ---
+#
+# Archives the pinned zip, the full raw pluglist.php/mirror response
+# (uncompressed - see §7's compression decision: an uncompressed .json
+# diffs cleanly in a GitHub PR, which was chosen over gzip for exactly
+# that reason), a small per-component extract of it, and the source URL,
+# into <component>/original/. Reuses mod_attendance since it's the one
+# real plugin these tests already rely on resolving against moodle.org.
+
+echo "--- Test: --archive writes the full original/ set after a real version bump ---"
+rm -rf "$LISTDIR/mod_attendance/original"
+rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --archive mod_attendance
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+ARCHIVED_VERSION=$(cat "$LISTDIR/mod_attendance/version" 2>/dev/null || true)
+ARCHIVEDIR="$LISTDIR/mod_attendance/original"
+if [ -z "$ARCHIVED_VERSION" ]; then
+    echo "  FAIL: mod_attendance/version wasn't written, cannot verify archive filenames"
+    ((FAIL++))
+else
+    if [ -f "$ARCHIVEDIR/mod_attendance-$ARCHIVED_VERSION.zip" ]; then
+        echo "  PASS: original/mod_attendance-$ARCHIVED_VERSION.zip was written"
+        ((PASS++))
+    else
+        echo "  FAIL: expected $ARCHIVEDIR/mod_attendance-$ARCHIVED_VERSION.zip"
+        ((FAIL++))
+    fi
+    if [ -f "$ARCHIVEDIR/pluglist.json" ]; then
+        echo "  PASS: original/pluglist.json (uncompressed) was written"
+        ((PASS++))
+    else
+        echo "  FAIL: expected $ARCHIVEDIR/pluglist.json"
+        ((FAIL++))
+    fi
+    if [ -f "$ARCHIVEDIR/pluglist-entry.json" ]; then
+        echo "  PASS: original/pluglist-entry.json was written"
+        ((PASS++))
+    else
+        echo "  FAIL: expected $ARCHIVEDIR/pluglist-entry.json"
+        ((FAIL++))
+    fi
+    if [ -f "$ARCHIVEDIR/pluglist.source" ]; then
+        SOURCE=$(cat "$ARCHIVEDIR/pluglist.source")
+        if [[ "$SOURCE" == https://* ]]; then
+            echo "  PASS: original/pluglist.source holds a URL ($SOURCE)"
+            ((PASS++))
+        else
+            echo "  FAIL: .source file doesn't look like a URL: '$SOURCE'"
+            ((FAIL++))
+        fi
+    else
+        echo "  FAIL: expected $ARCHIVEDIR/pluglist.source"
+        ((FAIL++))
+    fi
+fi
+echo ""
+
+echo "--- Test: the full snapshot is structurally larger than the small per-component extract ---"
+if [ -f "$ARCHIVEDIR/pluglist.json" ] && [ -f "$ARCHIVEDIR/pluglist-entry.json" ]; then
+    FULL_SIZE=$(wc -c < "$ARCHIVEDIR/pluglist.json")
+    ENTRY_SIZE=$(wc -c < "$ARCHIVEDIR/pluglist-entry.json")
+    ENTRY_COMPONENT=$(php -r '$d = json_decode(file_get_contents($argv[1])); echo $d->component ?? "";' "$ARCHIVEDIR/pluglist-entry.json")
+    if [ "$FULL_SIZE" -gt "$ENTRY_SIZE" ]; then
+        echo "  PASS: full snapshot ($FULL_SIZE bytes) is larger than the per-component extract ($ENTRY_SIZE bytes)"
+        ((PASS++))
+    else
+        echo "  FAIL: full snapshot ($FULL_SIZE bytes) is not larger than the extract ($ENTRY_SIZE bytes)"
+        ((FAIL++))
+    fi
+    if [ "$ENTRY_COMPONENT" = "mod_attendance" ]; then
+        echo "  PASS: the extract's component field matches (mod_attendance)"
+        ((PASS++))
+    else
+        echo "  FAIL: extract's component field is '$ENTRY_COMPONENT', expected mod_attendance"
+        ((FAIL++))
+    fi
+else
+    echo "  FAIL: snapshot files missing from previous test, cannot compare sizes"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: without --archive, none of the original/ files are written (regression guard) ---"
+rm -rf "$LISTDIR/mod_attendance/original"
+rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_attendance
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+if [ ! -d "$LISTDIR/mod_attendance/original" ]; then
+    echo "  PASS: no original/ directory created without --archive"
+    ((PASS++))
+else
+    echo "  FAIL: original/ directory exists despite --archive not being passed"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --archive + --no-checksum together - archive still writes, no crash ---"
+rm -rf "$LISTDIR/mod_attendance/original"
+rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --archive --no-checksum mod_attendance
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+if [ ! -f "$LISTDIR/mod_attendance/checksum" ] && [ -d "$LISTDIR/mod_attendance/original" ] && \
+   compgen -G "$LISTDIR/mod_attendance/original/mod_attendance-*.zip" > /dev/null; then
+    echo "  PASS: --no-checksum skipped the checksum file, --archive still wrote the zip (independent options)"
+    ((PASS++))
+else
+    echo "  FAIL: expected checksum absent but archive present (checksum exists: $([ -f "$LISTDIR/mod_attendance/checksum" ] && echo yes || echo no))"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: a second --run --archive on an already-archived component keeps only one version's zip ---"
+run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --archive mod_attendance
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+# pluglist.json/-entry.json/.source use a fixed (unversioned) name and are
+# simply overwritten each run - see the code comment on why (a stable name
+# lets a PR show a real diff of what changed, instead of a delete+recreate
+# under a new filename every time). Only the zip's filename carries the
+# version, so it's the one that can actually accumulate stale copies.
+ZIP_COUNT=$(find "$LISTDIR/mod_attendance/original" -maxdepth 1 -name '*.zip' | wc -l)
+if [ "$ZIP_COUNT" -eq 1 ] && [ -f "$LISTDIR/mod_attendance/original/pluglist.json" ] \
+   && [ -f "$LISTDIR/mod_attendance/original/pluglist-entry.json" ] && [ -f "$LISTDIR/mod_attendance/original/pluglist.source" ]; then
+    echo "  PASS: exactly one archived zip remains, pluglist.json/-entry.json/.source all present"
+    ((PASS++))
+else
+    echo "  FAIL: expected exactly 1 zip and all three pluglist files present, got zip_count=$ZIP_COUNT"
+    ((FAIL++))
+fi
+rm -rf "$LISTDIR/mod_attendance/original"
 echo ""
 
 # --- Marketplace-subscription-only plugin (HTTP 401) ---

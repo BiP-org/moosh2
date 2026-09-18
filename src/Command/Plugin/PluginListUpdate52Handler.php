@@ -82,6 +82,9 @@ class PluginListUpdate52Handler extends BaseHandler
     /** @var bool stashed --no-checksum, read once in handle() so the recursive helper methods don't need InputInterface threaded through */
     private bool $noChecksum = false;
 
+    /** @var bool stashed --archive (issue #82), read once in handle() */
+    private bool $archive = false;
+
     /** @var string|null stashed --install-plugins-script, read once in handle() (see updateInstallPluginsPhpComponent()) */
     private ?string $installPluginsScriptOption = null;
 
@@ -111,7 +114,11 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('install-plugins-script', null, InputOption::VALUE_REQUIRED, "Path to install_plugins.php, used for package_* components that ship a PHP package handler (<component>/<component>.php, e.g. package_kaltura/package_kaltura.php) instead of a bin/get_latest_plugin_version.sh script. Defaults to install_plugins.php inside --directory, matching where install_plugins.php's own __DIR__-relative paths expect it to live.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
-            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin an md5 checksum next to version.");
+            ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin an md5 checksum next to version.")
+            ->addOption('archive', null, InputOption::VALUE_NONE,
+                'Also archive the pinned zip, the full pluglist.php (or mirror) response, a small per-'
+                . 'component extract of it, and its source URL into <component>/original/ - for components '
+                . 'withdrawn from moodle.org later.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview what would change for every plugin directory found in the current directory', '');
@@ -124,6 +131,7 @@ class PluginListUpdate52Handler extends BaseHandler
     {
         $this->moodleRelease = $input->getOption('moodle-version') ?? (string) moodle_major_version();
         $this->noChecksum = (bool) $input->getOption('no-checksum');
+        $this->archive = (bool) $input->getOption('archive');
         $this->installPluginsScriptOption = $input->getOption('install-plugins-script');
 
         $token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
@@ -295,12 +303,13 @@ class PluginListUpdate52Handler extends BaseHandler
 
         $message = $this->applyVersion($component, $versionfile, $currentversion, (string) $latest->version, $dryRun);
 
+        // Recompute/pin whenever the version file actually changed just
+        // now; otherwise (the "OK already at latest" case) only backfill
+        // a checksum/archive that isn't pinned yet - don't re-download on
+        // every run just to re-confirm nothing changed.
+        $versionchanged = str_starts_with($message, 'CREATE ') || str_starts_with($message, 'UPDATE ');
+
         if (!$dryRun && !$this->hasOptionNoChecksum() && !str_starts_with($message, 'SKIP   ')) {
-            // Recompute/pin whenever the version file actually changed just
-            // now; otherwise (the "OK already at latest" case) only backfill
-            // a checksum that isn't pinned yet - don't re-download on every
-            // run just to re-confirm nothing changed.
-            $versionchanged = str_starts_with($message, 'CREATE ') || str_starts_with($message, 'UPDATE ');
             $checksumline = $this->reconcileChecksum(
                 $component,
                 $componentdir,
@@ -323,7 +332,114 @@ class PluginListUpdate52Handler extends BaseHandler
             $this->removeDirectory($preDownloaded[1]);
         }
 
+        if ($this->archive && !$dryRun && !str_starts_with($message, 'SKIP   ')) {
+            $archiveline = $this->archivePlugin($component, $componentdir, (string) $latest->version, $latest->downloadurl, $client, $output);
+            if ($archiveline !== null) {
+                $message .= "\n" . $archiveline;
+            }
+        }
+
         return $message;
+    }
+
+    /**
+     * --archive (issue #82 §3.1): write <component>/original/ with the
+     * pinned zip, the full raw pluglist.php/mirror response (uncompressed
+     * JSON - see §7's compression decision below), a small per-component
+     * extract of it, and the URL that actually supplied it. Best-effort -
+     * a version bump is still valid without a fresh archive, so failures
+     * here are logged and swallowed rather than failing the whole
+     * updateStandardComponent() call.
+     *
+     * @return string|null a one-line ARCHIVED status for the caller's
+     *   message, or null if archiving was skipped/failed (the warning was
+     *   already written to $output in that case)
+     */
+    private function archivePlugin(string $component, string $componentdir, string $version, string $downloadurl, PluginApiClient $client, OutputInterface $output): ?string
+    {
+        try {
+            $archivedir = $componentdir . '/original';
+            if (!is_dir($archivedir) && !mkdir($archivedir, 0755, true) && !is_dir($archivedir)) {
+                throw new \RuntimeException("could not create $archivedir");
+            }
+
+            // Only one archived version's worth of evidence is kept per
+            // component (matches the existing single-`checksum` file
+            // convention) - clear whatever a previous archive run left
+            // before writing the new matched set. pluglist.json/-entry.json/
+            // .source use stable (unversioned) names - see below.
+            foreach (array_merge(
+                glob($archivedir . '/*.zip') ?: [],
+                [$archivedir . '/pluglist.json', $archivedir . '/pluglist-entry.json', $archivedir . '/pluglist.source'],
+            ) as $old) {
+                @unlink($old);
+            }
+
+            // 1. Full raw pluglist.php/mirror response, byte-exact - the
+            // stronger evidentiary artifact for NIS2 forensic purposes than
+            // a derived per-component extract. No new HTTP request: handle()
+            // already refreshed the cache this run via ensureCacheFresh().
+            // Deliberately NOT compressed (owner decision, §7 of issue #82):
+            // an uncompressed .json diffs cleanly in a GitHub PR. Also
+            // deliberately NOT named with $version: git already preserves
+            // full history regardless of filename, and the version is
+            // already unambiguous from the sibling `version`/`checksum`
+            // files in the same directory - a stable name means a later
+            // --archive run's PR shows an actual line-level diff of what
+            // changed in the moodle.org catalog, instead of a delete-and-
+            // recreate under a new filename every time.
+            $cachePath = PluginApiClient::getCachePath();
+            $raw = file_get_contents($cachePath);
+            if ($raw === false) {
+                throw new \RuntimeException("could not read $cachePath to archive");
+            }
+            file_put_contents("$archivedir/pluglist.json", $raw);
+
+            // 2. Small per-component/version extract, human-readable
+            // directly in a PR diff, no decompression needed.
+            $entry = $this->findPluginEntry($component);
+            file_put_contents(
+                "$archivedir/pluglist-entry.json",
+                json_encode($entry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            );
+
+            // 3. Provenance: which URL (API_URL or the mirror) actually
+            // supplied the cached response this run.
+            $sourceurl = PluginApiClient::getPluginListSourceUrl() ?? 'unknown';
+            file_put_contents("$archivedir/pluglist.source", $sourceurl . "\n");
+
+            // 4. The zip itself - reuse the same cache-then-download path
+            // used for checksum pinning, no second download implementation.
+            [$downloadedfile, $tempdir] = $this->downloadPluginZip($component, $version, $downloadurl, $client);
+            try {
+                if (!copy($downloadedfile, "$archivedir/$component-$version.zip")) {
+                    throw new \RuntimeException("failed to copy $downloadedfile into $archivedir");
+                }
+            } finally {
+                $this->removeDirectory($tempdir);
+            }
+
+            return "ARCHIVE $component: archived $version to $archivedir";
+        } catch (\Throwable $e) {
+            $output->writeln("WARNING $component: could not write archive: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * The full plugins.json entry (object with ->component, ->versions,
+     * ...) for $component, or null if it's somehow no longer in
+     * $this->pluginsData (shouldn't happen here - findLatestCompatibleVersion()
+     * already found it moments earlier in the same handle() call).
+     */
+    private function findPluginEntry(string $component): ?object
+    {
+        foreach ($this->pluginsData->plugins as $plugin) {
+            if (!empty($plugin->component) && $plugin->component === $component) {
+                return $plugin;
+            }
+        }
+        return null;
     }
 
     /**
