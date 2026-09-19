@@ -624,21 +624,19 @@ echo ""
 # --archive-fallback / checksum verification (issue #82 §3.2 / §3.4)
 # ═══════════════════════════════════════════════════════════════════
 #
-# Uses a hand-built <component>/original/*.zip - a minimal, valid zip
+# Uses a hand-built <component>/archiv/*.zip - a minimal, valid zip
 # whose version.php declares mod_attendance - rather than a real
 # plugin:list-update --archive run, so these tests don't depend on
-# moodle.org ever actually withdrawing a real version. The "not
-# resolvable on moodle.org" side is forced with a version number that
+# moodle.org ever actually withdrawing a real version. The "not# resolvable on moodle.org" side is forced with a version number that
 # will never exist in plugins.json, which makes findBestVersion() throw
 # its "Could not find '$component' version $label." message - the
 # specific-version half of the two strings --archive-fallback catches on.
 
 ARCHDIR=$(mktemp -d)
-mkdir -p "$ARCHDIR/mod_attendance/original"
+mkdir -p "$ARCHDIR/mod_attendance/archiv"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 reset_cache_definitions
-FAKE_VERSION="9999999999"
-echo "$FAKE_VERSION" > "$ARCHDIR/mod_attendance/version"
+FAKE_VERSION="9999999999"echo "$FAKE_VERSION" > "$ARCHDIR/mod_attendance/version"
 
 build_archive_zip() {
     # $1 = component  $2 = version  $3 = target zip path
@@ -710,11 +708,10 @@ PHP
     rm -rf "$stage"
 }
 
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
 
 echo "--- Test: without --archive-fallback, an unresolvable version fails as before (regression guard) ---"
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run
-EC=$?
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --runEC=$?
 assert_exit_code "Nonzero exit" 1 "$EC"
 assert_output_contains "Error mentions the component" "mod_attendance" "$OUT"
 assert_output_contains "Error is the original moodle.org not-found message" "Could not find" "$OUT"
@@ -776,11 +773,10 @@ echo ""
 
 echo "--- Test: a correct checksum lets an archive-sourced install proceed without the missing-checksum warning ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-md5sum "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip" | awk '{print $1}' > "$ARCHDIR/mod_attendance/checksum"
+md5sum "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip" | awk '{print $1}' > "$ARCHDIR/mod_attendance/checksum"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_not_contains "No missing-checksum warning when checksum matches" "no checksum pinned" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"assert_output_not_contains "No missing-checksum warning when checksum matches" "no checksum pinned" "$OUT"
 assert_output_contains "Still reports ARCHIVED" "ARCHIVED mod_attendance" "$OUT"
 echo ""
 
@@ -803,11 +799,10 @@ echo ""
 
 echo "--- Test: --archive-fallback with no archive present falls through to the original error (not a silent no-op) ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-rm -rf "$ARCHDIR/mod_attendance/original"
+rm -rf "$ARCHDIR/mod_attendance/archiv"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Nonzero exit - no archive to fall back to" 1 "$EC"
-assert_output_contains "Same original moodle.org error, not a silent success" "Could not find" "$OUT"
+assert_exit_code "Nonzero exit - no archive to fall back to" 1 "$EC"assert_output_contains "Same original moodle.org error, not a silent success" "Could not find" "$OUT"
 if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
     echo "  PASS: nothing installed when no archive exists either"
     ((PASS++))
@@ -819,32 +814,29 @@ echo ""
 
 echo "--- Test: --suppress-lifecycle-warnings silences both the missing-checksum warning and the archive summary ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --suppress-lifecycle-warnings
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_contains "Still installs from the archive" "ARCHIVED mod_attendance" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Still installs from the archive" "ARCHIVED mod_attendance" "$OUT"
 assert_output_not_contains "No missing-checksum warning" "no checksum pinned" "$OUT"
 assert_output_not_contains "No archive-summary line" "Archived component(s) in use" "$OUT"
 echo ""
 
 echo "--- Test: omitting --suppress-lifecycle-warnings restores both again ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_contains "Missing-checksum warning is back" "no checksum pinned" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Missing-checksum warning is back" "no checksum pinned" "$OUT"
 assert_output_contains "Archive summary is back" "Archived component(s) in use" "$OUT"
 echo ""
 
 echo "--- Test: --archive-annotation-level=notice changes the archive-summary annotation, not the checksum one ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
 export CI=true
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --archive-annotation-level=notice
-EC=$?
-unset CI
+EC=$?unset CI
 assert_exit_code "Exit code 0" 0 "$EC"
 assert_output_contains "Archive summary now uses ::notice::" "::notice title=Archived plugin components in use::" "$OUT"
 assert_output_contains "Checksum warning still uses ::warning::" "::warning title=Missing plugin checksum::" "$OUT"
@@ -852,11 +844,10 @@ echo ""
 
 echo "--- Test: end-of-run summary shows both Failed and Archived lines when both apply ---"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
 mkdir -p "$ARCHDIR/zzz_bad_component"
 echo 1 > "$ARCHDIR/zzz_bad_component/version"
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --keep-going
-EC=$?
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --keep-goingEC=$?
 assert_exit_code "Nonzero exit - zzz_bad_component still failed" 1 "$EC"
 assert_output_contains "Shows the failed component" "Failed component(s):" "$OUT"
 assert_output_contains "Also shows the archived component" "Archived component(s) in use" "$OUT"
@@ -871,15 +862,14 @@ echo "--- Test: dependency-attribution regression (§2.4) - archive-fallback fir
 # the ARCHIVED/summary output) from ITS OWN archive - not skipped, and
 # not misattributed to local_archtest's own fallback.
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
-build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/original/mod_attendance-$FAKE_VERSION.zip"
-mkdir -p "$ARCHDIR/local_archtest/original"
+build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archiv/mod_attendance-$FAKE_VERSION.zip"
+mkdir -p "$ARCHDIR/local_archtest/archiv"
 echo "999999" > "$ARCHDIR/local_archtest/version"
 echo "mod_attendance" > "$ARCHDIR/local_archtest/requires"
-build_archive_zip local_archtest 999999 "$ARCHDIR/local_archtest/original/local_archtest-999999.zip"
+build_archive_zip local_archtest 999999 "$ARCHDIR/local_archtest/archiv/local_archtest-999999.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback local_archtest
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"
-assert_output_contains "Archived-component summary correctly names mod_attendance (the dependency)" "mod_attendance ($FAKE_VERSION)" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Archived-component summary correctly names mod_attendance (the dependency)" "mod_attendance ($FAKE_VERSION)" "$OUT"
 assert_output_contains "Archived-component summary also names local_archtest itself" "local_archtest (999999)" "$OUT"
 if [ -f "$MOODLE_PATH/mod/attendance/version.php" ]; then
     echo "  PASS: the requires-file dependency (mod_attendance) was installed from its own archive"

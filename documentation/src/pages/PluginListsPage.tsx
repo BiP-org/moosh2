@@ -193,11 +193,10 @@ export function PluginListsPage() {
                                           by list-update --archive or list-update
                                           itself; verified by list-apply before
                                           every install/upgrade, see §6)
-    original/                         <- optional, written only by list-update
+    archiv/                           <- optional, written only by list-update
                                           --archive, read by list-apply
                                           --archive-fallback; see §6
-      <component>-<version>.zip
-      pluglist.json
+      <component>-<version>.zip      pluglist.json
       pluglist-entry.json
       pluglist.source
     requires                          <- optional, one Frankenstyle component name
@@ -547,11 +546,10 @@ echo "$latest"`}</CodeBlock>
           Whenever a version bump is actually written (not on a dry run, and not for a component left
           pinned at <InlineCode>uninstall</InlineCode>/<InlineCode>remove-files</InlineCode>),{' '}
           <InlineCode>--archive</InlineCode> writes four files into{' '}
-          <InlineCode>{'<component>/original/'}</InlineCode>:
+          <InlineCode>{'<component>/archiv/'}</InlineCode>:
         </p>
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader>            <TableRow>
               <TableHead>File</TableHead>
               <TableHead>Contents</TableHead>
             </TableRow>
@@ -614,11 +612,10 @@ echo "$latest"`}</CodeBlock>
           case above &mdash; not a &ldquo;not supported for this Moodle release&rdquo; error, which{' '}
           <InlineCode>--archive-fallback</InlineCode> never touches), <InlineCode>plugin:list-apply</InlineCode>{' '}
           normally fails. With <InlineCode>--archive-fallback</InlineCode>, it instead looks for exactly one
-          zip under <InlineCode>{'<component>/original/'}</InlineCode> and installs from that &mdash; through
+          zip under <InlineCode>{'<component>/archiv/'}</InlineCode> and installs from that &mdash; through
           the <strong>same</strong> install pipeline as a normal download: the same zip/component
           verification, the same <InlineCode>{'$plugin->dependencies'}</InlineCode> resolution, the same
-          malware scan. No archive found (or an unrelated failure) falls straight through to the original
-          error, unchanged.
+          malware scan. No archive found (or an unrelated failure) falls straight through to the original          error, unchanged.
         </p>
         <CodeBlock>{`php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plugins --run --archive-fallback --keep-going`}</CodeBlock>
         <p className="text-muted-foreground">
@@ -647,11 +644,10 @@ echo "$latest"`}</CodeBlock>
           for them, so <InlineCode>plugin:list-update</InlineCode> can no longer backfill one on its own.
           The warning tells you exactly how to create the file by hand once you have a zip you trust, e.g.:
         </p>
-        <CodeBlock>{`md5sum plugins/<component>/original/*.zip > plugins/<component>/checksum`}</CodeBlock>
+        <CodeBlock>{`md5sum plugins/<component>/archiv/*.zip > plugins/<component>/checksum`}</CodeBlock>
         <p className="text-muted-foreground">
           Like the archive summary, this warning is a <InlineCode>::warning::</InlineCode> GitHub Actions
-          annotation under CI (this one is not affected by{' '}
-          <InlineCode>--archive-annotation-level</InlineCode>) and fires on every run that installs/upgrades
+          annotation under CI (this one is not affected by{' '}          <InlineCode>--archive-annotation-level</InlineCode>) and fires on every run that installs/upgrades
           the component &mdash; it&apos;s meant to nag until fixed, not be silently swallowed after the
           first run.
         </p>

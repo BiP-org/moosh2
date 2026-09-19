@@ -116,11 +116,10 @@ class PluginListApply52Handler extends BaseHandler
             ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner to run after each install: clamscan, phpmussel, both, or none.', 'clamscan')
             ->addOption('archive-fallback', null, InputOption::VALUE_NONE,
                 "When a component can't be resolved on moodle.org (withdrawn/expired version), install from "
-                . "<component>/original/*.zip if one was archived (see plugin:list-update --archive) instead "
+                . "<component>/archiv/*.zip if one was archived (see plugin:list-update --archive) instead "
                 . "of failing.")
             ->addOption('archive-annotation-level', null, InputOption::VALUE_REQUIRED,
-                'GitHub Actions annotation level for the archived-component lifecycle summary: '
-                . '"warning" (default) or "notice".', 'warning')
+                'GitHub Actions annotation level for the archived-component lifecycle summary: '                . '"warning" (default) or "notice".', 'warning')
             ->addOption('suppress-lifecycle-warnings', null, InputOption::VALUE_NONE,
                 'Silence both the missing-checksum warning (see --archive-fallback) and the archived-'
                 . 'component summary for this run - e.g. a baseline "reproduce current production state" '
@@ -211,7 +210,7 @@ class PluginListApply52Handler extends BaseHandler
 
             try {
                 $this->applyComponent($component, $componentdir, $output);
-            } catch (\RuntimeException $e) {
+            } catch (\Throwable $e) {
                 $output->writeln("ERROR   $component: " . $e->getMessage());
                 $failed[] = $component;
                 if (!$keepgoing) {
@@ -861,27 +860,25 @@ class PluginListApply52Handler extends BaseHandler
 
     /**
      * §3.2: install-from-archive fallback. Looks for exactly one zip under
-     * <componentdir>/original/ (written by plugin:list-update --archive,
+     * <componentdir>/archiv/ (written by plugin:list-update --archive,
      * see issue #82 §3.1) and copies it to $targetZipPath so the caller
      * can fall straight through into the same
-     * assertZipMagicBytes/assertZipComponent/extract/dependency-resolve/
-     * move pipeline used for a fresh moodle.org download - not a separate,
+     * assertZipMagicBytes/assertZipComponent/extract/dependency-resolve/     * move pipeline used for a fresh moodle.org download - not a separate,
      * hand-rolled install path.
      *
      * @return string|null the archived version (parsed from the zip's
      *   filename), or null if no archive exists - the caller re-throws the
      *   original moodle.org failure in that case
      * @throws \RuntimeException if more than one zip is found under
-     *   original/ (ambiguous - the archive convention keeps exactly one at
+     *   archiv/ (ambiguous - the archive convention keeps exactly one at
      *   a time) or the copy itself fails
      */
     private function installFromArchive(string $component, string $componentdir, string $requestedversion, string $targetZipPath, OutputInterface $output): ?string
     {
-        $archivedir = $componentdir . '/original';
+        $archivedir = $componentdir . '/archiv';
         if (!is_dir($archivedir)) {
             return null;
         }
-
         $zips = glob($archivedir . '/*.zip') ?: [];
         if (count($zips) === 0) {
             return null;
@@ -932,12 +929,11 @@ class PluginListApply52Handler extends BaseHandler
                 return;
             }
             $howto = $fromArchive
-                ? "md5sum $componentdir/original/*.zip > $checksumfile"
-                : "md5sum $componentdir/original/*.zip > $checksumfile (once archived via plugin:list-update "
+                ? "md5sum $componentdir/archiv/*.zip > $checksumfile"
+                : "md5sum $componentdir/archiv/*.zip > $checksumfile (once archived via plugin:list-update "
                     . "--archive), or md5sum <the zip you're sourcing this plugin from> > $checksumfile";
             $message = "$component: no checksum pinned at $checksumfile - the "
-                . ($fromArchive ? 'archived' : 'downloaded') . ' zip could not be integrity-verified against a '
-                . "known-good value. Create it by hand once you have a trusted zip, e.g.: $howto";
+                . ($fromArchive ? 'archived' : 'downloaded') . ' zip could not be integrity-verified against a '                . "known-good value. Create it by hand once you have a trusted zip, e.g.: $howto";
             if ($this->isRunningInCi()) {
                 $output->writeln("::warning title=Missing plugin checksum::$message");
             } else {
