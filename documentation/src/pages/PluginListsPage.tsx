@@ -907,7 +907,7 @@ jobs:
             --moodle-path=/var/www/moodle \\
             --directory=plugins \\
             --keep-going \\
-            --scanner=both \\
+            --scanner=all \\
             --run \\
             | tee apply.log
         env:
@@ -952,8 +952,9 @@ jobs:
             itself.
           </li>
           <li>
-            <InlineCode>--scanner=both</InlineCode> runs both ClamAV and phpMussel; drop to the default (
-            <InlineCode>clamscan</InlineCode>) or <InlineCode>--scanner=none</InlineCode> if neither is installed
+            <InlineCode>--scanner=all</InlineCode> runs both ClamAV and phpMussel (equivalent to{' '}
+            <InlineCode>--scanner=clamav,phpmussel</InlineCode>); drop to the default (
+            <InlineCode>clamav</InlineCode>) or <InlineCode>--scanner=none</InlineCode> if neither is installed
             on the runner &mdash; an unavailable scanner only warns and skips, but there&apos;s no reason to ask
             for a scan you know isn&apos;t there.
           </li>

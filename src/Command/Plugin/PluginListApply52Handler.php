@@ -93,6 +93,9 @@ class PluginListApply52Handler extends BaseHandler
     /** @var string[] which malware scanners to run after each install ('clamscan' and/or 'phpmussel') */
     private array $scanners = ['clamscan'];
 
+    /** @var array<string,string> --scanner token (public name) => internal scanner key */
+    private const SCANNER_ALIASES = ['clamav' => 'clamscan', 'phpmussel' => 'phpmussel'];
+
     /** @var bool stashed --archive-fallback (issue #82 §3.2) */
     private bool $archiveFallback = false;
 
@@ -113,7 +116,7 @@ class PluginListApply52Handler extends BaseHandler
             ->addOption('keep-going', 'k', InputOption::VALUE_NONE, "Don't abort on the first component that fails; process the rest and report every failure at the end.")
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('token', 't', InputOption::VALUE_REQUIRED, 'Moodle Marketplace API token, sent as a Bearer token only for requests to marketplace.moodle.com. Defaults to env var MOODLE_MARKETPLACE_TOKEN.')
-            ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner to run after each install: clamscan, phpmussel, both, or none.', 'clamscan')
+            ->addOption('scanner', null, InputOption::VALUE_REQUIRED, 'Malware scanner(s) to run after each install: clamav, phpmussel, a comma-separated combination of those (e.g. clamav,phpmussel), all (both), or none.', 'clamav')
             ->addOption('archive-fallback', null, InputOption::VALUE_NONE,
                 "When a component can't be resolved on moodle.org (withdrawn/expired version), install from "
                 . "<component>/archiv/*.zip if one was archived (see plugin:list-update --archive) instead "
@@ -129,7 +132,8 @@ class PluginListApply52Handler extends BaseHandler
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
             $command->addExampleUsage('Actually apply them', '--run');
             $command->addExampleUsage('Apply only mod_board', '--run mod_board');
-            $command->addExampleUsage('Scan installs with both ClamAV and phpMussel', '--run --scanner=both');
+            $command->addExampleUsage('Scan installs with both ClamAV and phpMussel', '--run --scanner=all');
+            $command->addExampleUsage('Skip malware scanning entirely', '--run --scanner=none');
         }
     }
 
@@ -1164,20 +1168,55 @@ class PluginListApply52Handler extends BaseHandler
     /**
      * Parse the --scanner option value into a list of scanner names.
      *
-     * @return string[] zero or more of 'clamscan', 'phpmussel'
-     * @throws \RuntimeException on an unrecognised value
+     * Accepts, case-insensitively: 'none'; 'all' (both scanners); a single
+     * scanner ('clamav' or 'phpmussel'); or a comma-separated combination
+     * of scanners (e.g. 'clamav,phpmussel'). 'none' and 'all' cannot be
+     * combined with anything else via a comma.
+     *
+     * @return string[] zero or more of 'clamscan', 'phpmussel' (internal
+     *   scanner keys - 'clamav' is only the public-facing --scanner name)
+     * @throws \RuntimeException on an unrecognised or malformed value
      */
     private function parseScannerOption(string $value): array
     {
-        return match (strtolower(trim($value))) {
-            'none'      => [],
-            'clamscan'  => ['clamscan'],
-            'phpmussel' => ['phpmussel'],
-            'both'      => ['clamscan', 'phpmussel'],
-            default     => throw new \RuntimeException(
-                "Unknown --scanner value '$value' (valid: clamscan, phpmussel, both, none)",
-            ),
-        };
+        $tokens = array_filter(
+            array_map('trim', explode(',', strtolower($value))),
+            static fn(string $t): bool => $t !== '',
+        );
+
+        if ($tokens === []) {
+            throw new \RuntimeException($this->scannerOptionError($value));
+        }
+
+        if (in_array('none', $tokens, true)) {
+            if (count($tokens) > 1) {
+                throw new \RuntimeException($this->scannerOptionError($value));
+            }
+            return [];
+        }
+
+        if (in_array('all', $tokens, true)) {
+            if (count($tokens) > 1) {
+                throw new \RuntimeException($this->scannerOptionError($value));
+            }
+            return array_values(self::SCANNER_ALIASES);
+        }
+
+        $scanners = [];
+        foreach ($tokens as $token) {
+            if (!isset(self::SCANNER_ALIASES[$token])) {
+                throw new \RuntimeException($this->scannerOptionError($value));
+            }
+            $scanners[self::SCANNER_ALIASES[$token]] = true;
+        }
+
+        return array_keys($scanners);
+    }
+
+    private function scannerOptionError(string $value): string
+    {
+        return "Unknown --scanner value '$value' (valid: clamav, phpmussel, a comma-separated "
+            . "combination such as clamav,phpmussel, all, or none)";
     }
 
     /**

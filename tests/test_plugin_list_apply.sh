@@ -394,10 +394,11 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════
 #
 # plugin:list-apply runs a malware scanner after every successful install.
-# The scanner is selected via --scanner, defaulting to "clamscan" so the
-# pre-existing behaviour is unchanged. This section covers the four
-# supported values, the invalid-value error path, and the graceful-skip
-# behaviour when a scanner's signatures are unavailable.
+# The scanner is selected via --scanner, defaulting to "clamav" so the
+# pre-existing behaviour is unchanged. This section covers the supported
+# values (clamav, phpmussel, a comma-separated combination such as
+# clamav,phpmussel, all, and none), the invalid-value error path, and the
+# graceful-skip behaviour when a scanner's signatures are unavailable.
 
 SCANDIR=$(mktemp -d)
 mkdir -p "$SCANDIR/mod_attendance"
@@ -436,7 +437,7 @@ run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --sca
 EC=$?
 assert_exit_code "Nonzero exit for invalid scanner value" 1 "$EC"
 assert_output_contains "Names the invalid value" "Unknown --scanner value" "$OUT"
-assert_output_contains "Lists valid values" "clamscan" "$OUT"
+assert_output_contains "Lists valid values" "clamav" "$OUT"
 if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
     echo "  PASS: nothing was installed when scanner validation failed"
     ((PASS++))
@@ -453,6 +454,13 @@ run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --scanner=b
 EC=$?
 assert_exit_code "Nonzero exit for invalid scanner value on dry run" 1 "$EC"
 assert_output_contains "Names the invalid value on dry run" "Unknown --scanner value" "$OUT"
+echo ""
+
+echo "--- Test: --scanner=all,phpmussel is rejected - 'all' cannot be combined ---"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --scanner=all,phpmussel
+EC=$?
+assert_exit_code "Nonzero exit for 'all' combined with another scanner" 1 "$EC"
+assert_output_contains "Names the invalid value" "Unknown --scanner value" "$OUT"
 echo ""
 
 echo "--- Test: --directory validation runs before --scanner validation ---"
@@ -520,20 +528,41 @@ else
 fi
 echo ""
 
-echo "--- Test: --scanner=both runs clamscan and phpMussel ---"
+echo "--- Test: --scanner=all runs clamscan and phpMussel ---"
 if [ -d "$PHP_SIGDIR" ] && [ -f "$PHP_SIGDIR/phpmussel.ini" ] && command -v clamscan >/dev/null 2>&1; then
     reset_mod_attendance
     rm -rf "$SCANDIR/.clamav" "$SCANDIR/.phpmussel"
-    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=both
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=all
     EC=$?
-    assert_exit_code "Exit code 0 for --scanner=both on a clean plugin" 0 "$EC"
+    assert_exit_code "Exit code 0 for --scanner=all on a clean plugin" 0 "$EC"
     assert_output_contains "Invokes phpMussel" "Starting phpMussel scan" "$OUT"
     assert_output_contains "Plugin installed" "INSTALLED mod_attendance" "$OUT"
     if [ -s "$SCANDIR/.phpmussel/report/phpmussel.log" ]; then
-        echo "  PASS: phpMussel report log was written under --scanner=both"
+        echo "  PASS: phpMussel report log was written under --scanner=all"
         ((PASS++))
     else
-        echo "  FAIL: phpMussel report log missing under --scanner=both"
+        echo "  FAIL: phpMussel report log missing under --scanner=all"
+        ((FAIL++))
+    fi
+else
+    echo "  SKIP: requires both phpMussel signatures and clamscan in PATH"
+fi
+echo ""
+
+echo "--- Test: --scanner=clamav,phpmussel (comma-separated) is equivalent to --scanner=all ---"
+if [ -d "$PHP_SIGDIR" ] && [ -f "$PHP_SIGDIR/phpmussel.ini" ] && command -v clamscan >/dev/null 2>&1; then
+    reset_mod_attendance
+    rm -rf "$SCANDIR/.clamav" "$SCANDIR/.phpmussel"
+    run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$SCANDIR" --run --scanner=clamav,phpmussel
+    EC=$?
+    assert_exit_code "Exit code 0 for --scanner=clamav,phpmussel on a clean plugin" 0 "$EC"
+    assert_output_contains "Invokes phpMussel" "Starting phpMussel scan" "$OUT"
+    assert_output_contains "Plugin installed" "INSTALLED mod_attendance" "$OUT"
+    if [ -s "$SCANDIR/.phpmussel/report/phpmussel.log" ]; then
+        echo "  PASS: phpMussel report log was written under --scanner=clamav,phpmussel"
+        ((PASS++))
+    else
+        echo "  FAIL: phpMussel report log missing under --scanner=clamav,phpmussel"
         ((FAIL++))
     fi
 else
