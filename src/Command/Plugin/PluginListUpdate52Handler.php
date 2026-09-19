@@ -117,7 +117,7 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('no-checksum', null, InputOption::VALUE_NONE, "Don't download zips to pin an md5 checksum next to version.")
             ->addOption('archive', null, InputOption::VALUE_NONE,
                 'Also archive the pinned zip, the full pluglist.php (or mirror) response, a small per-'
-                . 'component extract of it, and its source URL into <component>/original/ - for components '
+                . 'component extract of it, and its source URL into <component>/archiv/ - for components '
                 . 'withdrawn from moodle.org later.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
@@ -343,7 +343,7 @@ class PluginListUpdate52Handler extends BaseHandler
     }
 
     /**
-     * --archive (issue #82 §3.1): write <component>/original/ with the
+     * --archive (issue #82 §3.1): write <component>/archiv/ with the
      * pinned zip, the full raw pluglist.php/mirror response (uncompressed
      * JSON - see §7's compression decision below), a small per-component
      * extract of it, and the URL that actually supplied it. Best-effort -
@@ -358,11 +358,10 @@ class PluginListUpdate52Handler extends BaseHandler
     private function archivePlugin(string $component, string $componentdir, string $version, string $downloadurl, PluginApiClient $client, OutputInterface $output): ?string
     {
         try {
-            $archivedir = $componentdir . '/original';
+            $archivedir = $componentdir . '/archiv';
             if (!is_dir($archivedir) && !mkdir($archivedir, 0755, true) && !is_dir($archivedir)) {
                 throw new \RuntimeException("could not create $archivedir");
             }
-
             // Only one archived version's worth of evidence is kept per
             // component (matches the existing single-`checksum` file
             // convention) - clear whatever a previous archive run left

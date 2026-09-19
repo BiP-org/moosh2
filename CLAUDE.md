@@ -70,11 +70,10 @@ tests/
 
 Not covered by the original moosh at all — this fork's largest addition. A "declarative plugin
 list" is a directory with one subdirectory per Frankenstyle component, each holding a `version`
-file (plus optional `checksum`, `requires`, `original/`, and `bin/` for `package_*` pseudo-
+file (plus optional `checksum`, `requires`, `archiv/`, and `bin/` for `package_*` pseudo-
 components). `plugin:list-update` resolves the latest compatible version from moodle.org and
 writes `version`/`checksum`; `plugin:list-apply` reconciles a real Moodle install to match. Full
 user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementation pieces:
-
 - `PluginApiClient` — talks to `download.moodle.org/api/1.3/pluglist.php`, with a gist-mirror
   fallback, and a 24h-TTL cache at `~/.moosh/plugins.json`. `findBestVersion()`'s two "genuinely not
   on moodle.org" error strings (vs. its third, "not compatible with this Moodle release") are what
