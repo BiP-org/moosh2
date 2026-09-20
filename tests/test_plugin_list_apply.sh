@@ -665,7 +665,8 @@ ARCHDIR=$(mktemp -d)
 mkdir -p "$ARCHDIR/mod_attendance/archive"
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 reset_cache_definitions
-FAKE_VERSION="9999999999"echo "$FAKE_VERSION" > "$ARCHDIR/mod_attendance/version"
+FAKE_VERSION="9999999999"
+echo "$FAKE_VERSION" > "$ARCHDIR/mod_attendance/version"
 
 build_archive_zip() {
     # $1 = component  $2 = version  $3 = target zip path
@@ -805,7 +806,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 md5sum "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip" | awk '{print $1}' > "$ARCHDIR/mod_attendance/checksum"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"assert_output_not_contains "No missing-checksum warning when checksum matches" "no checksum pinned" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_not_contains "No missing-checksum warning when checksum matches" "no checksum pinned" "$OUT"
 assert_output_contains "Still reports ARCHIVED" "ARCHIVED mod_attendance" "$OUT"
 echo ""
 
@@ -831,7 +833,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 rm -rf "$ARCHDIR/mod_attendance/archive"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Nonzero exit - no archive to fall back to" 1 "$EC"assert_output_contains "Same original moodle.org error, not a silent success" "Could not find" "$OUT"
+assert_exit_code "Nonzero exit - no archive to fall back to" 1 "$EC"
+assert_output_contains "Same original moodle.org error, not a silent success" "Could not find" "$OUT"
 if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
     echo "  PASS: nothing installed when no archive exists either"
     ((PASS++))
@@ -846,7 +849,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --suppress-lifecycle-warnings
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Still installs from the archive" "ARCHIVED mod_attendance" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Still installs from the archive" "ARCHIVED mod_attendance" "$OUT"
 assert_output_not_contains "No missing-checksum warning" "no checksum pinned" "$OUT"
 assert_output_not_contains "No archive-summary line" "Archived component(s) in use" "$OUT"
 echo ""
@@ -856,7 +860,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Missing-checksum warning is back" "no checksum pinned" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Missing-checksum warning is back" "no checksum pinned" "$OUT"
 assert_output_contains "Archive summary is back" "Archived component(s) in use" "$OUT"
 echo ""
 
@@ -898,7 +903,8 @@ echo "mod_attendance" > "$ARCHDIR/local_archtest/requires"
 build_archive_zip local_archtest 999999 "$ARCHDIR/local_archtest/archive/local_archtest-999999.zip"
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback local_archtest
 EC=$?
-assert_exit_code "Exit code 0" 0 "$EC"assert_output_contains "Archived-component summary correctly names mod_attendance (the dependency)" "mod_attendance ($FAKE_VERSION)" "$OUT"
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Archived-component summary correctly names mod_attendance (the dependency)" "mod_attendance ($FAKE_VERSION)" "$OUT"
 assert_output_contains "Archived-component summary also names local_archtest itself" "local_archtest (999999)" "$OUT"
 if [ -f "$MOODLE_PATH/mod/attendance/version.php" ]; then
     echo "  PASS: the requires-file dependency (mod_attendance) was installed from its own archive"
