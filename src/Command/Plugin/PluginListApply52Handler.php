@@ -54,6 +54,45 @@
  * default (--keep-going opts into aggregating failures and processing the
  * rest instead).
  *
+ * Orphan/drift tracking - ported from install_plugins.php's
+ * .downloaded-non-core-plugin marker file, get_downloaded_plugin_dirs()
+ * and remove_unwanted_plugins(). Every non-package_* and package_*
+ * component that ends this run installed (freshly downloaded OR already
+ * at the requested version - matching plugin_install()'s "plugin is
+ * uptodate, ... mark as downloaded" branch in the original) gets a
+ * `.downloaded-non-core-plugin` marker file touched in its install
+ * directory. Unlike the original there is no RUN_NUMBER written into it -
+ * the file's mtime alone is enough metadata to tell when it was last
+ * confirmed present, and touch() both creates and refreshes it in one
+ * call. This also backfills the marker for any component that was
+ * already correctly installed before this feature existed, or installed
+ * by hand outside moosh2 - the first list-apply run after upgrading
+ * marks it as tracked instead of flagging it as an orphan.
+ * A git-managed directory (see isGitManaged()) never gets a marker, and
+ * any stale marker found in one is removed - it isn't "downloaded",
+ * whatever process manages it owns its lifecycle.
+ * After every component in the declarative list has been processed,
+ * every `.downloaded-non-core-plugin` marker under $CFG->dirroot whose
+ * directory is NOT the resolved install path of a component in this run's
+ * list is an orphan: something a previous run downloaded that is no
+ * longer declared. --warn-orphans (the default) only reports these,
+ * exactly like remove_unwanted_plugins($execute = false) in the original;
+ * --prune-orphans deletes them (still gated behind the global --run flag,
+ * same as every other destructive action here).
+ *
+ * git-submodule guard - install_plugins.php checks `file_exists($dir .
+ * '/.git')` at the very top of plugin_install(), before ever downloading
+ * anything, and leaves a git-managed directory alone. The ported
+ * removePluginFiles()/uninstall() here had an equivalent check, but it
+ * only tested is_file(...'/.git') - which matches a submodule (where
+ * .git is a file pointing at the superproject's gitdir) but silently
+ * misses a plain git clone/checkout placed there by hand (where .git is
+ * a directory), AND the install/upgrade path (installRequestedVersion())
+ * had no check at all, so a git-managed directory could be silently
+ * overwritten by a downloaded zip. isGitManaged() now checks for either
+ * form (file_exists(), not is_file()) and is used consistently by all
+ * three: removePluginFiles(), uninstall(), and installRequestedVersion().
+ *
  * @copyright  2012 onwards Tomasz Muras
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -82,6 +121,16 @@ class PluginListApply52Handler extends BaseHandler
     // String versions of sentinels for more readable config files
     private const SENTINEL_REMOVE_FILES_STR = 'remove-files';
     private const SENTINEL_UNINSTALL_STR = 'uninstall';
+
+    /**
+     * Marker file touched (created, or its mtime refreshed) in a
+     * component's install directory whenever this command confirms it at
+     * the requested version - ported from install_plugins.php's
+     * .downloaded-non-core-plugin, minus the RUN_NUMBER content (mtime
+     * alone is enough "last verified" metadata here). Powers orphan
+     * detection - see the class docblock.
+     */
+    private const MARKER_FILENAME = '.downloaded-non-core-plugin';
 
     /**
      * Scanner name → relative path (from $configPluginDirectory) of the
@@ -122,6 +171,9 @@ class PluginListApply52Handler extends BaseHandler
     /** @var array<string,string> component => archived version, for this run's end-of-run summary (§6.3) */
     private array $archivedComponents = [];
 
+    /** @var bool stashed --prune-orphans (default false = warn-only, matching --warn-orphans) */
+    private bool $pruneOrphans = false;
+
     public function configureCommand(Command $command): void
     {
         $command
@@ -140,7 +192,16 @@ class PluginListApply52Handler extends BaseHandler
             ->addOption('suppress-lifecycle-warnings', null, InputOption::VALUE_NONE,
                 'Silence both the missing-checksum warning (see --archive-fallback) and the archived-'
                 . 'component summary for this run - e.g. a baseline "reproduce current production state" '
-                . 'run that should not repeat warnings a later, real upgrade run will already surface.');
+                . 'run that should not repeat warnings a later, real upgrade run will already surface.')
+            ->addOption('prune-orphans', null, InputOption::VALUE_NONE,
+                'Delete directories this command previously downloaded (tracked via a '
+                . '.downloaded-non-core-plugin marker file) but that are no longer in this run\'s '
+                . 'declarative list, instead of only warning about them. Still gated behind --run - '
+                . 'without it this only previews which directories would be deleted. A git-managed '
+                . 'directory is never touched, marker or not.')
+            ->addOption('warn-orphans', null, InputOption::VALUE_NONE,
+                'Only warn about orphaned plugin directories (see --prune-orphans) instead of deleting '
+                . 'them. This is the default; the flag exists so a script can pass it explicitly.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
@@ -198,8 +259,19 @@ class PluginListApply52Handler extends BaseHandler
         }
         $this->archivedComponents = [];
 
+        $this->pruneOrphans = (bool) $input->getOption('prune-orphans');
+        if ($this->pruneOrphans && (bool) $input->getOption('warn-orphans')) {
+            $output->writeln('<e>--prune-orphans and --warn-orphans cannot be used together</e>');
+            return Command::FAILURE;
+        }
+
         $components = $input->getArgument('plugin_name');
-        if (empty($components)) {
+        // Orphan detection only makes sense when the full declarative
+        // list was scanned - a targeted subset run (explicit component
+        // names) would otherwise flag every other legitimately-declared
+        // component as an orphan just because it wasn't asked for today.
+        $scannedFullList = empty($components);
+        if ($scannedFullList) {
             $components = $this->discoverComponents($this->configPluginDirectory);
         }
 
@@ -251,12 +323,187 @@ class PluginListApply52Handler extends BaseHandler
             }
         }
 
+        if ($scannedFullList) {
+            $this->handleOrphans($components, $output);
+        }
+
         if (!empty($failed)) {
             $output->writeln('Failed component(s): ' . implode(', ', $failed));
             return Command::FAILURE;
         }
 
         return Command::SUCCESS;
+    }
+
+    // -------------------------------------------------------------------
+    // Orphan/drift detection (see class docblock)
+    // -------------------------------------------------------------------
+
+    /**
+     * @param string[] $components every component in this run's
+     *   declarative list (the full list - handle() only calls this when
+     *   $scannedFullList is true)
+     */
+    private function handleOrphans(array $components, OutputInterface $output): void
+    {
+        $markedDirs = $this->discoverMarkedPluginDirs();
+        if (!$markedDirs) {
+            return;
+        }
+
+        $wantedDirs = $this->buildWantedComponentPaths($components);
+        $orphans = array_diff($markedDirs, $wantedDirs);
+        if (!$orphans) {
+            return;
+        }
+
+        sort($orphans);
+        foreach ($orphans as $orphanDir) {
+            if ($this->isGitManaged($orphanDir)) {
+                // Shouldn't normally happen - a git-managed directory
+                // never gets a marker written into it in the first
+                // place (see touchDownloadedMarker()) - but a marker
+                // left over from before a directory became git-managed
+                // is possible, so be defensive rather than delete it.
+                continue;
+            }
+
+            $componentLabel = $this->identifyOrphanComponent($orphanDir);
+
+            if (!$this->pruneOrphans) {
+                $output->writeln(
+                    "WARN    $componentLabel is installed in $orphanDir, but is not in this run's declarative list",
+                );
+                $output->writeln(
+                    '        => to remove it, restore it in the declarative list with version 0 (uninstall, '
+                    . 'incl. database) or -1 (remove files only), or re-run with --prune-orphans --run to '
+                    . 'delete the directory',
+                );
+                continue;
+            }
+
+            if ($this->dryRun) {
+                $output->writeln("WOULD DELETE orphan $componentLabel: $orphanDir");
+                continue;
+            }
+
+            $output->writeln("Deleting orphaned plugin directory: $orphanDir ($componentLabel)");
+            $this->removeDirectory($orphanDir);
+        }
+    }
+
+    /**
+     * Every directory anywhere under $CFG->dirroot that currently holds a
+     * MARKER_FILENAME, as an array of realpath()'d directory paths.
+     * Mirrors install_plugins.php's get_downloaded_plugin_dirs(): searches
+     * the whole Moodle root (not just this run's --directory target type)
+     * so plugins installed under an older layout are still found, and
+     * prunes node_modules/.git from the search for speed and to never
+     * walk into a submodule's own internals.
+     *
+     * @return string[]
+     */
+    private function discoverMarkedPluginDirs(): array
+    {
+        $cmd = 'find ' . escapeshellarg($this->moodleroot)
+            . ' -name node_modules -prune'
+            . ' -o -name .git -prune'
+            . ' -o -name ' . escapeshellarg(self::MARKER_FILENAME) . ' -print'
+            . ' 2>/dev/null';
+        exec($cmd, $lines);
+
+        $dirs = [];
+        foreach ($lines as $markerFile) {
+            $dir = dirname($markerFile);
+            $real = realpath($dir);
+            $dirs[] = $real !== false ? $real : $dir;
+        }
+        return array_unique($dirs);
+    }
+
+    /**
+     * Resolved install-path of every component in $components that could
+     * be resolved at all - best-effort, since a component whose plugin
+     * type Moodle no longer knows about (see applyComponent()'s handling
+     * of that same case) simply can't contribute a path to compare
+     * against, and shouldn't abort orphan detection for every other
+     * component.
+     *
+     * @param string[] $components
+     * @return string[] realpath()'d directory paths
+     */
+    private function buildWantedComponentPaths(array $components): array
+    {
+        $wanted = [];
+        foreach ($components as $component) {
+            $componentdir = $this->configPluginDirectory . '/' . $component;
+            if (!is_dir($componentdir)) {
+                continue;
+            }
+            try {
+                $path = $this->getComponentPath($component, $componentdir);
+            } catch (\Throwable $e) {
+                continue;
+            }
+            $real = realpath($path);
+            $wanted[] = $real !== false ? $real : rtrim($path, '/');
+        }
+        return $wanted;
+    }
+
+    /** Best-effort human-readable label for an orphan directory: its declared component name, or its basename. */
+    private function identifyOrphanComponent(string $dir): string
+    {
+        $versionfile = $dir . '/version.php';
+        if (is_file($versionfile)) {
+            try {
+                $component = VersionPhpParser::parseFile($versionfile)['component'] ?? null;
+                if (!empty($component)) {
+                    return $component;
+                }
+            } catch (\Throwable $e) {
+                // fall through to the directory name
+            }
+        }
+        return basename($dir);
+    }
+
+    /**
+     * Create (or, if it already exists, refresh the mtime of) the
+     * MARKER_FILENAME in $componentpath - see the class docblock. A
+     * no-op for a git-managed directory: any marker found there is
+     * removed instead, since a git-managed directory was never
+     * "downloaded" by this command and touching it isn't ours to do.
+     */
+    private function touchDownloadedMarker(string $componentpath): void
+    {
+        $marker = $componentpath . '/' . self::MARKER_FILENAME;
+
+        if ($this->isGitManaged($componentpath)) {
+            if (is_file($marker)) {
+                @unlink($marker);
+            }
+            return;
+        }
+
+        if (!is_dir($componentpath)) {
+            return;
+        }
+
+        touch($marker);
+    }
+
+    /**
+     * True if $path is managed by git in either form: a plain clone
+     * (.git is a directory) or a submodule (.git is a file pointing at
+     * the superproject's gitdir). Ported from install_plugins.php's
+     * `file_exists($dir . '/.git')` check at the top of plugin_install() -
+     * see the class docblock for why this replaces the narrower
+     * is_file(...) checks this file previously had in some places only.
+     */
+    private function isGitManaged(string $path): bool
+    {
+        return file_exists($path . '/.git');
     }
 
     /** True under GitHub Actions (and most other CI systems, which set the same $CI convention). */
@@ -341,6 +588,16 @@ class PluginListApply52Handler extends BaseHandler
 
             if ($patchesOk) {
                 $this->runAlwaysRunHookIfPresent($component, $componentdir, $output);
+                // Backfill: marks a pre-existing/hand-installed component
+                // as tracked on the very first run that sees it already
+                // correct, instead of it looking orphaned - matching
+                // plugin_install()'s "plugin is uptodate, ... mark as
+                // downloaded" branch in install_plugins.php. No-op (and
+                // in dry-run mode, no disk write at all) for a
+                // git-managed directory.
+                if (!$this->dryRun) {
+                    $this->touchDownloadedMarker($componentpath);
+                }
                 $suffix = (!$isPackage && !$requestedIsSentinel && $this->hasPatches($component, $componentdir))
                     ? ' (including local patches)' : '';
                 $output->writeln("OK      $component: already at $displayRequested$suffix");
@@ -642,7 +899,7 @@ class PluginListApply52Handler extends BaseHandler
             return;
         }
 
-        if (is_file($componentpath . '/.git')) {
+        if ($this->isGitManaged($componentpath)) {
             $output->writeln("plugin $component is managed by git - leaving as is");
             return;
         }
@@ -684,7 +941,7 @@ class PluginListApply52Handler extends BaseHandler
             $output->writeln("WARN: Moodle reports $component cannot be uninstalled through the plugin manager - removing files only");
         }
 
-        if (is_file($componentpath . '/.git')) {
+        if ($this->isGitManaged($componentpath)) {
             $output->writeln("plugin $component is managed by git - leaving as is");
         } elseif (is_dir($componentpath)) {
             \fulldelete($componentpath);
@@ -772,12 +1029,32 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException("bin/install_requested_version.sh exited with status $exitcode");
             }
+            try {
+                $this->touchDownloadedMarker($this->getComponentPath($component, $componentdir));
+            } catch (\Throwable $e) {
+                // Best-effort only - a package_* component whose own
+                // get_component_path.sh can't resolve a path right after
+                // its own successful install script ran is an edge case
+                // orphan detection can live without; don't fail the
+                // install over it.
+            }
             return;
         }
 
         $this->installRequiresFileDependencies($component, $componentdir, $output, $depth);
 
         $componentpath = $this->getComponentPath($component, $componentdir);
+
+        // §2: a git-managed directory (plain clone or submodule - see
+        // isGitManaged()) is left alone, exactly as install_plugins.php's
+        // plugin_install() does before ever downloading anything. Without
+        // this check a submodule-managed plugin directory could be
+        // silently overwritten by a downloaded zip below.
+        if ($this->isGitManaged($componentpath)) {
+            $output->writeln("plugin $component is managed by git - leaving as is");
+            $this->touchDownloadedMarker($componentpath);
+            return;
+        }
 
         global $CFG;
         require_once $CFG->libdir . '/adminlib.php';
@@ -887,6 +1164,8 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $this->applyPatches($component, $componentdir, $componentpath, $output);
+
+        $this->touchDownloadedMarker($componentpath);
 
         $this->resetPluginCaches();
     }
