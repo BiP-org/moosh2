@@ -51,6 +51,13 @@ class PluginListApplyCommand extends BaseCommand
                 "When a patch changes or disappears, the component is downloaded again and the " .
                 "current patches applied to the fresh code. package_* components are never patched " .
                 "here - they install via their own bin/install_requested_version.sh.\n\n" .
+                "Every component confirmed at its requested version (freshly installed or already " .
+                "correct) is tracked with a .downloaded-non-core-plugin marker file in its install " .
+                "directory. When the full declarative list is scanned (no component names given on " .
+                "the command line), any marked directory that is no longer in the list is an orphan: " .
+                "--warn-orphans (the default) only reports these, --prune-orphans deletes them " .
+                "(still behind --run). A git-managed directory (plain clone or submodule) is never " .
+                "marked, overwritten, or deleted.\n\n" .
                 'Without --run this only previews what would happen, same as plugin:install/plugin:uninstall.',
             );
         $this->handler->configureCommand($this);
