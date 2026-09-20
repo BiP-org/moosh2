@@ -676,108 +676,63 @@ php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plug
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">7. Patching a plugin after installation</h2>
         <p className="text-muted-foreground">
-          Neither command applies a source patch as part of installing a plugin &mdash; there is no{' '}
-          <InlineCode>.patch</InlineCode>/<InlineCode>.diff</InlineCode> file convention built in. Patching is
-          done through the one hook both an ordinary and a <InlineCode>package_*</InlineCode> component share:{' '}
-          <InlineCode>bin/install_requested_always_run.sh</InlineCode>.
-        </p>
-        <p className="text-muted-foreground">
-          This script, if present in a component&apos;s directory, runs every time{' '}
-          <InlineCode>plugin:list-apply</InlineCode> finds the component <strong>already at its requested
-          version</strong> &mdash; i.e. on every run <em>after</em> the one that actually installed it, not on
-          the install run itself. That is the key thing to design around:
-        </p>
-        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-          <li>
-            Run 1: plugin isn&apos;t installed yet &rarr; it gets installed &rarr; the hook is <strong>not</strong>{' '}
-            run this time.
-          </li>
-          <li>
-            Run 2 (the next scheduled <InlineCode>plugin:list-apply</InlineCode>, e.g. the next day&apos;s cron):
-            the plugin is now at the requested version &rarr; the hook <strong>does</strong> run.
-          </li>
-          <li>
-            Because of that one-run lag, and because the hook fires on every subsequent run indefinitely, it must
-            be <strong>idempotent</strong> &mdash; safe to run against already-patched files without applying the
-            same change twice or erroring out.
-          </li>
-        </ul>
-
-        <h3 className="text-lg font-semibold">Recommended pattern</h3>
-        <p className="text-muted-foreground">
-          1. Ship the patch itself as a plain unified diff next to the plugin, e.g.{' '}
+          <InlineCode>plugin:list-apply</InlineCode> applies <InlineCode>*.patch</InlineCode> files natively
+          &mdash; there is no separate hook script to write. Drop one or more unified diffs directly next to a
+          component&apos;s <InlineCode>version</InlineCode> file, e.g.{' '}
           <InlineCode>block_exaaichat/01-version-info.patch</InlineCode>:
         </p>
         <CodeBlock>{`diff --git a/version.php b/version.php
 --- a/version.php
 +++ b/version.php
-@@ -30,3 +30,7 @@ $plugin->version = 2026080600;
+@@ -30,3 +30,4 @@ $plugin->version = 2026080600;
  $plugin->requires = 2024100701; // moodle 4.5
  $plugin->maturity = MATURITY_STABLE;
  $plugin->release = '5.1';
-+
-+// <local-patch>
-+// Patched: demo patch, see block_exaaichat/01-version-info.patch.
-+// </local-patch>`}</CodeBlock>
++// locally patched, see block_exaaichat/01-version-info.patch`}</CodeBlock>
         <p className="text-muted-foreground">
-          The trailing marker comment (<InlineCode>{'<local-patch>'}</InlineCode> above) is what makes step 2
-          idempotent &mdash; pick any string that won&apos;t collide with the plugin&apos;s own source, and use
-          the same one across every patch file in your repo.
+          Patches must be in <InlineCode>-p1</InlineCode> format, exactly what <InlineCode>git diff</InlineCode>{' '}
+          produces (modifying, adding, deleting and renaming files all work) &mdash; <InlineCode>git apply</InlineCode>{' '}
+          is what applies them under the hood. With several patches for the same component, a numeric filename
+          prefix (<InlineCode>01-...</InlineCode>, <InlineCode>02-...</InlineCode>) controls the apply order.
         </p>
 
+        <h3 className="text-lg font-semibold">When patches are applied</h3>
         <p className="text-muted-foreground">
-          2. Add <InlineCode>bin/install_requested_always_run.sh</InlineCode> that applies every{' '}
-          <InlineCode>*.patch</InlineCode> file in the component&apos;s directory, but only if the marker isn&apos;t
-          already present in the target file:
-        </p>
-        <CodeBlock>{`#!/usr/bin/env bash
-set -euo pipefail
-
-componentdir="$(dirname "$0")/.."
-componentpath="mod/board"   # same path get_component_path.sh would report
-marker="<local-patch>"
-
-for patch in "$componentdir"/*.patch; do
-    [ -e "$patch" ] || continue
-
-    target=$(sed -n 's/^--- a\\///p' "$patch" | head -n1)
-    if [ -z "$target" ]; then
-        echo "could not determine target file from $patch" >&2
-        exit 1
-    fi
-
-    if grep -qF "$marker" "$componentpath/$target" 2>/dev/null; then
-        echo "skip $patch: already applied to $componentpath/$target"
-        continue
-    fi
-
-    echo "applying $patch to $componentpath/$target"
-    (cd "$componentpath" && patch -p1) < "$patch"
-done`}</CodeBlock>
-        <p className="text-muted-foreground">
-          <InlineCode>git apply --check</InlineCode> works just as well as <InlineCode>patch -p1</InlineCode> if
-          you&apos;d rather use git&apos;s applier (and gives you <InlineCode>git apply -R --check</InlineCode> for
-          a clean &ldquo;is this already applied&rdquo; test instead of grepping for a marker).
+          Unlike the old hook-based approach this replaces, there is <strong>no one-run lag</strong>: patches are
+          applied as part of the same <InlineCode>plugin:list-apply --run</InlineCode> that installs or upgrades
+          the component, right after its files are put in place and before the malware scan runs. A component
+          freshly installed by a given run comes out of that same run already patched.
         </p>
         <p className="text-muted-foreground">
-          3. Make it executable: <InlineCode>chmod +x bin/install_requested_always_run.sh</InlineCode>.
+          What was last applied is tracked in a <InlineCode>.patches-applied</InlineCode> fingerprint file inside
+          the installed component directory (not part of the plugin&apos;s own source, so nothing to{' '}
+          <InlineCode>.gitignore</InlineCode> by hand). On every later run, if the fingerprint still matches the
+          current <InlineCode>*.patch</InlineCode> files, nothing happens &mdash; reported as{' '}
+          <InlineCode>OK &lt;component&gt;: already at &lt;version&gt; (including local patches)</InlineCode>.
+          If a patch file changed, was added, removed, or renamed since then, the fingerprint no longer matches
+          and the component is <strong>redownloaded from moodle.org and re-patched</strong> &mdash; even if the
+          requested <InlineCode>version</InlineCode> itself didn&apos;t change. Reverting the old patches in
+          place is never attempted, which is why this always starts from a fresh copy of the plugin instead.
+        </p>
+        <p className="text-muted-foreground">
+          A patch that doesn&apos;t apply cleanly (e.g. it no longer matches the plugin&apos;s current source
+          after an upstream update) fails the component loudly with the <InlineCode>git apply</InlineCode> output
+          included, the same as any other install failure &mdash; it does not silently install the unpatched
+          version.
         </p>
 
-        <Note title="One-run lag">
-          Because the hook only runs on the &ldquo;already at requested version&rdquo; branch, after a fresh
-          install (or a version bump) you need <strong>one more</strong>{' '}
-          <InlineCode>plugin:list-apply --run</InlineCode> for the patch to actually land. In practice this falls
-          out naturally from a cron/scheduled <InlineCode>plugin:list-apply</InlineCode> (see section 8.2), since
-          the day after an install is exactly the &ldquo;already at X&rdquo; run. If the patch needs to land in
-          the <em>same</em> run as a fresh install/upgrade, either apply it explicitly as a second step after{' '}
-          <InlineCode>plugin:list-apply</InlineCode> in the same job, or run{' '}
-          <InlineCode>plugin:list-apply --run</InlineCode> twice back to back.
+        <Note title="package_* components are never patched">
+          Patch support only applies to ordinary components. <InlineCode>package_*</InlineCode> pseudo-components
+          install entirely through their own <InlineCode>bin/install_requested_version.sh</InlineCode>, outside
+          this mechanism &mdash; patch a <InlineCode>package_*</InlineCode> component by handling it inside that
+          script instead.
         </Note>
 
         <p className="text-muted-foreground">
-          <InlineCode>--run</InlineCode> gates the hook the same way it gates everything else &mdash; a dry run
-          only prints{' '}
-          <InlineCode>{'(would run bin/install_requested_always_run.sh for <component>)'}</InlineCode>.
+          As with everything else in <InlineCode>plugin:list-apply</InlineCode>, <InlineCode>--run</InlineCode>{' '}
+          gates this &mdash; a dry run against a component with changed patches reports{' '}
+          <InlineCode>{'WOULD REAPPLY PATCHES <component>: local patches changed, files will be downloaded again and re-patched'}</InlineCode>{' '}
+          instead of actually touching anything.
         </p>
       </section>
 
@@ -872,11 +827,11 @@ jobs:
         <h3 className="text-lg font-semibold">8.2 Scheduled/on-merge list-apply &rarr; deploy, patch, and report failures</h3>
         <p className="text-muted-foreground">
           Applies the plugin list to a real Moodle installation &mdash; typically on merge to the branch the PR
-          above targets, and/or on its own daily schedule so{' '}
-          <InlineCode>install_requested_always_run.sh</InlineCode> hooks (patches, see section 7) get a chance to
-          run even on days nothing else changed. Runs with <InlineCode>--keep-going</InlineCode> so one broken
-          plugin doesn&apos;t block every other one from installing, and opens an issue summarising anything that
-          failed.
+          above targets, and/or on its own daily schedule so any <InlineCode>install_requested_always_run.sh</InlineCode>{' '}
+          hooks a component defines get a chance to run even on days nothing else changed (patches, see section 7,
+          need no such schedule &mdash; they land in the same run as the install/upgrade that triggers them). Runs
+          with <InlineCode>--keep-going</InlineCode> so one broken plugin doesn&apos;t block every other one from
+          installing, and opens an issue summarising anything that failed.
         </p>
         <CodeBlock>{`name: Apply plugin list
 
@@ -945,11 +900,12 @@ jobs:
             report than &ldquo;it broke somewhere&rdquo;.
           </li>
           <li>
-            The daily schedule is what makes the <InlineCode>install_requested_always_run.sh</InlineCode> pattern
-            from section 7 actually reliable in practice: a plugin installed by today&apos;s{' '}
-            <InlineCode>push</InlineCode> trigger gets its patch hook run by tomorrow&apos;s{' '}
+            The daily schedule is still worth keeping for any <InlineCode>install_requested_always_run.sh</InlineCode>{' '}
+            hooks a component defines for non-patch purposes: a plugin installed by today&apos;s{' '}
+            <InlineCode>push</InlineCode> trigger gets that hook run by tomorrow&apos;s{' '}
             <InlineCode>schedule</InlineCode> trigger automatically, with no special-casing needed in the workflow
-            itself.
+            itself. Patches (section 7) don&apos;t depend on this &mdash; they&apos;re applied in the same run
+            that installs or upgrades the component.
           </li>
           <li>
             <InlineCode>--scanner=all</InlineCode> runs both ClamAV and phpMussel (equivalent to{' '}

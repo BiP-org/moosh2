@@ -46,6 +46,11 @@ class PluginListApplyCommand extends BaseCommand
                 "  0    uninstall completely, including its database tables\n" .
                 "  -1   remove the plugin's files only, leave the database untouched\n" .
                 " (missing version file is an error - this command does not guess)\n\n" .
+                "Patch files next to a component's version file (*.patch, -p1 format as `git diff` " .
+                "produces it) are applied to its code after every (re)install, sorted by filename. " .
+                "When a patch changes or disappears, the component is downloaded again and the " .
+                "current patches applied to the fresh code. package_* components are never patched " .
+                "here - they install via their own bin/install_requested_version.sh.\n\n" .
                 'Without --run this only previews what would happen, same as plugin:install/plugin:uninstall.',
             );
         $this->handler->configureCommand($this);

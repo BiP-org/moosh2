@@ -932,6 +932,191 @@ rm -rf "$ARCHDIR"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════
+# Patch support (*.patch files next to a component's version file)
+# ═══════════════════════════════════════════════════════════════════
+#
+# Installed via --archive-fallback against a hand-built archive zip
+# (build_archive_zip, defined above) rather than a real moodle.org
+# download, so whether a patch still applies cleanly never depends on
+# what moodle.org happens to be serving mod_attendance as right now -
+# this suite controls version.php's exact content on both ends.
+
+PATCHDIR=$(mktemp -d)
+mkdir -p "$PATCHDIR/mod_attendance/archive"
+sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+reset_cache_definitions
+PATCH_VERSION="8888888800"
+echo "$PATCH_VERSION" > "$PATCHDIR/mod_attendance/version"
+build_archive_zip mod_attendance "$PATCH_VERSION" "$PATCHDIR/mod_attendance/archive/mod_attendance-$PATCH_VERSION.zip"
+
+# Builds a -p1 patch for mod_attendance's version.php - exactly the
+# content build_archive_zip generates for the given version - that
+# appends a one-line marker comment, so whether a patch was applied can
+# be checked with a simple grep on the installed file.
+build_version_patch() {
+    # $1 = version  $2 = marker text  $3 = target patch file path
+    local version="$1" marker="$2" target="$3"
+    local stage
+    stage=$(mktemp -d)
+    mkdir -p "$stage/a" "$stage/b"
+    cat > "$stage/a/version.php" <<PHP
+<?php
+\$plugin->component = 'mod_attendance';
+\$plugin->version   = ${version};
+\$plugin->requires  = 2024100700;
+\$plugin->release   = '${version}';
+\$plugin->maturity  = MATURITY_STABLE;
+PHP
+    cp "$stage/a/version.php" "$stage/b/version.php"
+    echo "// ${marker}" >> "$stage/b/version.php"
+    # diff -u exits 1 because the files differ - that's expected, not a
+    # failure; nothing here checks its exit code.
+    ( cd "$stage" && diff -u a/version.php b/version.php > "$target" )
+    rm -rf "$stage"
+}
+
+echo "--- Test: dry run previews install without applying the patch ---"
+build_version_patch "$PATCH_VERSION" "patched-by-moosh2-test" "$PATCHDIR/mod_attendance/01-marker.patch"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0 for dry run" 0 "$EC"
+assert_output_contains "Shows would-install" "WOULD INSTALL" "$OUT"
+if [ ! -d "$MOODLE_PATH/mod/attendance" ]; then
+    echo "  PASS: nothing installed during dry run"
+    ((PASS++))
+else
+    echo "  FAIL: plugin directory exists after a dry run"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: --run installs and applies the patch in the same run ---"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --run --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows patch being applied" "Applying patch 01-marker.patch to mod_attendance" "$OUT"
+assert_output_contains "Shows the archived install" "ARCHIVED mod_attendance" "$OUT"
+assert_output_contains "Notes local patches in the summary line" "(including local patches)" "$OUT"
+if grep -qF "patched-by-moosh2-test" "$MOODLE_PATH/mod/attendance/version.php" 2>/dev/null; then
+    echo "  PASS: patch marker present in version.php after install"
+    ((PASS++))
+else
+    echo "  FAIL: patch marker missing from version.php after install"
+    ((FAIL++))
+fi
+if [ -f "$MOODLE_PATH/mod/attendance/.patches-applied" ]; then
+    echo "  PASS: .patches-applied fingerprint file written"
+    ((PASS++))
+else
+    echo "  FAIL: .patches-applied fingerprint file missing"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: re-running --run with unchanged patches is a no-op ---"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --run --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows already-at including local patches" "already at $PATCH_VERSION (including local patches)" "$OUT"
+assert_output_not_contains "Does not reapply the patch" "Applying patch" "$OUT"
+assert_output_not_contains "Does not reinstall" "ARCHIVED mod_attendance:" "$OUT"
+echo ""
+
+echo "--- Test: dry run reports a changed patch without touching anything ---"
+build_version_patch "$PATCH_VERSION" "patched-by-moosh2-test-v2" "$PATCHDIR/mod_attendance/01-marker.patch"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Shows would-reapply-patches" "WOULD REAPPLY PATCHES mod_attendance" "$OUT"
+if grep -qxF "// patched-by-moosh2-test-v2" "$MOODLE_PATH/mod/attendance/version.php" 2>/dev/null; then
+    echo "  FAIL: dry run applied the changed patch"
+    ((FAIL++))
+else
+    echo "  PASS: dry run left the installed file untouched"
+    ((PASS++))
+fi
+echo ""
+
+echo "--- Test: --run redownloads and re-patches when the patch content changed ---"
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --run --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Explains why it's reinstalling" "local patches changed - downloading files again and applying current patches" "$OUT"
+assert_output_contains "Reapplies the (renamed-content) patch" "Applying patch 01-marker.patch to mod_attendance" "$OUT"
+# grep -x (whole-line match) matters here: "patched-by-moosh2-test" is a
+# plain substring of "patched-by-moosh2-test-v2", so a plain -F match
+# would pass even if the file somehow ended up with both markers instead
+# of a genuinely fresh, single-marker copy.
+if grep -qxF "// patched-by-moosh2-test-v2" "$MOODLE_PATH/mod/attendance/version.php" 2>/dev/null \
+    && ! grep -qxF "// patched-by-moosh2-test" "$MOODLE_PATH/mod/attendance/version.php" 2>/dev/null; then
+    echo "  PASS: component was redownloaded and repatched with the new content only"
+    ((PASS++))
+else
+    echo "  FAIL: version.php does not reflect a fresh redownload + repatch"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: removing all patches also triggers a redownload, now without patching ---"
+rm -f "$PATCHDIR/mod_attendance"/*.patch
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --run --archive-fallback
+EC=$?
+assert_exit_code "Exit code 0" 0 "$EC"
+assert_output_contains "Still explains it as a patches-changed reinstall" "local patches changed - downloading files again and applying current patches" "$OUT"
+assert_output_not_contains "No patch left to apply" "Applying patch" "$OUT"
+assert_output_contains "Reports the reinstall" "ARCHIVED mod_attendance" "$OUT"
+assert_output_not_contains "No longer notes local patches" "(including local patches)" "$OUT"
+if grep -qF "patched-by-moosh2-test" "$MOODLE_PATH/mod/attendance/version.php" 2>/dev/null; then
+    echo "  FAIL: version.php still carries a patch marker after all patches were removed"
+    ((FAIL++))
+else
+    echo "  PASS: version.php is back to its unpatched content"
+    ((PASS++))
+fi
+if [ -f "$MOODLE_PATH/mod/attendance/.patches-applied" ]; then
+    echo "  FAIL: stale .patches-applied fingerprint file was not cleaned up"
+    ((FAIL++))
+else
+    echo "  PASS: .patches-applied fingerprint file removed along with the patches"
+    ((PASS++))
+fi
+echo ""
+
+echo "--- Test: a patch that fails to apply cleanly fails the component loudly ---"
+sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+reset_cache_definitions
+cat > "$PATCHDIR/mod_attendance/01-broken.patch" <<'PATCH'
+--- a/version.php
++++ b/version.php
+@@ -1,6 +1,7 @@
+ <?php
+ $plugin->component = 'mod_attendance';
+ $plugin->doesnotexist = 'this context line will never match';
+ $plugin->requires  = 2024100700;
+ $plugin->release   = 'x';
+ $plugin->maturity  = MATURITY_STABLE;
++// unreachable
+PATCH
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PATCHDIR" --run --archive-fallback
+EC=$?
+assert_exit_code "Nonzero exit - patch failed to apply" 1 "$EC"
+assert_output_contains "Reports the component as an error" "ERROR   mod_attendance" "$OUT"
+assert_output_contains "Names the failing patch" "01-broken.patch" "$OUT"
+if [ -f "$MOODLE_PATH/mod/attendance/.patches-applied" ] && [ "$(cat "$MOODLE_PATH/mod/attendance/.patches-applied")" = "incomplete" ]; then
+    echo "  PASS: fingerprint left as 'incomplete' so the next run retries instead of reporting false success"
+    ((PASS++))
+else
+    echo "  FAIL: fingerprint file does not reflect the failed patch attempt"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Cleaning up patch-support fixture ---"
+sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+rm -rf "$PATCHDIR"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════
 # Regression: package_* value-checks must survive RUNNER_DEBUG=1
 # ═══════════════════════════════════════════════════════════════════
 #
@@ -1012,6 +1197,21 @@ SH
 
 chmod +x "$PKGDIR"/package_mooshtest/bin/*.sh
 
+# A stray *.patch file dropped into a package_* component's directory must
+# never be applied - patch support (see the "Patch support" section above)
+# is scoped to ordinary components; installRequestedVersion() returns
+# before ever reaching applyPatches() for package_*. This patch is
+# deliberately malformed (targets a file that doesn't exist) so that if it
+# were ever picked up, applying it would fail loudly rather than silently
+# succeeding and hiding the regression.
+cat > "$PKGDIR/package_mooshtest/should-never-apply.patch" <<'PATCH'
+--- a/nonexistent-file-for-regression-check.txt
++++ b/nonexistent-file-for-regression-check.txt
+@@ -1 +1 @@
+-old
++new
+PATCH
+
 rm -rf "$MOODLE_PATH/local/mooshtest" 2>/dev/null
 
 echo "--- Test: package_* install succeeds normally (RUNNER_DEBUG unset) ---"
@@ -1021,6 +1221,7 @@ EC=$?
 assert_exit_code "Exit code 0 without debug logging" 0 "$EC"
 assert_output_contains "Reports installed" "INSTALLED package_mooshtest" "$OUT"
 assert_output_not_contains "Does not report a bogus upgrade failure" "could not be upgraded" "$OUT"
+assert_output_not_contains "Stray *.patch file in a package_* dir is never applied" "Applying patch" "$OUT"
 echo ""
 
 echo "--- Test: re-checking an already-installed package_* under RUNNER_DEBUG=1 ---"
