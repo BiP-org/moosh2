@@ -741,7 +741,8 @@ PHP
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 
 echo "--- Test: without --archive-fallback, an unresolvable version fails as before (regression guard) ---"
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --runEC=$?
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run
+EC=$?
 assert_exit_code "Nonzero exit" 1 "$EC"
 assert_output_contains "Error mentions the component" "mod_attendance" "$OUT"
 assert_output_contains "Error is the original moodle.org not-found message" "Could not find" "$OUT"
@@ -870,7 +871,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 export CI=true
 run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --archive-annotation-level=notice
-EC=$?unset CI
+EC=$?
+unset CI
 assert_exit_code "Exit code 0" 0 "$EC"
 assert_output_contains "Archive summary now uses ::notice::" "::notice title=Archived plugin components in use::" "$OUT"
 assert_output_contains "Checksum warning still uses ::warning::" "::warning title=Missing plugin checksum::" "$OUT"
@@ -881,7 +883,8 @@ sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 mkdir -p "$ARCHDIR/zzz_bad_component"
 echo 1 > "$ARCHDIR/zzz_bad_component/version"
-run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --keep-goingEC=$?
+run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$ARCHDIR" --run --archive-fallback --keep-going
+EC=$?
 assert_exit_code "Nonzero exit - zzz_bad_component still failed" 1 "$EC"
 assert_output_contains "Shows the failed component" "Failed component(s):" "$OUT"
 assert_output_contains "Also shows the archived component" "Archived component(s) in use" "$OUT"
@@ -896,6 +899,14 @@ echo "--- Test: dependency-attribution regression (§2.4) - archive-fallback fir
 # the ARCHIVED/summary output) from ITS OWN archive - not skipped, and
 # not misattributed to local_archtest's own fallback.
 sudo rm -rf "$MOODLE_PATH/mod/attendance" 2>/dev/null
+# local_archtest's live Moodle install state isn't reset by any earlier
+# test in this block (unlike mod_attendance above), so explicitly clear
+# it here too - otherwise a leftover install from an earlier run in this
+# same script execution leaves getInstalledVersion() already at the
+# target version, moosh reports "OK ... already at 999999" and skips
+# the install entirely, and none of the assertions below have anything
+# to check.
+sudo rm -rf "$MOODLE_PATH/local/archtest" 2>/dev/null
 build_archive_zip mod_attendance "$FAKE_VERSION" "$ARCHDIR/mod_attendance/archive/mod_attendance-$FAKE_VERSION.zip"
 mkdir -p "$ARCHDIR/local_archtest/archive"
 echo "999999" > "$ARCHDIR/local_archtest/version"
