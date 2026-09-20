@@ -263,8 +263,7 @@ else
         echo "  PASS: archive/pluglist-entry.json was written"
         ((PASS++))
     else
-        echo "  FAIL: expected $ARCHIVEDIR/pluglist-entry.json"
-        ((FAIL++))
+        echo "  FAIL: expected $ARCHIVEDIR/pluglist-entry.json"        ((FAIL++))
     fi
     if [ -f "$ARCHIVEDIR/pluglist.source" ]; then
         SOURCE=$(cat "$ARCHIVEDIR/pluglist.source")
@@ -272,8 +271,7 @@ else
             echo "  PASS: archive/pluglist.source holds a URL ($SOURCE)"
             ((PASS++))
         else
-            echo "  FAIL: .source file doesn't look like a URL: '$SOURCE'"
-            ((FAIL++))
+            echo "  FAIL: .source file doesn't look like a URL: '$SOURCE'"            ((FAIL++))
         fi
     else
         echo "  FAIL: expected $ARCHIVEDIR/pluglist.source"
@@ -332,8 +330,7 @@ if [ ! -f "$LISTDIR/mod_attendance/checksum" ] && [ -d "$LISTDIR/mod_attendance/
    compgen -G "$LISTDIR/mod_attendance/archive/mod_attendance-*.zip" > /dev/null; then
     echo "  PASS: --no-checksum skipped the checksum file, --archive still wrote the zip (independent options)"
     ((PASS++))
-else
-    echo "  FAIL: expected checksum absent but archive present (checksum exists: $([ -f "$LISTDIR/mod_attendance/checksum" ] && echo yes || echo no))"
+else    echo "  FAIL: expected checksum absent but archive present (checksum exists: $([ -f "$LISTDIR/mod_attendance/checksum" ] && echo yes || echo no))"
     ((FAIL++))
 fi
 echo ""
@@ -359,8 +356,7 @@ fi
 rm -rf "$LISTDIR/mod_attendance/archive"
 echo ""
 
-# --- Marketplace-subscription-only plugin (HTTP 401) ---
-#
+# --- Marketplace-subscription-only plugin (HTTP 401) ---#
 # tiny_fontfamily is listed in plugins.json (moodle.org's public plugin
 # directory) but its actual zip only lives behind marketplace.moodle.com,
 # which returns HTTP 401 "Not privileged to request the resource" without
