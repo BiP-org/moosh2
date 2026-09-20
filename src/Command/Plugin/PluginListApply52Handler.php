@@ -566,6 +566,31 @@ class PluginListApply52Handler extends BaseHandler
             throw $e;
         }
 
+        // §2: a git-managed directory (plain clone or submodule) is left
+        // completely alone - checked here, before ever reading its
+        // version.php, exactly where install_plugins.php's
+        // plugin_install() checks it: version comparison is meaningless
+        // for a path whose real version.php is git's/the submodule's
+        // problem, not this command's. Getting this right matters
+        // structurally, not just cosmetically: getInstalledVersion()
+        // below can throw on a version.php this command doesn't
+        // recognize, and even if it didn't, current would almost never
+        // equal $requested for a git-managed component (nothing here
+        // wrote it), which would otherwise fall through to
+        // installRequestedVersion() and then fail the post-install
+        // "could not be upgraded" check purely because git, correctly,
+        // wasn't touched. Not applicable to package_* - those never
+        // resolve to a git-managed path via this check; a package_*
+        // submodule (if ever needed) is the responsibility of its own
+        // bin/ scripts.
+        if (!str_starts_with($component, 'package_') && $this->isGitManaged($componentpath)) {
+            $output->writeln("plugin $component is managed by git - leaving as is");
+            if (!$this->dryRun) {
+                $this->touchDownloadedMarker($componentpath);
+            }
+            return;
+        }
+
         $current = $this->getInstalledVersion($component, $componentdir, $componentpath);
 
         $output->writeln('-----');
@@ -1045,14 +1070,20 @@ class PluginListApply52Handler extends BaseHandler
 
         $componentpath = $this->getComponentPath($component, $componentdir);
 
-        // §2: a git-managed directory (plain clone or submodule - see
-        // isGitManaged()) is left alone, exactly as install_plugins.php's
-        // plugin_install() does before ever downloading anything. Without
-        // this check a submodule-managed plugin directory could be
-        // silently overwritten by a downloaded zip below.
+        // §2: defense-in-depth - the top-level call from applyComponent()
+        // now short-circuits before ever reaching here for a git-managed
+        // top-level component (see applyComponent()), so this mainly
+        // protects the OTHER caller of this method: recursive
+        // version.php-dependency resolution (resolveSingleDependency() ->
+        // installRequestedVersion() for a dependency component), which
+        // has no equivalent early check of its own. Never download over
+        // a git-managed path, exactly as install_plugins.php's
+        // plugin_install() does before touching anything.
         if ($this->isGitManaged($componentpath)) {
             $output->writeln("plugin $component is managed by git - leaving as is");
-            $this->touchDownloadedMarker($componentpath);
+            if (!$this->dryRun) {
+                $this->touchDownloadedMarker($componentpath);
+            }
             return;
         }
 
