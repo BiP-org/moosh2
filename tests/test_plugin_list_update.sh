@@ -230,48 +230,50 @@ echo ""
 # (uncompressed - see §7's compression decision: an uncompressed .json
 # diffs cleanly in a GitHub PR, which was chosen over gzip for exactly
 # that reason), a small per-component extract of it, and the source URL,
-# into <component>/archiv/. Reuses mod_attendance since it's the one
+# into <component>/archive/. Reuses mod_attendance since it's the one
 # real plugin these tests already rely on resolving against moodle.org.
 
-echo "--- Test: --archive writes the full archiv/ set after a real version bump ---"
-rm -rf "$LISTDIR/mod_attendance/archiv"
+echo "--- Test: --archive writes the full archive/ set after a real version bump ---"
+rm -rf "$LISTDIR/mod_attendance/archive"
 rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --archive mod_attendance
 EC=$?
 assert_exit_code "Exit code 0" 0 "$EC"
 ARCHIVED_VERSION=$(cat "$LISTDIR/mod_attendance/version" 2>/dev/null || true)
-ARCHIVEDIR="$LISTDIR/mod_attendance/archiv"
+ARCHIVEDIR="$LISTDIR/mod_attendance/archive"
 if [ -z "$ARCHIVED_VERSION" ]; then
     echo "  FAIL: mod_attendance/version wasn't written, cannot verify archive filenames"
     ((FAIL++))
 else
     if [ -f "$ARCHIVEDIR/mod_attendance-$ARCHIVED_VERSION.zip" ]; then
-        echo "  PASS: archiv/mod_attendance-$ARCHIVED_VERSION.zip was written"
+        echo "  PASS: archive/mod_attendance-$ARCHIVED_VERSION.zip was written"
         ((PASS++))
     else
         echo "  FAIL: expected $ARCHIVEDIR/mod_attendance-$ARCHIVED_VERSION.zip"
         ((FAIL++))
     fi
     if [ -f "$ARCHIVEDIR/pluglist.json" ]; then
-        echo "  PASS: archiv/pluglist.json (uncompressed) was written"
+        echo "  PASS: archive/pluglist.json (uncompressed) was written"
         ((PASS++))
     else
         echo "  FAIL: expected $ARCHIVEDIR/pluglist.json"
         ((FAIL++))
     fi
     if [ -f "$ARCHIVEDIR/pluglist-entry.json" ]; then
-        echo "  PASS: archiv/pluglist-entry.json was written"
+        echo "  PASS: archive/pluglist-entry.json was written"
         ((PASS++))
     else
-        echo "  FAIL: expected $ARCHIVEDIR/pluglist-entry.json"        ((FAIL++))
+        echo "  FAIL: expected $ARCHIVEDIR/pluglist-entry.json"
+        ((FAIL++))
     fi
     if [ -f "$ARCHIVEDIR/pluglist.source" ]; then
         SOURCE=$(cat "$ARCHIVEDIR/pluglist.source")
         if [[ "$SOURCE" == https://* ]]; then
-            echo "  PASS: archiv/pluglist.source holds a URL ($SOURCE)"
+            echo "  PASS: archive/pluglist.source holds a URL ($SOURCE)"
             ((PASS++))
         else
-            echo "  FAIL: .source file doesn't look like a URL: '$SOURCE'"            ((FAIL++))
+            echo "  FAIL: .source file doesn't look like a URL: '$SOURCE'"
+            ((FAIL++))
         fi
     else
         echo "  FAIL: expected $ARCHIVEDIR/pluglist.source"
@@ -305,32 +307,33 @@ else
 fi
 echo ""
 
-echo "--- Test: without --archive, none of the archiv/ files are written (regression guard) ---"
-rm -rf "$LISTDIR/mod_attendance/archiv"
+echo "--- Test: without --archive, none of the archive/ files are written (regression guard) ---"
+rm -rf "$LISTDIR/mod_attendance/archive"
 rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run mod_attendance
 EC=$?
 assert_exit_code "Exit code 0" 0 "$EC"
-if [ ! -d "$LISTDIR/mod_attendance/archiv" ]; then
-    echo "  PASS: no archiv/ directory created without --archive"
+if [ ! -d "$LISTDIR/mod_attendance/archive" ]; then
+    echo "  PASS: no archive/ directory created without --archive"
     ((PASS++))
 else
-    echo "  FAIL: archiv/ directory exists despite --archive not being passed"
+    echo "  FAIL: archive/ directory exists despite --archive not being passed"
     ((FAIL++))
 fi
 echo ""
 
 echo "--- Test: --archive + --no-checksum together - archive still writes, no crash ---"
-rm -rf "$LISTDIR/mod_attendance/archiv"
+rm -rf "$LISTDIR/mod_attendance/archive"
 rm -f "$LISTDIR/mod_attendance/version" "$LISTDIR/mod_attendance/checksum"
 run_moosh plugin:list-update --directory="$LISTDIR" --moodle-version=5.1 --run --archive --no-checksum mod_attendance
 EC=$?
 assert_exit_code "Exit code 0" 0 "$EC"
-if [ ! -f "$LISTDIR/mod_attendance/checksum" ] && [ -d "$LISTDIR/mod_attendance/archiv" ] && \
-   compgen -G "$LISTDIR/mod_attendance/archiv/mod_attendance-*.zip" > /dev/null; then
+if [ ! -f "$LISTDIR/mod_attendance/checksum" ] && [ -d "$LISTDIR/mod_attendance/archive" ] && \
+   compgen -G "$LISTDIR/mod_attendance/archive/mod_attendance-*.zip" > /dev/null; then
     echo "  PASS: --no-checksum skipped the checksum file, --archive still wrote the zip (independent options)"
     ((PASS++))
-else    echo "  FAIL: expected checksum absent but archive present (checksum exists: $([ -f "$LISTDIR/mod_attendance/checksum" ] && echo yes || echo no))"
+else
+    echo "  FAIL: expected checksum absent but archive present (checksum exists: $([ -f "$LISTDIR/mod_attendance/checksum" ] && echo yes || echo no))"
     ((FAIL++))
 fi
 echo ""
@@ -344,19 +347,20 @@ assert_exit_code "Exit code 0" 0 "$EC"
 # lets a PR show a real diff of what changed, instead of a delete+recreate
 # under a new filename every time). Only the zip's filename carries the
 # version, so it's the one that can actually accumulate stale copies.
-ZIP_COUNT=$(find "$LISTDIR/mod_attendance/archiv" -maxdepth 1 -name '*.zip' | wc -l)
-if [ "$ZIP_COUNT" -eq 1 ] && [ -f "$LISTDIR/mod_attendance/archiv/pluglist.json" ] \
-   && [ -f "$LISTDIR/mod_attendance/archiv/pluglist-entry.json" ] && [ -f "$LISTDIR/mod_attendance/archiv/pluglist.source" ]; then
+ZIP_COUNT=$(find "$LISTDIR/mod_attendance/archive" -maxdepth 1 -name '*.zip' | wc -l)
+if [ "$ZIP_COUNT" -eq 1 ] && [ -f "$LISTDIR/mod_attendance/archive/pluglist.json" ] \
+   && [ -f "$LISTDIR/mod_attendance/archive/pluglist-entry.json" ] && [ -f "$LISTDIR/mod_attendance/archive/pluglist.source" ]; then
     echo "  PASS: exactly one archived zip remains, pluglist.json/-entry.json/.source all present"
     ((PASS++))
 else
     echo "  FAIL: expected exactly 1 zip and all three pluglist files present, got zip_count=$ZIP_COUNT"
     ((FAIL++))
 fi
-rm -rf "$LISTDIR/mod_attendance/archiv"
+rm -rf "$LISTDIR/mod_attendance/archive"
 echo ""
 
-# --- Marketplace-subscription-only plugin (HTTP 401) ---#
+# --- Marketplace-subscription-only plugin (HTTP 401) ---
+#
 # tiny_fontfamily is listed in plugins.json (moodle.org's public plugin
 # directory) but its actual zip only lives behind marketplace.moodle.com,
 # which returns HTTP 401 "Not privileged to request the resource" without

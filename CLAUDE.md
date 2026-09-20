@@ -70,7 +70,7 @@ tests/
 
 Not covered by the original moosh at all — this fork's largest addition. A "declarative plugin
 list" is a directory with one subdirectory per Frankenstyle component, each holding a `version`
-file (plus optional `checksum`, `requires`, `archiv/`, and `bin/` for `package_*` pseudo-
+file (plus optional `checksum`, `requires`, `archive/`, and `bin/` for `package_*` pseudo-
 components). `plugin:list-update` resolves the latest compatible version from moodle.org and
 writes `version`/`checksum`; `plugin:list-apply` reconciles a real Moodle install to match. Full
 user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementation pieces:
