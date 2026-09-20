@@ -89,6 +89,13 @@ user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementat
   components.
 - `checksum` (an MD5, pinned by list-update from `plugins.json`'s own `downloadmd5`) is verified by
   list-apply before every install — hard failure on mismatch, warning (not a block) when absent.
+- `*.patch` files next to a component's `version` file — ported from `install_plugins.php`'s
+  `get_patches()`/`are_patches_applied()`/`apply_patches()`, added on top of the original moosh
+  command, which had none. list-apply applies them (`-p1`, `git apply`, sorted by filename) right
+  after every (re)install of that component, tracked via a `.patches-applied` fingerprint file
+  inside the installed component directory; a changed/removed patch forces a redownload-and-repatch
+  even when the requested version itself didn't change. `package_*` components are excluded — they
+  install via their own `bin/install_requested_version.sh` instead.
 
 ## Common Commands
 

@@ -36,6 +36,20 @@
  * scripts under <component>/bin/, called with cwd = the Moodle root,
  * exactly as moodle_plugins_lib.rc / the original moosh command did.
  *
+ * Patch support - ported from install_plugins.php's plugin_install(),
+ * get_patches()/are_patches_applied()/apply_patches() - was added on top
+ * of the original moosh command, which had none. *.patch files (-p1,
+ * `git diff` format) next to a component's `version` file are applied,
+ * sorted by filename, after every (re)install of that component via
+ * `git apply --directory=... -v`. A `.patches-applied` fingerprint file
+ * inside the installed component directory tracks what was last applied;
+ * when the patches change or disappear, the component is redownloaded
+ * (even if the requested version itself didn't change) and the current
+ * patches applied to the fresh code, since reverting old patches in
+ * place isn't attempted. package_* components are excluded, same as
+ * everywhere else in this file - they install via their own
+ * bin/install_requested_version.sh, entirely outside this code path.
+ *
  * Like the original, this aborts on the first component that fails by
  * default (--keep-going opts into aggregating failures and processing the
  * rest instead).
@@ -314,10 +328,37 @@ class PluginListApply52Handler extends BaseHandler
         $displayCurrent = $this->getDisplayVersion($current);
         $output->writeln("$component requested: $displayRequested installed: $displayCurrent");
 
+        $isPackage = str_starts_with($component, 'package_');
+        $requestedIsSentinel = $this->isRemoveFilesSentinel($requested) || $this->isUninstallSentinel($requested);
+
         if ($current === $requested) {
-            $this->runAlwaysRunHookIfPresent($component, $componentdir, $output);
-            $output->writeln("OK      $component: already at $displayRequested");
-            return;
+            // Patches can change without the requested version changing -
+            // checked here too, mirroring install_plugins.php's
+            // plugin_install(). Not relevant for package_* components or
+            // when the requested state is remove-files/uninstall.
+            $patchesOk = $isPackage || $requestedIsSentinel
+                || $this->arePatchesApplied($component, $componentdir, $componentpath);
+
+            if ($patchesOk) {
+                $this->runAlwaysRunHookIfPresent($component, $componentdir, $output);
+                $suffix = (!$isPackage && !$requestedIsSentinel && $this->hasPatches($component, $componentdir))
+                    ? ' (including local patches)' : '';
+                $output->writeln("OK      $component: already at $displayRequested$suffix");
+                return;
+            }
+
+            if ($this->dryRun) {
+                $output->writeln(
+                    "WOULD REAPPLY PATCHES $component: local patches changed, "
+                    . 'files will be downloaded again and re-patched',
+                );
+                return;
+            }
+
+            $output->writeln("$component: local patches changed - downloading files again and applying current patches");
+            // Falls through to the install/upgrade path below, which
+            // redownloads $requested (same value as $current) and
+            // applies the current patches to the fresh code.
         }
 
         if ($this->isRemoveFilesSentinel($requested)) {
@@ -381,13 +422,15 @@ class PluginListApply52Handler extends BaseHandler
 
         $this->addIgnorePathsToGitignore($component, $componentdir, $componentpath);
 
+        $patchSuffix = (!$isPackage && $this->hasPatches($component, $componentdir)) ? ' (including local patches)' : '';
+
         if (isset($this->archivedComponents[$component])) {
             $output->writeln(
                 "ARCHIVED $component: installed from local archive ({$this->archivedComponents[$component]}) "
-                . '- not available on moodle.org, see plugin:list-update --archive documentation',
+                . '- not available on moodle.org, see plugin:list-update --archive documentation' . $patchSuffix,
             );
         } else {
-            $output->writeln("INSTALLED $component: $displayCurrent -> $displayRequested");
+            $output->writeln("INSTALLED $component: $displayCurrent -> $displayRequested$patchSuffix");
         }
     }
 
@@ -842,6 +885,8 @@ class PluginListApply52Handler extends BaseHandler
         } finally {
             $this->removeDirectory($tempDir);
         }
+
+        $this->applyPatches($component, $componentdir, $componentpath, $output);
 
         $this->resetPluginCaches();
     }
@@ -1518,6 +1563,140 @@ class PluginListApply52Handler extends BaseHandler
             return '';
         }
         return trim((string) $lines[array_key_last($lines)]);
+    }
+
+    // -------------------------------------------------------------------
+    // patch support (ported from install_plugins.php)
+    // -------------------------------------------------------------------
+
+    /**
+     * Returns the contents of a component's patch files, filename => content,
+     * in apply order.
+     *
+     * The patches live next to the `version` file (i.e. directly in
+     * $componentdir) and are applied sorted by filename, so a numeric
+     * prefix (01-..., 02-...) controls the order.
+     */
+    private function getPatches(string $componentdir): array
+    {
+        $files = glob($componentdir . '/*.patch') ?: [];
+        sort($files);
+
+        $patches = [];
+        foreach ($files as $file) {
+            $patches[basename($file)] = file_get_contents($file);
+        }
+
+        return $patches;
+    }
+
+    /** Whether $component (a non-package_* one) has any patch files configured. */
+    private function hasPatches(string $component, string $componentdir): bool
+    {
+        return !str_starts_with($component, 'package_') && $this->getPatches($componentdir) !== [];
+    }
+
+    /**
+     * One fingerprint over all patches. The filenames are part of it -
+     * renaming a patch changes the apply order and so counts as a change.
+     */
+    private function getPatchesFingerprint(array $patches): string
+    {
+        return md5(serialize($patches));
+    }
+
+    /**
+     * Reports whether $componentpath's code already matches the
+     * component's current patches.
+     *
+     * What was applied is remembered as a fingerprint in `.patches-applied`
+     * inside the installed component directory. False means the patches
+     * changed (or disappeared) since then: applyComponent() redownloads
+     * the component and applyPatches() patches the fresh code - simpler
+     * and more reliable than reverting the old patches in place.
+     */
+    private function arePatchesApplied(string $component, string $componentdir, string $componentpath): bool
+    {
+        $patches = $this->getPatches($componentdir);
+        $markerFile = $componentpath . '/.patches-applied';
+
+        if ($patches === []) {
+            // A leftover marker means the code is still patched from an earlier run.
+            return !is_file($markerFile);
+        }
+
+        if (!is_dir($componentpath)) {
+            return false;
+        }
+
+        return is_file($markerFile)
+            && file_get_contents($markerFile) === $this->getPatchesFingerprint($patches);
+    }
+
+    /**
+     * Applies $component's patches (if any) to the freshly-installed
+     * $componentpath, or throws if one doesn't apply cleanly. Patches must
+     * be in -p1 format, as `git diff` produces them: modifying, adding,
+     * deleting and renaming files all work.
+     *
+     * Only called for non-package_* components - installRequestedVersion()
+     * returns early for package_* ones before reaching this.
+     *
+     * @throws \RuntimeException if a patch fails to apply
+     */
+    private function applyPatches(string $component, string $componentdir, string $componentpath, OutputInterface $output): void
+    {
+        $markerFile = $componentpath . '/.patches-applied';
+        $patches = $this->getPatches($componentdir);
+
+        if ($patches === []) {
+            // A stale marker from an earlier patched install would otherwise
+            // make arePatchesApplied() report "changed" forever.
+            if (is_file($markerFile)) {
+                @unlink($markerFile);
+            }
+            return;
+        }
+
+        // Inside a git checkout, `git apply` resolves the patched paths
+        // against the repository root and silently skips ("Skipped
+        // patch") everything outside the current directory, so it has to
+        // run from the Moodle root with the component's install path
+        // prepended via --directory.
+        $subdir = trim(substr($componentpath, strlen($this->moodleroot)), '/');
+
+        // Marked as incomplete first: if a patch fails half way (or the
+        // process dies), the code must not look unpatched or fully
+        // patched - the next run has to download the files again.
+        file_put_contents($markerFile, "incomplete\n");
+
+        foreach (array_keys($patches) as $name) {
+            $output->writeln("Applying patch $name to $component");
+
+            $patchFile = $componentdir . '/' . $name;
+
+            // git apply instead of `patch`: it applies a patch completely
+            // or not at all, so a failure cannot leave the code half
+            // patched, and it understands everything `git diff` produces.
+            $cmd = 'git -C ' . escapeshellarg($this->moodleroot) . ' apply -v'
+                . ($subdir !== '' ? ' --directory=' . escapeshellarg($subdir) : '')
+                . ' ' . escapeshellarg($patchFile) . ' 2>&1';
+            // exec() appends to $lines rather than resetting it, so it
+            // must be cleared before every call or later patches' output
+            // would repeat everything already printed.
+            $lines = [];
+            exec($cmd, $lines, $exitcode);
+            foreach ($lines as $line) {
+                $output->writeln('  ' . $line);
+            }
+
+            if ($exitcode !== 0) {
+                throw new \RuntimeException("applying patch $name to $component failed: $patchFile");
+            }
+        }
+
+        // The fingerprint of what was applied, to detect changed patches on the next run.
+        file_put_contents($markerFile, $this->getPatchesFingerprint($patches));
     }
 
     // -------------------------------------------------------------------
