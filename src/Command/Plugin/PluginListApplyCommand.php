@@ -49,8 +49,8 @@ class PluginListApplyCommand extends BaseCommand
                 "Patch files next to a component's version file (*.patch, -p1 format as `git diff` " .
                 "produces it) are applied to its code after every (re)install, sorted by filename. " .
                 "When a patch changes or disappears, the component is downloaded again and the " .
-                "current patches applied to the fresh code. package_* components are never patched " .
-                "here - they install via their own bin/install_requested_version.sh.\n\n" .
+                "current patches applied to the fresh code. " .
+                "package_* components are patched too: put the *.patch files next to their bin/ directory. Their paths are relative to the Moodle repository root (with the public/ layout the directory above \$CFG->dirroot, so they start with public/) because one package bundles several plugin directories. The fingerprint is kept in the directory bin/get_component_path.sh reports, and bin/install_requested_version.sh must replace its plugin directories rather than merge into them - it is what gives a changed patch a fresh copy of the code.\n\n" .
                 "Every component confirmed at its requested version (freshly installed or already " .
                 "correct) is tracked with a .downloaded-non-core-plugin marker file in its install " .
                 "directory. When the full declarative list is scanned (no component names given on " .
