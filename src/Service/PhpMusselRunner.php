@@ -53,9 +53,21 @@ class PhpMusselRunner
     }
 
     /**
+     * Name of the per-plugin whitelist file, read from the plugin's own
+     * root directory (i.e. lives alongside that plugin's version.php,
+     * travels with the plugin, and is scoped to it automatically — no
+     * global/shared config to keep in sync across plugins).
+     */
+    public const WHITELIST_FILENAME = '.moosh-phpmuslescan-whitelist';
+
+    /**
+     * @param string        $pluginRoot        Root directory of the plugin to scan.
+     * @param array<string> $extraWhitelist    Additional glob patterns (e.g. from --whitelist),
+     *                                         matched the same way as the per-plugin file, on
+     *                                         top of whatever WHITELIST_FILENAME contains.
      * @return array{exitCode:int, output:string, infectedFiles:array<string>}
      */
-    public function scan(string $pluginRoot): array
+    public function scan(string $pluginRoot, array $extraWhitelist = []): array
     {
         $configPath = $this->signatureManager->getConfigPath();
         if (!is_file($configPath) || !is_readable($configPath)) {
@@ -91,13 +103,26 @@ class PhpMusselRunner
             }
         }
 
-        // Collect files (relative-path keys → absolute paths).
+        $whitelist = array_merge(
+            $this->loadWhitelist($pluginRoot . '/' . self::WHITELIST_FILENAME),
+            $extraWhitelist,
+        );
+
+        // Collect files (relative-path keys → absolute paths), skipping
+        // anything matched by the per-plugin whitelist.
         $rootPrefix = rtrim($pluginRoot, '/') . '/';
         $files = [];
+        $whitelisted = [];
         foreach ($this->iterateFiles($pluginRoot) as $absolute) {
             $relative = str_starts_with($absolute, $rootPrefix)
                 ? substr($absolute, strlen($rootPrefix))
                 : $absolute;
+
+            if ($this->isWhitelisted($relative, $whitelist)) {
+                $whitelisted[] = $relative;
+                continue;
+            }
+
             $files[$relative] = $absolute;
         }
 
@@ -144,6 +169,12 @@ class PhpMusselRunner
         $lines    = [];
         $lines[]  = "Scanning $pluginRoot with phpMussel";
         $lines[]  = "Signatures: $signatureDir";
+        if ($whitelisted !== []) {
+            $lines[] = 'Whitelisted (skipped, ' . self::WHITELIST_FILENAME . '): ' . count($whitelisted) . ' file(s)';
+            foreach ($whitelisted as $w) {
+                $lines[] = "  - $w";
+            }
+        }
         $lines[]  = '';
 
         foreach ($intResults as $key => $result) {
@@ -191,6 +222,57 @@ class PhpMusselRunner
             'output'        => implode("\n", $lines),
             'infectedFiles' => $infected,
         ];
+    }
+
+    /**
+     * Load whitelist glob patterns from a plugin's whitelist file.
+     *
+     * One pattern per line, matched against the file's path relative to
+     * the plugin root (forward slashes, no leading slash), e.g.:
+     *
+     *   lib/thirdparty/foo.php
+     *   lib/thirdparty/*
+     *   tests/fixtures/*.php
+     *
+     * Blank lines and lines starting with "#" are ignored. Missing file
+     * simply means no whitelist — not an error.
+     *
+     * @return array<string>
+     */
+    private function loadWhitelist(string $whitelistFile): array
+    {
+        if (!is_file($whitelistFile) || !is_readable($whitelistFile)) {
+            return [];
+        }
+
+        $patterns = [];
+        foreach (file($whitelistFile, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $patterns[] = $line;
+        }
+
+        return $patterns;
+    }
+
+    /**
+     * @param array<string> $patterns
+     */
+    private function isWhitelisted(string $relativePath, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            // FNM_PATHNAME so "*" doesn't accidentally cross a "/" —
+            // "lib/thirdparty/*" matches files directly in that dir, not
+            // arbitrarily deep ones (use "lib/thirdparty/**" intent via
+            // a trailing "/*" per subdir, or just list the parent once
+            // without FNM_PATHNAME if that's ever needed).
+            if (fnmatch($pattern, $relativePath, FNM_PATHNAME)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

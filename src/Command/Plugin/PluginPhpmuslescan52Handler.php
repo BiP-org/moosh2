@@ -34,12 +34,24 @@ class PluginPhpmuslescan52Handler extends BaseHandler
             ->addOption('release', 'r', InputOption::VALUE_REQUIRED, 'Specific version to scan, e.g. 2024010700 (only used with a plugin name). Defaults to the newest available version.')
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('infected', 'i', InputOption::VALUE_NONE, 'Only print filenames that ARE infected.')
-            ->addOption('log', null, InputOption::VALUE_REQUIRED, 'Save scan report to a file.');
+            ->addOption('log', null, InputOption::VALUE_REQUIRED, 'Save scan report to a file.')
+            ->addOption(
+                'whitelist',
+                'w',
+                InputOption::VALUE_REQUIRED,
+                'Path to an extra whitelist file (same format as ' . PhpMusselRunner::WHITELIST_FILENAME . '), '
+                . 'used in addition to that file if it exists in the plugin root. '
+                . 'One glob pattern per line (relative to the plugin root), "#" for comments.',
+            );
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Scan the plugin in the current directory', '');
             $command->addExampleUsage('Download and scan a specific plugin/version', 'mod_board --release=2024010700');
             $command->addExampleUsage('Run both scanners back-to-back', 'mod_board && moosh plugin:clamscan mod_board');
+            $command->addExampleUsage(
+                'Suppress a false positive without a whitelist file in the plugin root',
+                '--whitelist=/path/to/extra-whitelist.txt',
+            );
         }
     }
 
@@ -56,9 +68,22 @@ class PluginPhpmuslescan52Handler extends BaseHandler
                 $pluginRoot = $this->resolvePluginRootFromCwd(getcwd());
             }
 
+            $extraWhitelist = [];
+            if ($whitelistFile = $input->getOption('whitelist')) {
+                if (!is_readable($whitelistFile)) {
+                    throw new \RuntimeException("Whitelist file not readable: $whitelistFile");
+                }
+                foreach (file($whitelistFile, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+                    $line = trim($line);
+                    if ($line !== '' && !str_starts_with($line, '#')) {
+                        $extraWhitelist[] = $line;
+                    }
+                }
+            }
+
             $output->writeln("Starting phpMussel scan at $pluginRoot");
             $runner = new PhpMusselRunner();
-            $result = $runner->scan($pluginRoot);
+            $result = $runner->scan($pluginRoot, $extraWhitelist);
 
             $output->writeln($result['output']);
 

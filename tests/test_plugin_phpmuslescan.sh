@@ -13,6 +13,8 @@ run_moosh plugin:phpmuslescan --help
 assert_output_contains "Help description" "Scan a plugin for malware using phpMussel" "$OUT"
 assert_output_contains "Help shows --infected" "--infected" "$OUT"
 assert_output_contains "Help shows --log" "--log" "$OUT"
+assert_output_contains "Help shows --whitelist" "--whitelist" "$OUT"
+assert_output_contains "Help mentions the whitelist filename" ".moosh-phpmuslescan-whitelist" "$OUT"
 echo ""
 
 echo "--- Test: update-signatures downloads signatures ---"
@@ -163,6 +165,99 @@ fi
 assert_output_not_contains "No version.php false positive alongside chameleon hit" "Filetype blacklisted (version.php)" "$OUT"
 assert_output_not_contains "No lib.php false positive alongside chameleon hit" "Filetype blacklisted (lib.php)" "$OUT"
 rm -rf "$CHAMDIR"
+echo ""
+
+echo "--- Test: Dotfile false positive -> exit 1 (Filename manipulation detected) ---"
+# phpMussel's filename-manipulation heuristic fires on a name with nothing
+# before the first "." (a dotfile reads as an all-extension filename).
+# Moodle plugins legitimately ship dotfiles (.htaccess being the classic
+# one), so this is a real, reproducible false positive — not a real
+# threat — and is exactly what the per-plugin whitelist exists for.
+FPDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$FPDIR/version.php"
+echo '<?php echo "hello";' > "$FPDIR/lib.php"
+echo 'deny from all' > "$FPDIR/.htaccess"
+
+OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan -i 2>&1)
+EC=$?
+assert_exit_code "Exit code 1 for the unwhitelisted dotfile false positive" 1 "$EC"
+assert_output_contains "Reports the dotfile" ".htaccess" "$OUT"
+if echo "$OUT" | grep -qi "filename manipulation"; then
+    echo "  PASS: reports filename manipulation detected"
+    ((PASS++))
+else
+    echo "  FAIL: does not report filename manipulation detected"
+    echo "        Output: $OUT"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: Per-plugin whitelist file suppresses the false positive ---"
+# A .moosh-phpmuslescan-whitelist in the plugin root, matching the
+# offending file by exact relative path, should skip it entirely: exit 0,
+# zero infections, and the file listed as whitelisted rather than scanned.
+echo ".htaccess" > "$FPDIR/.moosh-phpmuslescan-whitelist"
+
+OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0 once .htaccess is whitelisted" 0 "$EC"
+assert_output_contains "Reports the whitelisted file" "Whitelisted (skipped" "$OUT"
+assert_output_contains "Names .htaccess as whitelisted" ".htaccess" "$OUT"
+assert_output_not_contains "No filename-manipulation hit once whitelisted" "Filename manipulation" "$OUT"
+if echo "$OUT" | grep -q "Infected files: 0"; then
+    echo "  PASS: scan summary reports zero infections once whitelisted"
+    ((PASS++))
+else
+    echo "  FAIL: scan summary does not report zero infections once whitelisted"
+    echo "        Output: $OUT"
+    ((FAIL++))
+fi
+echo ""
+
+echo "--- Test: Whitelist glob pattern matches ---"
+# A glob (not just an exact filename) should also suppress the hit —
+# confirms fnmatch() patterns work, not just literal names.
+GLOBDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$GLOBDIR/version.php"
+mkdir "$GLOBDIR/thirdparty"
+echo 'deny from all' > "$GLOBDIR/thirdparty/.htaccess"
+echo "thirdparty/*" > "$GLOBDIR/.moosh-phpmuslescan-whitelist"
+
+OUT=$(cd "$GLOBDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0 with a glob-whitelisted dotfile" 0 "$EC"
+assert_output_contains "Reports the glob-whitelisted file" "thirdparty/.htaccess" "$OUT"
+rm -rf "$GLOBDIR"
+echo ""
+
+echo "--- Test: --whitelist option, without a file in the plugin root ---"
+# Simulates scanning a plugin you can't drop a whitelist file into (e.g.
+# a freshly downloaded one): the same false positive, suppressed purely
+# via an external --whitelist file.
+EXTWLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$EXTWLDIR/version.php"
+echo 'deny from all' > "$EXTWLDIR/.htaccess"
+EXTWL="$EXTWLDIR/external-whitelist.txt"
+echo "# external whitelist, not in the plugin root" > "$EXTWL"
+echo ".htaccess" >> "$EXTWL"
+
+OUT=$(cd "$EXTWLDIR" && $PHP $MOOSH plugin:phpmuslescan --whitelist="$EXTWL" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0 using --whitelist alone" 0 "$EC"
+assert_output_contains "Reports the file whitelisted via --whitelist" "Whitelisted (skipped" "$OUT"
+rm -rf "$EXTWLDIR"
+echo ""
+
+echo "--- Test: Unrelated dotfile stays flagged (whitelist doesn't over-match) ---"
+# A whitelist entry for .htaccess must not accidentally suppress a
+# different dotfile false positive in the same plugin.
+echo 'deny from all' > "$FPDIR/.another"
+OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan -i 2>&1)
+EC=$?
+assert_exit_code "Exit code 1: unwhitelisted dotfile still flagged" 1 "$EC"
+assert_output_contains "Reports the unwhitelisted dotfile" ".another" "$OUT"
+rm -f "$FPDIR/.another"
+rm -rf "$FPDIR"
 echo ""
 
 echo "--- Test: No plugin name, no version.php -> exit 2 ---"

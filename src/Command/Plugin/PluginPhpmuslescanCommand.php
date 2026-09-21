@@ -37,7 +37,12 @@ class PluginPhpmuslescanCommand extends BaseCommand
                 'or a plugin downloaded from the moodle.org plugin directory by frankenstyle name. ' .
                 'Uses phpMussel\'s native signature formats via the Composer-installed phpmussel/core ' .
                 'package. Signatures must be downloaded first with plugin:phpmuslescan:update-signatures. ' .
-                'Exit codes mirror plugin:clamscan: 0 clean, 1 malware found, 2 error.',
+                'Exit codes mirror plugin:clamscan: 0 clean, 1 malware found, 2 error. ' .
+                'False positives (e.g. "Filename manipulation detected" on a dotfile) can be ' .
+                'suppressed per plugin: put a .moosh-phpmuslescan-whitelist file in the plugin\'s ' .
+                'own root, one glob pattern per line (relative to the plugin root), "#" for ' .
+                'comments — see --whitelist for an alternative when you can\'t add a file to the ' .
+                'plugin\'s root.',
             );
         $this->handler->configureCommand($this);
     }
