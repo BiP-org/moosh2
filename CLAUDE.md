@@ -94,8 +94,11 @@ user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementat
   command, which had none. list-apply applies them (`-p1`, `git apply`, sorted by filename) right
   after every (re)install of that component, tracked via a `.patches-applied` fingerprint file
   inside the installed component directory; a changed/removed patch forces a redownload-and-repatch
-  even when the requested version itself didn't change. `package_*` components are excluded — they
-  install via their own `bin/install_requested_version.sh` instead.
+  even when the requested version itself didn't change. `package_*` components are patched too
+  (ported from `package_install()`): their `*.patch` files sit next to `bin/`, patch paths are
+  relative to the Moodle *repository* root (`public/…` with the split layout), the fingerprint lives
+  in the dir `bin/get_component_path.sh` reports, and `bin/install_requested_version.sh` must
+  replace (not merge into) its plugin dirs — it is the only "fresh copy" a changed patch gets.
 
 ## Common Commands
 

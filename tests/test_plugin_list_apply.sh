@@ -1210,20 +1210,9 @@ SH
 
 chmod +x "$PKGDIR"/package_mooshtest/bin/*.sh
 
-# A stray *.patch file dropped into a package_* component's directory must
-# never be applied - patch support (see the "Patch support" section above)
-# is scoped to ordinary components; installRequestedVersion() returns
-# before ever reaching applyPatches() for package_*. This patch is
-# deliberately malformed (targets a file that doesn't exist) so that if it
-# were ever picked up, applying it would fail loudly rather than silently
-# succeeding and hiding the regression.
-cat > "$PKGDIR/package_mooshtest/should-never-apply.patch" <<'PATCH'
---- a/nonexistent-file-for-regression-check.txt
-+++ b/nonexistent-file-for-regression-check.txt
-@@ -1 +1 @@
--old
-+new
-PATCH
+# (Patching of package_* components has its own fixture and tests in
+# test_plugin_list_apply_package_patches.sh - this fixture deliberately has
+# no *.patch file, so the RUNNER_DEBUG regression is tested in isolation.)
 
 rm -rf "$MOODLE_PATH/local/mooshtest" 2>/dev/null
 
@@ -1234,7 +1223,7 @@ EC=$?
 assert_exit_code "Exit code 0 without debug logging" 0 "$EC"
 assert_output_contains "Reports installed" "INSTALLED package_mooshtest" "$OUT"
 assert_output_not_contains "Does not report a bogus upgrade failure" "could not be upgraded" "$OUT"
-assert_output_not_contains "Stray *.patch file in a package_* dir is never applied" "Applying patch" "$OUT"
+assert_output_not_contains "No patch applied for a package_* without *.patch files" "Applying patch" "$OUT"
 echo ""
 
 echo "--- Test: re-checking an already-installed package_* under RUNNER_DEBUG=1 ---"

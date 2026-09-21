@@ -362,8 +362,8 @@ fi`}</CodeBlock>
 
         <p className="text-muted-foreground">
           <InlineCode>bin/get_component_path.sh</InlineCode> &mdash; stdout must be exactly one path, relative to
-          the Moodle root, used only for the pre-install &ldquo;remove existing directory first&rdquo; step and
-          for log messages. For a multi-directory bundle, pick the primary/anchor directory:
+          the Moodle root, used for log messages and the orphan marker, and as the place the patch
+          fingerprint is kept (see &sect;7). For a multi-directory bundle, pick the primary/anchor directory:
         </p>
         <CodeBlock>{`#!/usr/bin/env bash
 echo "mod/kalturamediagallery"`}</CodeBlock>
@@ -721,12 +721,44 @@ php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plug
           version.
         </p>
 
-        <Note title="package_* components are never patched">
-          Patch support only applies to ordinary components. <InlineCode>package_*</InlineCode> pseudo-components
-          install entirely through their own <InlineCode>bin/install_requested_version.sh</InlineCode>, outside
-          this mechanism &mdash; patch a <InlineCode>package_*</InlineCode> component by handling it inside that
-          script instead.
-        </Note>
+        <h3 className="text-lg font-semibold">Patching a package_* component</h3>
+        <p className="text-muted-foreground">
+          <InlineCode>package_*</InlineCode> components are patched the same way: drop the{' '}
+          <InlineCode>*.patch</InlineCode> files next to the package&apos;s <InlineCode>bin/</InlineCode>{' '}
+          directory, same fingerprint, same ordering, same &ldquo;changed patch means start again from a fresh copy&rdquo;.
+          Three things differ, because a package bundles several plugin directories and installs itself:
+        </p>
+        <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
+          <li>
+            <strong>Patch paths are relative to the Moodle repository root</strong>, exactly what{' '}
+            <InlineCode>git diff</InlineCode> prints in a Moodle checkout &mdash; a patch may touch any of the package&apos;s
+            directories. With the split layout that is the directory <em>above</em> <InlineCode>public/</InlineCode>,
+            so the paths start with <InlineCode>public/</InlineCode> (e.g.{' '}
+            <InlineCode>a/public/mod/kalturamediagallery/lib.php</InlineCode>). The scripts in{' '}
+            <InlineCode>bin/</InlineCode> keep working relative to <InlineCode>$CFG-&gt;dirroot</InlineCode>; only patch
+            paths use the repository root.
+          </li>
+          <li>
+            The fingerprint is kept in the directory <InlineCode>bin/get_component_path.sh</InlineCode> reports, which
+            therefore has to exist after the install whenever the package has patches (otherwise the component
+            fails with a message saying so).
+          </li>
+          <li>
+            <InlineCode>bin/install_requested_version.sh</InlineCode> <strong>must replace its plugin directories
+            rather than merge into them</strong>. When a patch changes, the package is not deleted first (the{' '}
+            <InlineCode>bin/</InlineCode> contract has no files-only removal &mdash;{' '}
+            <InlineCode>uninstall_requested_version.sh</InlineCode> also drops the database); the install script running
+            again is what provides the fresh copy. A script that merges leaves the old patched files in place: a new
+            patch that no longer fits then fails loudly, but one that still applies goes unnoticed.
+          </li>
+        </ul>
+        <p className="text-muted-foreground">
+          Patches are applied right after <InlineCode>install_requested_version.sh</InlineCode> returns, and
+          only PHP&apos;s and Moodle&apos;s code caches are reset afterwards. <InlineCode>plugin:list-apply</InlineCode>{' '}
+          never runs Moodle&apos;s upgrade for a package &mdash; that stays the install script&apos;s business (or a later{' '}
+          <InlineCode>admin/cli/upgrade.php</InlineCode> step). A script that runs the upgrade itself does so{' '}
+          <em>before</em> the patches are there, so a patch that changes what an upgrade step does is too late for that run.
+        </p>
 
         <p className="text-muted-foreground">
           As with everything else in <InlineCode>plugin:list-apply</InlineCode>, <InlineCode>--run</InlineCode>{' '}

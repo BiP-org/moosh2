@@ -46,9 +46,35 @@
  * when the patches change or disappear, the component is redownloaded
  * (even if the requested version itself didn't change) and the current
  * patches applied to the fresh code, since reverting old patches in
- * place isn't attempted. package_* components are excluded, same as
- * everywhere else in this file - they install via their own
- * bin/install_requested_version.sh, entirely outside this code path.
+ * place isn't attempted. package_* components are patched too, see
+ * "Package patching" below.
+ *
+ * Package patching - ported from install_plugins.php's package_install(),
+ * which patches a package with the same get_patches()/
+ * are_patches_applied()/apply_patches() machinery as a plain plugin. The
+ * *.patch files sit next to the package's bin/ directory, exactly like a
+ * plain component's, and use the same .patches-applied fingerprint. What
+ * differs is only where things are anchored:
+ *   - a package bundles several plugin directories and its patches may
+ *     touch any of them, so its patch paths are relative to the Moodle
+ *     REPOSITORY root (what `git diff` in a Moodle checkout prints - with
+ *     the split public/ layout that is the directory ABOVE $CFG->dirroot,
+ *     so the paths start with public/), not to the component directory;
+ *   - the fingerprint is kept in the directory bin/get_component_path.sh
+ *     reports (the package's anchor directory), which therefore has to
+ *     exist after the install whenever patches are configured;
+ *   - the package's own bin/install_requested_version.sh does the install
+ *     and MUST replace its plugin directories rather than merge into them:
+ *     unlike the original's package_base::remove_files() there is no
+ *     files-only removal script in the bin/ contract (bin/uninstall_-
+ *     requested_version.sh also drops the database), so a re-run of the
+ *     install script is what gives the patches a fresh copy of the code.
+ *     A script that merges would leave old patched files behind - a patch
+ *     that then no longer applies fails loudly, one that still does would
+ *     go unnoticed.
+ * The fingerprint is deleted before the install script runs and only
+ * written again once every patch applied, so an install or patch that
+ * dies half way is redone by the next run.
  *
  * Like the original, this aborts on the first component that fails by
  * default (--keep-going opts into aggregating failures and processing the
@@ -1066,9 +1092,10 @@ class PluginListApply52Handler extends BaseHandler
         if ($current === $requested) {
             // Patches can change without the requested version changing -
             // checked here too, mirroring install_plugins.php's
-            // plugin_install(). Not relevant for package_* components or
-            // when the requested state is remove-files/uninstall.
-            $patchesOk = $isPackage || $requestedIsSentinel
+            // plugin_install() and package_install() (which is why this
+            // covers package_* components as well). Not relevant when the
+            // requested state is remove-files/uninstall.
+            $patchesOk = $requestedIsSentinel
                 || $this->arePatchesApplied($component, $componentdir, $componentpath);
 
             if ($patchesOk) {
@@ -1083,7 +1110,7 @@ class PluginListApply52Handler extends BaseHandler
                 if (!$this->dryRun) {
                     $this->touchDownloadedMarker($componentpath);
                 }
-                $suffix = (!$isPackage && !$requestedIsSentinel && $this->hasPatches($component, $componentdir))
+                $suffix = (!$requestedIsSentinel && $this->hasPatches($component, $componentdir))
                     ? ' (including local patches)' : '';
                 $output->writeln("OK      $component: already at $displayRequested$suffix");
                 return;
@@ -1092,14 +1119,21 @@ class PluginListApply52Handler extends BaseHandler
             if ($this->dryRun) {
                 $output->writeln(
                     "WOULD REAPPLY PATCHES $component: local patches changed, "
-                    . 'files will be downloaded again and re-patched',
+                    . ($isPackage
+                        ? 'bin/install_requested_version.sh will run again and the patches be re-applied'
+                        : 'files will be downloaded again and re-patched'),
                 );
                 return;
             }
 
-            $output->writeln("$component: local patches changed - downloading files again and applying current patches");
+            $output->writeln(
+                "$component: local patches changed - "
+                . ($isPackage
+                    ? 'running bin/install_requested_version.sh again and applying current patches'
+                    : 'downloading files again and applying current patches'),
+            );
             // Falls through to the install/upgrade path below, which
-            // redownloads $requested (same value as $current) and
+            // reinstalls $requested (same value as $current) and
             // applies the current patches to the fresh code.
         }
 
@@ -1164,7 +1198,7 @@ class PluginListApply52Handler extends BaseHandler
 
         $this->addIgnorePathsToGitignore($component, $componentdir, $componentpath);
 
-        $patchSuffix = (!$isPackage && $this->hasPatches($component, $componentdir)) ? ' (including local patches)' : '';
+        $patchSuffix = $this->hasPatches($component, $componentdir) ? ' (including local patches)' : '';
 
         if (isset($this->archivedComponents[$component])) {
             $output->writeln(
@@ -1513,6 +1547,27 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         if (str_starts_with($component, 'package_')) {
+            $hasPatches = $this->hasPatches($component, $componentdir);
+
+            // Resolved before the install script runs: the patch
+            // fingerprint lives in this directory and has to be dropped
+            // first (see the class docblock, "Package patching").
+            $componentpath = null;
+            try {
+                $componentpath = $this->getComponentPath($component, $componentdir);
+            } catch (\Throwable $e) {
+                // Only fatal if there is something to patch. Otherwise
+                // this is best-effort, as it always was: a package_*
+                // whose get_component_path.sh can't resolve a path is an
+                // edge case orphan detection can live without.
+                if ($hasPatches) {
+                    throw new \RuntimeException("cannot patch $component: " . $e->getMessage(), 0, $e);
+                }
+            }
+            if ($componentpath !== null) {
+                @unlink($componentpath . '/.patches-applied');
+            }
+
             [$lines, $exitcode] = $this->runScript($componentdir . '/bin/install_requested_version.sh', [$component, $requestedversion]);
             foreach ($lines as $line) {
                 $output->writeln($line);
@@ -1520,14 +1575,25 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException("bin/install_requested_version.sh exited with status $exitcode");
             }
-            try {
-                $this->touchDownloadedMarker($this->getComponentPath($component, $componentdir));
-            } catch (\Throwable $e) {
-                // Best-effort only - a package_* component whose own
-                // get_component_path.sh can't resolve a path right after
-                // its own successful install script ran is an edge case
-                // orphan detection can live without; don't fail the
-                // install over it.
+
+            if ($componentpath !== null) {
+                // Also drops a stale fingerprint when the patches are gone.
+                $this->applyPatches($component, $componentdir, $componentpath, $output);
+                if ($hasPatches) {
+                    // Caches only, no upgrade_noncore(): whether and when
+                    // Moodle's upgrade runs for a package is the install
+                    // script's business (a script may run it itself, or
+                    // leave it to a later admin/cli/upgrade.php, as the
+                    // Kaltura one does), and patching must not change
+                    // that. Just make sure the patched code is what Moodle
+                    // and PHP see from here on.
+                    $this->resetComponentCaches();
+                }
+                try {
+                    $this->touchDownloadedMarker($componentpath);
+                } catch (\Throwable $e) {
+                    // Best-effort only, see above.
+                }
             }
             return;
         }
@@ -2370,10 +2436,10 @@ class PluginListApply52Handler extends BaseHandler
         return $patches;
     }
 
-    /** Whether $component (a non-package_* one) has any patch files configured. */
+    /** Whether $component (plain or package_*) has any patch files configured. */
     private function hasPatches(string $component, string $componentdir): bool
     {
-        return !str_starts_with($component, 'package_') && $this->getPatches($componentdir) !== [];
+        return $this->getPatches($componentdir) !== [];
     }
 
     /**
@@ -2419,8 +2485,10 @@ class PluginListApply52Handler extends BaseHandler
      * be in -p1 format, as `git diff` produces them: modifying, adding,
      * deleting and renaming files all work.
      *
-     * Only called for non-package_* components - installRequestedVersion()
-     * returns early for package_* ones before reaching this.
+     * A package_* component's patches are relative to the Moodle
+     * repository root instead (see the class docblock, "Package
+     * patching"); $componentpath is then its anchor directory, which holds
+     * the fingerprint.
      *
      * @throws \RuntimeException if a patch fails to apply
      */
@@ -2438,12 +2506,31 @@ class PluginListApply52Handler extends BaseHandler
             return;
         }
 
+        // The fingerprint needs a directory to live in.
+        if (!is_dir($componentpath)) {
+            throw new \RuntimeException(
+                "cannot apply the patches of $component: $componentpath does not exist, so there is nowhere to keep "
+                . 'the patch fingerprint' . (str_starts_with($component, 'package_')
+                    ? ' (bin/get_component_path.sh must report a directory the install creates)' : ''),
+            );
+        }
+
         // Inside a git checkout, `git apply` resolves the patched paths
         // against the repository root and silently skips ("Skipped
-        // patch") everything outside the current directory, so it has to
-        // run from the Moodle root with the component's install path
-        // prepended via --directory.
-        $subdir = trim(substr($componentpath, strlen($this->moodleroot)), '/');
+        // patch") everything outside the current directory. So it always
+        // runs from the repository root: a plain component's install path
+        // is prepended via --directory (with the split public/ layout
+        // that includes the public/ prefix - relative to $CFG->dirroot
+        // the patch was skipped in a git checkout, yet reported as
+        // applied), a package's patches carry the full path themselves.
+        $root = $this->getMoodleRepoRoot();
+        if (str_starts_with($component, 'package_')) {
+            $base = $root;
+            $subdir = '';
+        } else {
+            $base = str_starts_with($componentpath, $root . '/') ? $root : $this->moodleroot;
+            $subdir = trim(substr($componentpath, strlen($base)), '/');
+        }
 
         // Marked as incomplete first: if a patch fails half way (or the
         // process dies), the code must not look unpatched or fully
@@ -2458,7 +2545,7 @@ class PluginListApply52Handler extends BaseHandler
             // git apply instead of `patch`: it applies a patch completely
             // or not at all, so a failure cannot leave the code half
             // patched, and it understands everything `git diff` produces.
-            $cmd = 'git -C ' . escapeshellarg($this->moodleroot) . ' apply -v'
+            $cmd = 'git -C ' . escapeshellarg($base) . ' apply -v'
                 . ($subdir !== '' ? ' --directory=' . escapeshellarg($subdir) : '')
                 . ' ' . escapeshellarg($patchFile) . ' 2>&1';
             // exec() appends to $lines rather than resetting it, so it
@@ -2473,10 +2560,35 @@ class PluginListApply52Handler extends BaseHandler
             if ($exitcode !== 0) {
                 throw new \RuntimeException("applying patch $name to $component failed: $patchFile");
             }
+
+            // git apply exits 0 for a patch (or part of it) that it
+            // skipped because the paths are outside its working
+            // directory. Never let that pass as applied.
+            foreach ($lines as $line) {
+                if (str_starts_with($line, 'Skipped patch ')) {
+                    throw new \RuntimeException(
+                        "patch $name for $component was skipped by git apply (its paths are not under $base): $patchFile",
+                    );
+                }
+            }
         }
 
         // The fingerprint of what was applied, to detect changed patches on the next run.
         file_put_contents($markerFile, $this->getPatchesFingerprint($patches));
+    }
+
+    /**
+     * The root of the Moodle code base: $CFG->dirroot, or with the split
+     * layout (dirroot is public/) its parent - the directory `git diff`
+     * paths are relative to. Same test as ArchivePathsTrait uses.
+     */
+    private function getMoodleRepoRoot(): string
+    {
+        $parent = dirname($this->moodleroot);
+        if (basename($this->moodleroot) === 'public' && file_exists($parent . '/composer.json')) {
+            return $parent;
+        }
+        return $this->moodleroot;
     }
 
     // -------------------------------------------------------------------
@@ -2515,6 +2627,19 @@ class PluginListApply52Handler extends BaseHandler
         require_once $CFG->libdir . '/upgradelib.php';
         raise_memory_limit(MEMORY_EXTRA);
 
+        $this->resetComponentCaches();
+        upgrade_noncore(true);
+    }
+
+    /**
+     * resetPluginCaches() without the upgrade_noncore() at its end: only
+     * forgets what Moodle and PHP cached about the plugin code on disk
+     * (opcache, the component/class map, the plugin manager).
+     */
+    private function resetComponentCaches(): void
+    {
+        global $CFG;
+
         if (function_exists('opcache_reset')) {
             opcache_reset();
         }
@@ -2524,7 +2649,6 @@ class PluginListApply52Handler extends BaseHandler
         }
         \core_component::reset(true);
         \core_plugin_manager::reset_caches();
-        upgrade_noncore(true);
     }
 
     /**
