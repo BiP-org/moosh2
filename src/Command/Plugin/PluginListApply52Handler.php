@@ -93,6 +93,50 @@
  * form (file_exists(), not is_file()) and is used consistently by all
  * three: removePluginFiles(), uninstall(), and installRequestedVersion().
  *
+ * Reuninstall recovery (--reuninstall) - ported from install_plugins.php's
+ * plugins_reuninstall_all(), get_uninstall_version(),
+ * get_last_managed_version() and the $reuninstall branch of
+ * plugin_uninstall(). A component requested as "uninstall" (0) whose files
+ * are gone can't be uninstalled properly: without its files Moodle can
+ * neither run db/uninstall.php nor drop the tables of db/install.xml, so
+ * the normal path (uninstallForce()) only removes what it can reach and
+ * leaves the rest behind - and a component whose version row is gone from
+ * {config_plugins} is "Unknown plugin" to Moodle, so nothing gets cleaned
+ * up at all. --reuninstall puts such components back completely and then
+ * uninstalls them the way it should have happened. It is a manual mode,
+ * never part of a normal run: it restores and uninstalls every
+ * uninstall-requested component again, whether or not anything was left
+ * behind, which a deploy pipeline must not do on every run.
+ *
+ * The version to restore is the one the database holds, else the one in
+ * <component>/version_uninstall (written once, from whatever the other
+ * sources knew - commit it), else the newest positive value of the
+ * component's `version` file in the git history of the plugin list
+ * (only there in a full checkout, a shallow CI clone has no history).
+ * Where the database and version_uninstall disagree the run stops: silently
+ * uninstalling a version nobody wrote down is worse than stopping.
+ *
+ * Two departures from the original, both forced by moosh2's install path:
+ *   - the version row is written to {config_plugins} BEFORE the files are
+ *     put back (the original does it after). installRequestedVersion()
+ *     ends in upgrade_noncore(), which treats a plugin without a version
+ *     row as a new installation and runs its install.xml - against
+ *     tables that still exist, which is exactly the situation this mode
+ *     exists for, that fails with "table already exists".
+ *   - the files are restored without resolving the plugin's `requires`
+ *     file and version.php dependencies (installRequestedVersion()'s
+ *     $skipDependencies): the original's plugin_install() never did, and
+ *     here it would install (and even add to the plugin list) things for a
+ *     plugin that is about to be uninstalled, or refuse because a
+ *     dependency is itself requested as uninstall.
+ * The work runs in phases over all selected components at once - plan,
+ * restore, purge caches, uninstall, delete files - and stops before
+ * anything is uninstalled or deleted if a restore failed (unless
+ * --keep-going), because an incomplete run would leave plugins registered
+ * in the database without their files. Unlike the original, files are only
+ * deleted for a component whose database uninstall actually worked: they
+ * belong to a plugin that is still installed otherwise.
+ *
  * @copyright  2012 onwards Tomasz Muras
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -201,7 +245,14 @@ class PluginListApply52Handler extends BaseHandler
                 . 'directory is never touched, marker or not.')
             ->addOption('warn-orphans', null, InputOption::VALUE_NONE,
                 'Only warn about orphaned plugin directories (see --prune-orphans) instead of deleting '
-                . 'them. This is the default; the flag exists so a script can pass it explicitly.');
+                . 'them. This is the default; the flag exists so a script can pass it explicitly.')
+            ->addOption('reuninstall', null, InputOption::VALUE_NONE,
+                'Recovery mode: for components requested as uninstall (0), put the plugin back completely '
+                . '(its files at the version the database, <component>/version_uninstall or the git history of the '
+                . 'plugin list knows, plus its version row) and uninstall it properly, so that the tables and data '
+                . 'an earlier uninstall could not reach without the plugin files are removed too. Only these '
+                . 'components are processed, nothing else is installed, upgraded or pruned. Manual use only: it '
+                . 'does this every run, whether or not anything was left behind. Still gated behind --run.');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview applying every plugin directory found in the current directory', '');
@@ -209,6 +260,7 @@ class PluginListApply52Handler extends BaseHandler
             $command->addExampleUsage('Apply only mod_board', '--run mod_board');
             $command->addExampleUsage('Scan installs with both ClamAV and phpMussel', '--run --scanner=all');
             $command->addExampleUsage('Skip malware scanning entirely', '--run --scanner=none');
+            $command->addExampleUsage('Recover a plugin requested as uninstall whose files/version row are already gone', '--run --reuninstall mod_board');
         }
     }
 
@@ -265,6 +317,16 @@ class PluginListApply52Handler extends BaseHandler
             return Command::FAILURE;
         }
 
+        // A different mode, not an add-on to the normal run: it only looks
+        // at uninstall-requested components and never runs orphan
+        // detection, so an orphan flag next to it would silently do
+        // nothing - or worse, look like it did.
+        $reuninstall = (bool) $input->getOption('reuninstall');
+        if ($reuninstall && ($this->pruneOrphans || (bool) $input->getOption('warn-orphans'))) {
+            $output->writeln('<e>--reuninstall cannot be combined with --prune-orphans or --warn-orphans (orphan detection does not run in that mode)</e>');
+            return Command::FAILURE;
+        }
+
         $components = $input->getArgument('plugin_name');
         // Orphan detection only makes sense when the full declarative
         // list was scanned - a targeted subset run (explicit component
@@ -285,6 +347,11 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $keepgoing = (bool) $input->getOption('keep-going');
+
+        if ($reuninstall) {
+            return $this->reuninstallComponents($components, !$scannedFullList, $keepgoing, $output);
+        }
+
         $failed = [];
 
         foreach ($components as $component) {
@@ -530,6 +597,399 @@ class PluginListApply52Handler extends BaseHandler
         }
         sort($components);
         return $components;
+    }
+
+    // -------------------------------------------------------------------
+    // Reuninstall recovery (see class docblock)
+    // -------------------------------------------------------------------
+
+    /**
+     * --reuninstall mode: puts every uninstall-requested component back
+     * completely and uninstalls it properly. Ported from
+     * install_plugins.php's plugins_reuninstall_all().
+     *
+     * Runs in phases over all components at once, so an incomplete run
+     * never leaves a plugin registered in the database without its files:
+     *   0. plan: decide what to restore for each component, changing
+     *      nothing (so a dry run can show the whole plan, and a component
+     *      that can't be planned stops the run before any change)
+     *   1. restore: version row, then files, then malware scan
+     *   2. purge caches once (Moodle keeps the installed plugins in an
+     *      application cache and would not see what phase 1 wrote)
+     *   3. uninstall each restored plugin from the database
+     *   4. delete the files of every plugin phase 3 really uninstalled
+     *
+     * @param string[] $components
+     * @param bool $explicit true if the components were named on the
+     *   command line rather than taken from the whole plugin list - a
+     *   named component that is not requested as uninstall is then an
+     *   error, in a full-list run it is simply not this mode's business
+     */
+    private function reuninstallComponents(array $components, bool $explicit, bool $keepgoing, OutputInterface $output): int
+    {
+        $failed = [];
+
+        /** @var array<string,array{componentdir:string,componentpath:string,version:int,source:string,writeversionfile:bool}> $plan */
+        $plan = [];
+
+        foreach ($components as $component) {
+            $componentdir = $this->configPluginDirectory . '/' . $component;
+            if (!is_dir($componentdir)) {
+                $output->writeln("SKIP    $component: directory not found ($componentdir)");
+                $failed[] = $component;
+                continue;
+            }
+
+            try {
+                $requested = $this->getRequestedVersion($component, $componentdir);
+                if (!$this->isUninstallSentinel($requested)) {
+                    if ($explicit) {
+                        $output->writeln(
+                            "SKIP    $component: requested is " . $this->getDisplayVersion($requested)
+                            . ' - --reuninstall only applies to components requested as uninstall (0)',
+                        );
+                        $failed[] = $component;
+                    }
+                    continue;
+                }
+
+                // A package is a bundle of plugins with its own versioning,
+                // reinstalling it by component name doesn't work. Its own
+                // bin/uninstall_requested_version.sh does all of it, which
+                // is what a normal run of version 0 calls.
+                if (str_starts_with($component, 'package_')) {
+                    $output->writeln("SKIP    $component: a package_* is uninstalled by a normal plugin:list-apply run (version 0), not by --reuninstall");
+                    continue;
+                }
+
+                try {
+                    $componentpath = $this->getComponentPath($component, $componentdir);
+                } catch (\RuntimeException $e) {
+                    // Same case as in applyComponent(): a plugin type Moodle
+                    // no longer knows has no place to restore the files to.
+                    $output->writeln("SKIP    $component: " . $e->getMessage() . ' (nowhere to restore its files to, nothing to do)');
+                    continue;
+                }
+
+                if ($this->isGitManaged($componentpath)) {
+                    $output->writeln("plugin $component is managed by git - leaving as is");
+                    continue;
+                }
+
+                $resolved = $this->resolveUninstallVersion($component, $componentdir);
+                $plan[$component] = [
+                    'componentdir' => $componentdir,
+                    'componentpath' => $componentpath,
+                    'version' => $resolved['version'],
+                    'source' => $resolved['source'],
+                    'writeversionfile' => $resolved['writeversionfile'],
+                ];
+            } catch (\Throwable $e) {
+                $output->writeln("ERROR   $component: " . $e->getMessage());
+                $failed[] = $component;
+            }
+        }
+
+        if ($failed && !$keepgoing) {
+            $output->writeln('Aborting before anything was restored, uninstalled or deleted, these components could not be planned: ' . implode(', ', $failed));
+            return Command::FAILURE;
+        }
+
+        if (empty($plan)) {
+            $output->writeln('No component requested as uninstall to reuninstall.');
+            if ($failed) {
+                $output->writeln('Failed component(s): ' . implode(', ', $failed));
+                return Command::FAILURE;
+            }
+            return Command::SUCCESS;
+        }
+
+        $output->writeln('Reinstalling ' . count($plan) . ' plugin(s) to uninstall them properly');
+
+        if ($this->dryRun) {
+            foreach ($plan as $component => $p) {
+                $output->writeln(
+                    "WOULD REUNINSTALL $component: restore version {$p['version']} (from {$p['source']}), "
+                    . 'register it in the database if missing, uninstall it completely, delete its files'
+                    . ($p['writeversionfile'] ? ", write $component/version_uninstall" : ''),
+                );
+            }
+            if ($failed) {
+                $output->writeln('Failed component(s): ' . implode(', ', $failed));
+                return Command::FAILURE;
+            }
+            return Command::SUCCESS;
+        }
+
+        // Phase 1: restore. Collect the failures instead of stopping at the
+        // first one, they are all reported together.
+        $restored = [];
+        $restorefailed = [];
+        foreach ($plan as $component => $p) {
+            try {
+                $this->restoreForReuninstall($component, $p['componentdir'], $p['componentpath'], $p['version'], $p['writeversionfile'], $output);
+                $restored[$component] = $p;
+            } catch (\Throwable $e) {
+                $output->writeln("ERROR   $component: failed to reinstall: " . $e->getMessage());
+                $restorefailed[] = $component;
+                $failed[] = $component;
+            }
+        }
+
+        // Stop here, nothing is uninstalled or deleted yet: an incomplete
+        // run would leave plugins registered in the database without their
+        // files, which is the state this mode exists to get rid of.
+        if ($restorefailed && !$keepgoing) {
+            $output->writeln('Aborting, nothing was uninstalled or deleted. These plugins could not be reinstalled: ' . implode(', ', $restorefailed));
+            return Command::FAILURE;
+        }
+
+        if (!empty($restored)) {
+            // Phase 2: one purge for everything phase 1 wrote. The files
+            // are all on disk and every version row matches them by now,
+            // so the upgrade_noncore() inside has nothing to install.
+            $this->resetPluginCaches();
+
+            // Phase 3: uninstall from the database, files still in place -
+            // Moodle needs them for db/uninstall.php and install.xml. No
+            // resetPluginCaches() between the uninstalls or before the
+            // files are gone: its upgrade_noncore() would find the
+            // just-uninstalled plugin's files without a version row and
+            // install the plugin again.
+            $uninstalled = [];
+            foreach ($restored as $component => $p) {
+                try {
+                    $this->uninstallRestoredPlugin($component, $output);
+                    $uninstalled[$component] = $p;
+                } catch (\Throwable $e) {
+                    $output->writeln("ERROR   $component: " . $e->getMessage());
+                    $failed[] = $component;
+                }
+            }
+
+            // Phase 4: only the plugins that really are uninstalled now lose
+            // their files - the others are still installed and their files
+            // belong to them.
+            foreach ($uninstalled as $component => $p) {
+                try {
+                    $this->removePluginFiles($component, $p['componentdir'], $p['componentpath'], $output);
+                    $output->writeln("REMOVED $component: reuninstalled");
+                } catch (\Throwable $e) {
+                    $output->writeln("ERROR   $component: uninstalled, but its files could not be deleted: " . $e->getMessage());
+                    $failed[] = $component;
+                }
+            }
+
+            if (!empty($uninstalled)) {
+                $this->resetPluginCaches();
+            }
+        }
+
+        if ($failed) {
+            $output->writeln('Failed component(s): ' . implode(', ', array_unique($failed)));
+            return Command::FAILURE;
+        }
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Which version to restore $component with, and where that came from.
+     * Ported from install_plugins.php's get_uninstall_version(): the
+     * database first (it knows what is really installed here, that beats
+     * any record in the plugin list), then <componentdir>/version_uninstall,
+     * then the newest positive value of the component's `version` file in
+     * the plugin list's git history.
+     *
+     * Changes nothing - `writeversionfile` tells the caller to write
+     * version_uninstall (write-once: the file is the version the
+     * repository decided on, and every environment sharing the branch may
+     * have a different one installed).
+     *
+     * @return array{version:int,source:string,writeversionfile:bool}
+     * @throws \RuntimeException if nothing knows a version, or the database
+     *   and version_uninstall disagree
+     */
+    private function resolveUninstallVersion(string $component, string $componentdir): array
+    {
+        $file = $componentdir . '/version_uninstall';
+        $fileexists = is_file($file);
+        $fileversion = $fileexists ? (int) trim((string) file_get_contents($file)) : 0;
+        $dbversion = $this->getDbPluginVersion($component);
+
+        if ($dbversion) {
+            $version = $dbversion;
+            $source = 'the database';
+        } elseif ($fileversion) {
+            $version = $fileversion;
+            $source = "$component/version_uninstall";
+        } else {
+            $version = $this->getLastManagedVersion($component);
+            $source = 'the git history';
+        }
+
+        if (!$version) {
+            throw new \RuntimeException('no version found in the database, in version_uninstall or in the git history');
+        }
+
+        // Not decided here: the file may be the right one for other
+        // environments sharing this branch, and silently uninstalling a
+        // version nobody wrote down is worse than stopping.
+        if ($fileexists && $dbversion && $dbversion !== $fileversion) {
+            throw new \RuntimeException("installed with version $dbversion, but $component/version_uninstall says $fileversion");
+        }
+
+        return ['version' => $version, 'source' => $source, 'writeversionfile' => !$fileexists];
+    }
+
+    /**
+     * The version row of $component in {config_plugins}, or null if there
+     * is none. Read from the table, not through get_config(): that one is
+     * served from Moodle's config cache, which doesn't notice a row that
+     * was deleted by hand - and a deleted row is the very situation this
+     * mode is for. Upgrade_plugins() reads it the same uncached way.
+     */
+    private function getDbPluginVersion(string $component): ?int
+    {
+        global $DB;
+
+        $value = $DB->get_field('config_plugins', 'value', ['plugin' => $component, 'name' => 'version']);
+        if ($value === false || $value === null || $value === '') {
+            return null;
+        }
+        return (int) $value;
+    }
+
+    /**
+     * The newest positive value the plugin list's git history holds for
+     * <component>/version, or null. Ported from install_plugins.php's
+     * get_last_managed_version(). Only works in a full checkout, a shallow
+     * one as CI creates it has no history to search - and the plugin list
+     * must be inside a git work tree at all.
+     *
+     * The path for `git show` is written ./<component>/version so it is
+     * relative to the plugin list directory, which is not necessarily the
+     * repository root (the original's script sits at the root).
+     */
+    private function getLastManagedVersion(string $component): ?int
+    {
+        $git = 'git -C ' . escapeshellarg($this->configPluginDirectory);
+
+        $shas = [];
+        exec($git . ' log --format=%H -- ' . escapeshellarg($component . '/version') . ' 2>/dev/null', $shas);
+
+        foreach ($shas as $sha) {
+            $lines = [];
+            exec($git . ' show ' . escapeshellarg($sha . ':./' . $component . '/version') . ' 2>/dev/null', $lines);
+
+            // A commit that deleted the file, or set it to 0/-1/a sentinel
+            // word, reads as 0 here: keep going back in time.
+            $version = (int) trim(implode('', $lines));
+            if ($version > 0) {
+                return $version;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Phase 1 for one component: version_uninstall, the version row, the
+     * files at $version, the malware scan.
+     *
+     * @throws \RuntimeException on any failure - the caller collects them
+     */
+    private function restoreForReuninstall(string $component, string $componentdir, string $componentpath, int $version, bool $writeversionfile, OutputInterface $output): void
+    {
+        if ($writeversionfile) {
+            $file = $componentdir . '/version_uninstall';
+            if (@file_put_contents($file, $version . "\n") !== false) {
+                $output->writeln("WARN    Wrote version $version to $component/version_uninstall, please commit it");
+            } else {
+                $output->writeln("WARN    Could not write $file - the version to restore is $version, write it there by hand so it is not lost");
+            }
+        }
+
+        // Before the files, not after (see the class docblock): the
+        // upgrade_noncore() at the end of installRequestedVersion() must
+        // find this plugin already installed at exactly this version.
+        // set_config(), unlike a plain INSERT, also drops Moodle's cached
+        // copy of the plugin's config.
+        if ($this->getDbPluginVersion($component) === null) {
+            $output->writeln("Registering $component with version $version");
+            set_config('version', (string) $version, $component);
+        }
+
+        $installed = '-1';
+        try {
+            $installed = $this->getInstalledVersion($component, $componentdir, $componentpath);
+        } catch (\Throwable $e) {
+            // A version.php that can't be read is no reason to give up:
+            // installing below replaces the directory.
+        }
+
+        if ($installed === (string) $version && $this->arePatchesApplied($component, $componentdir, $componentpath)) {
+            $output->writeln("OK      $component: files already at $version");
+            return;
+        }
+
+        $output->writeln("Restoring $component $version");
+        $this->installRequestedVersion($component, $componentdir, (string) $version, $output, 0, true);
+
+        $now = $this->getInstalledVersion($component, $componentdir, $componentpath);
+        if ($now !== (string) $version) {
+            throw new \RuntimeException("restoring version $version left $now in $componentpath, exiting");
+        }
+
+        // The same check applyComponent() makes after every install: this
+        // code is about to run (db/uninstall.php), so it is scanned like
+        // any other install.
+        $scan = $this->runScanners($component, $componentpath, $output);
+        if ($scan['exitCode'] !== ClamscanRunner::EXIT_CLEAN) {
+            $relativeLog = self::SCANNER_REPORT_PATHS[$scan['failedScanner']] ?? '';
+            $logPath = $relativeLog !== ''
+                ? "{$this->configPluginDirectory}/{$relativeLog}"
+                : $this->configPluginDirectory;
+            throw new \RuntimeException(
+                'malware scan ' . ($scan['exitCode'] === ClamscanRunner::EXIT_MALWARE_FOUND ? 'found malware' : 'failed')
+                . " (exit {$scan['exitCode']}) after restoring - see $logPath",
+            );
+        }
+    }
+
+    /**
+     * Phase 3 for one component: remove it from the database through
+     * Moodle's plugin manager, files untouched. Ported from
+     * install_plugins.php's plugin_uninstall_db() plus the check its
+     * callers make afterwards.
+     *
+     * @throws \RuntimeException if the plugin is still installed afterwards
+     */
+    private function uninstallRestoredPlugin(string $component, OutputInterface $output): void
+    {
+        global $CFG;
+        require_once $CFG->libdir . '/adminlib.php';
+        require_once $CFG->libdir . '/upgradelib.php';
+
+        $output->writeln("Uninstalling $component");
+
+        $pluginman = \core_plugin_manager::instance();
+        $pluginfo = $pluginman->get_plugin_info($component);
+
+        if ($pluginfo !== null && $pluginman->can_uninstall_plugin($pluginfo->component)) {
+            $progress = new \progress_trace_buffer(new \text_progress_trace(), false);
+            $pluginman->uninstall_plugin($pluginfo->component, $progress);
+            $progress->finished();
+        } else {
+            $output->writeln("WARN: Moodle refuses to uninstall $component through the plugin manager (unknown to it, or another plugin requires it)");
+        }
+
+        // The uninstall can fail without Moodle saying so, e.g. when
+        // another plugin still requires this one. The files stay in that
+        // case: they belong to a plugin that is still installed.
+        if ($this->getDbPluginVersion($component) !== null) {
+            throw new \RuntimeException("$component is still installed after the uninstall, see the output above - its files are kept");
+        }
     }
 
     // -------------------------------------------------------------------
@@ -1038,9 +1498,15 @@ class PluginListApply52Handler extends BaseHandler
 
     /**
      * @param int $depth internal recursion guard for 'requires' resolution
+     * @param bool $skipDependencies put the files back without resolving the
+     *   component's <componentdir>/requires file or its version.php
+     *   $plugin->dependencies - for --reuninstall, which restores a plugin
+     *   only to uninstall it again (see the class docblock). Those steps
+     *   install other components and can even write new entries into the
+     *   plugin list, none of which belongs in a recovery.
      * @throws \RuntimeException
      */
-    private function installRequestedVersion(string $component, string $componentdir, string $requestedversion, OutputInterface $output, int $depth = 0): void
+    private function installRequestedVersion(string $component, string $componentdir, string $requestedversion, OutputInterface $output, int $depth = 0, bool $skipDependencies = false): void
     {
         if ($depth > 5) {
             throw new \RuntimeException("dependency resolution recursion too deep for $component - possible circular 'requires'");
@@ -1066,7 +1532,9 @@ class PluginListApply52Handler extends BaseHandler
             return;
         }
 
-        $this->installRequiresFileDependencies($component, $componentdir, $output, $depth);
+        if (!$skipDependencies) {
+            $this->installRequiresFileDependencies($component, $componentdir, $output, $depth);
+        }
 
         $componentpath = $this->getComponentPath($component, $componentdir);
 
@@ -1177,7 +1645,9 @@ class PluginListApply52Handler extends BaseHandler
             // theme version) - and get them installed - before this
             // component itself is moved into place, so nothing ends up
             // installed with an unmet dependency.
-            $this->resolveVersionPhpDependencies($component, $componentdir, $extractedPluginDir, $output, $depth);
+            if (!$skipDependencies) {
+                $this->resolveVersionPhpDependencies($component, $componentdir, $extractedPluginDir, $output, $depth);
+            }
 
             if (file_exists($componentpath)) {
                 $output->writeln("Removing existing directory $componentpath");
