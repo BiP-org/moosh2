@@ -216,6 +216,26 @@ Always run the relevant test script after making changes to verify no regression
 
 `common.sh` also takes a lock inside the Moodle dataroot (`.moosh-tests.lock`) before running, released on exit — so two test runs (locally, or two CI jobs) can't race the same Moodle install/database. A stale lock (dead PID) is reclaimed automatically on the next run; you shouldn't normally need to touch it by hand.
 
+## phpMussel Whitelisting (per-plugin)
+
+`plugin:phpmuslescan` false-positives on things that are safe in a Moodle plugin's own source tree (dotfiles like `.htaccess`, minified JS, Behat `.feature` files, ...). Three whitelist tiers stack — built-in (fixed, ships with `PhpMusselRunner::BUILTIN_WHITELIST`, no config needed), global (`~/.moosh2/phpmuslescan-whitelist`, every scan), and per-plugin (`.moosh-phpmuslescan-whitelist` in the plugin's own root). To generate a **per-plugin** one:
+
+1. Scan the plugin and read the report:
+   ```bash
+   cd /path/to/the/plugin
+   php /path/to/moosh.php plugin:phpmuslescan
+   ```
+   Each false positive prints as `INFECTED: <relative-path> — <phpMussel message>`.
+
+2. For each false positive, add one line to `.moosh-phpmuslescan-whitelist` in the plugin root (create the file if it doesn't exist):
+   - `pattern` (a glob, relative to the plugin root, matched with `fnmatch()`/`FNM_PATHNAME` so `*` doesn't cross `/`) — skips the file entirely, any detection.
+   - `pattern | reason` — only suppresses a detection whose message contains `reason` (copy it verbatim, or a distinctive substring, from the `INFECTED:` line above) on files matching `pattern`; anything else found on that file still fires. Prefer this over a bare pattern whenever you can — it keeps the whitelist from silently swallowing an unrelated, genuine hit on the same file later.
+   - Blank lines and lines starting with `#` are ignored — use `#` to note *why* each entry exists (ticket link, "known false positive because ...").
+
+3. Re-scan and confirm: exit code `0`, and the report's `WHITELISTED:`/`Whitelisted (...)` lines name exactly the files/detections you intended to suppress — not more.
+
+Only use the per-plugin file for exceptions specific to *this* plugin. Something that recurs across many plugins belongs in the global whitelist (`~/.moosh2/phpmuslescan-whitelist`, same format) instead; something structural about moosh2 itself or about phpMussel's heuristics in general belongs in `BUILTIN_WHITELIST` in `src/Service/PhpMusselRunner.php` as a code change, not a config file.
+
 ## Bash Command Style
 
 Never chain commands with && or ; operators. Run them as separate bash calls instead.

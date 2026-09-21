@@ -276,8 +276,12 @@ touch "$MARKDIR/.downloaded-non-core-plugin"
 OUT=$(cd "$MARKDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
 assert_exit_code "Exit code 0: built-in whitelist needs no config" 0 "$EC"
-assert_output_contains "Reports the built-in whitelist source" "Whitelisted (built-in)" "$OUT"
-assert_output_contains "Names the marker file" ".downloaded-non-core-plugin" "$OUT"
+# This is a scoped built-in entry (pattern | reason), so it's applied
+# post-scan and reported inline as WHITELISTED, not in the pre-scan
+# "Whitelisted (source): N file(s)" header (that's for whole-file entries).
+assert_output_contains "Reports it as WHITELISTED via built-in" "WHITELISTED: .downloaded-non-core-plugin" "$OUT"
+assert_output_contains "Names the built-in source" "via built-in" "$OUT"
+assert_output_not_contains "No plain INFECTED line for the marker file" "INFECTED: .downloaded-non-core-plugin" "$OUT"
 rm -rf "$MARKDIR"
 echo ""
 
@@ -309,31 +313,48 @@ fi
 rm -rf "$GLOBALWL_BACKUP"
 echo ""
 
-echo "--- Test: Scoped whitelist (pattern | reason) suppresses only that detection ---"
+echo "--- Test: Built-in whitelist also covers tests/behat/*.feature chameleon hits ---"
+# The third built-in entry, verified on its own before the per-plugin
+# scoping tests below (which deliberately use a DIFFERENT path so they
+# aren't accidentally passing via this built-in entry instead of their
+# own per-plugin whitelist file).
+BEHATDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$BEHATDIR/version.php"
+mkdir -p "$BEHATDIR/tests/behat"
+printf '<?php echo "not really gherkin"; ?>' > "$BEHATDIR/tests/behat/scenario.feature"
+
+OUT=$(cd "$BEHATDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: built-in tests/behat entry, no config needed" 0 "$EC"
+assert_output_contains "Reports it as WHITELISTED via built-in" "WHITELISTED: tests/behat/scenario.feature" "$OUT"
+assert_output_contains "Names the built-in source" "via built-in" "$OUT"
+rm -rf "$BEHATDIR"
+echo ""
+
+echo "--- Test: Per-plugin scoped whitelist (pattern | reason) suppresses only that detection ---"
 # "pattern | reason" whitelists a specific detection on matching files,
-# not the whole file -- unlike a bare pattern. Proven here with the same
-# reliable chameleon_from_php trigger as the earlier chameleon test
-# (a file whose extension doesn't suggest PHP but whose content does),
-# using the exact scoped entry from the command's own docs:
-#   tests/behat/*.feature | PHP chameleon attack
+# not the whole file -- unlike a bare pattern. Uses a path NOT covered by
+# any built-in entry (custom/behat/, not tests/behat/) so this genuinely
+# exercises the per-plugin whitelist file, not the built-in one.
 SCOPEDIR=$(mktemp -d)
 echo '<?php $plugin->version = 1;' > "$SCOPEDIR/version.php"
-mkdir -p "$SCOPEDIR/tests/behat"
-printf '<?php echo "not really gherkin"; ?>' > "$SCOPEDIR/tests/behat/scenario.feature"
-echo 'tests/behat/*.feature | PHP chameleon attack' > "$SCOPEDIR/$WHITELIST_FILENAME"
+mkdir -p "$SCOPEDIR/custom/behat"
+printf '<?php echo "not really gherkin"; ?>' > "$SCOPEDIR/custom/behat/scenario.feature"
+echo 'custom/behat/*.feature | PHP chameleon attack' > "$SCOPEDIR/$WHITELIST_FILENAME"
 
 OUT=$(cd "$SCOPEDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
 assert_exit_code "Exit code 0: scoped whitelist suppresses the chameleon hit" 0 "$EC"
-assert_output_contains "Reports it as WHITELISTED, not INFECTED" "WHITELISTED: tests/behat/scenario.feature" "$OUT"
-assert_output_not_contains "No plain INFECTED line for the scoped file" "INFECTED: tests/behat/scenario.feature" "$OUT"
+assert_output_contains "Reports it as WHITELISTED, not INFECTED" "WHITELISTED: custom/behat/scenario.feature" "$OUT"
+assert_output_not_contains "No plain INFECTED line for the scoped file" "INFECTED: custom/behat/scenario.feature" "$OUT"
+assert_output_contains "Names the per-plugin whitelist source" "via $WHITELIST_FILENAME" "$OUT"
 echo ""
 
 echo "--- Test: Scoped whitelist reason must actually match, or the file still fires ---"
 # Same file, same path pattern, but the whitelist entry's reason text
 # doesn't occur in phpMussel's message -- so this must NOT be suppressed.
 # Confirms scoping isn't secretly a blanket per-path whitelist.
-echo 'tests/behat/*.feature | some unrelated signature that will never match' > "$SCOPEDIR/$WHITELIST_FILENAME"
+echo 'custom/behat/*.feature | some unrelated signature that will never match' > "$SCOPEDIR/$WHITELIST_FILENAME"
 
 OUT=$(cd "$SCOPEDIR" && $PHP $MOOSH plugin:phpmuslescan -i 2>&1)
 EC=$?
