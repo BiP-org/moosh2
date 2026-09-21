@@ -400,7 +400,11 @@ class PhpMusselRunner
                 if ($current->isDir()) {
                     return !in_array($name, self::EXCLUDED_DIRS, true);
                 }
-                return !in_array($name, self::EXCLUDED_FILES, true);
+                // The whitelist file is moosh2's own tooling config, not
+                // plugin payload — and being a dotfile itself, scanning
+                // it would trip the exact "filename manipulation"
+                // heuristic it's meant to help suppress.
+                return !in_array($name, self::EXCLUDED_FILES, true) && $name !== self::WHITELIST_FILENAME;
             },
         );
         $it = new \RecursiveIteratorIterator($filter);
