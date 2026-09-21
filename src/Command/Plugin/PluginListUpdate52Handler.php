@@ -16,6 +16,14 @@
  *   - No Moosh\PluginChecksum step (no moosh2 equivalent, out of scope for
  *     this port) — checksum pinning still downloads and hashes the zip via
  *     PluginZipCache, it just isn't checked against a pinned expectation.
+ *   - Cache pruning (--keep-versions, default 4): every zip this command
+ *     downloads goes through the shared PluginZipCache
+ *     (~/.moosh/moodleplugins by default), which otherwise grows without
+ *     bound as versions get superseded over time. After each successful
+ *     download, PluginZipCache::pruneComponent() keeps only the N most
+ *     recently written valid zips for that component and deletes the
+ *     rest - see that method for the corruption-check precaution ported
+ *     alongside it.
  *
  * Checksum algorithm: md5, matching install_plugins.php's
  * moodle_official::get_plugin_download_info() / helper::download_cached(),
@@ -88,6 +96,9 @@ class PluginListUpdate52Handler extends BaseHandler
     /** @var string|null stashed --install-plugins-script, read once in handle() (see updateInstallPluginsPhpComponent()) */
     private ?string $installPluginsScriptOption = null;
 
+    /** @var int stashed --keep-versions, read once in handle() (see downloadPluginZip()/PluginZipCache::pruneComponent()); <= 0 disables pruning */
+    private int $keepVersions = 4;
+
     public function getBootstrapLevel(): ?BootstrapLevel
     {
         // A full Moodle bootstrap is only needed to auto-detect the current
@@ -118,12 +129,18 @@ class PluginListUpdate52Handler extends BaseHandler
             ->addOption('archive', null, InputOption::VALUE_NONE,
                 'Also archive the pinned zip, the full pluglist.php (or mirror) response, a small per-'
                 . 'component extract of it, and its source URL into <component>/archive/ - for components '
-                . 'withdrawn from moodle.org later.');
+                . 'withdrawn from moodle.org later.')
+            ->addOption('keep-versions', null, InputOption::VALUE_REQUIRED,
+                'Number of most-recently-downloaded, integrity-valid zips to keep per component in the '
+                . 'shared zip cache (~/.moosh/moodleplugins by default, or $MOOSH_CACHE_DIR) after this run '
+                . 'downloads a new one; older ones are deleted. A corrupted cache entry is always deleted '
+                . 'regardless of this count. Set to 0 to disable pruning.', '4');
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Preview what would change for every plugin directory found in the current directory', '');
             $command->addExampleUsage('Actually write updated version files', '--run');
             $command->addExampleUsage('Only update block_fastnav and mod_board, against Moodle 4.5', '--moodle-version=4.5 --run block_fastnav mod_board');
+            $command->addExampleUsage('Keep only the 2 newest cached zips per component instead of the default 4', '--run --keep-versions=2');
         }
     }
 
@@ -133,6 +150,7 @@ class PluginListUpdate52Handler extends BaseHandler
         $this->noChecksum = (bool) $input->getOption('no-checksum');
         $this->archive = (bool) $input->getOption('archive');
         $this->installPluginsScriptOption = $input->getOption('install-plugins-script');
+        $this->keepVersions = (int) $input->getOption('keep-versions');
 
         $token = $input->getOption('token') ?: (getenv('MOODLE_MARKETPLACE_TOKEN') ?: null);
         $client = new PluginApiClient($input->getOption('proxy'), $token);
@@ -550,6 +568,14 @@ class PluginListUpdate52Handler extends BaseHandler
         $downloadedfile = $tempdir . '/' . $component . '.zip';
 
         if (PluginZipCache::fetch($component, $version, $downloadedfile)) {
+            // Prune on a cache hit too, not just a fresh download below -
+            // otherwise a component whose version never changes (the
+            // common case on a repeat run) never gets its cache entries
+            // bounded again after the one run that first downloaded it,
+            // even if something else (a manual copy, an older moosh2
+            // version, a differently-configured run) left extra files
+            // behind for this component.
+            PluginZipCache::pruneComponent($component, $this->keepVersions);
             return [$downloadedfile, $tempdir];
         }
 
@@ -568,6 +594,7 @@ class PluginListUpdate52Handler extends BaseHandler
         }
 
         PluginZipCache::store($component, $version, $downloadedfile);
+        PluginZipCache::pruneComponent($component, $this->keepVersions);
 
         return [$downloadedfile, $tempdir];
     }

@@ -173,6 +173,67 @@ final class PluginZipCache
     }
 
     /**
+     * Bound how many cached zips accumulate per component - ported from
+     * install_plugins.php's cache-pruning behaviour, which keeps only the
+     * newest few downloads on disk per component instead of letting the
+     * cache grow without limit across every version ever resolved.
+     *
+     * Two independent reasons a cached file gets deleted:
+     *   1. It fails the same corruption check store()/fetch() already use
+     *      (isValidZip() - non-empty, zip magic bytes, structural zip
+     *      integrity). A corrupt cache entry is worthless regardless of
+     *      $keep or how recently it was written - keeping it around only
+     *      risks a later fetch() call re-validating (and re-rejecting) the
+     *      same dead file - so these are always removed, independent of
+     *      $keep.
+     *   2. Among the remaining valid files, only the $keep most recently
+     *      modified are kept; anything older is deleted.
+     *
+     * $keep <= 0 disables pruning entirely (corrupt files are still
+     * removed either way - that's not "pruning", it's the cache refusing
+     * to hold something it already wouldn't serve via fetch()).
+     *
+     * @return string[] absolute paths of every file this call deleted, for
+     *   logging/testing - callers aren't required to do anything with it
+     */
+    public static function pruneComponent(string $component, int $keep): array
+    {
+        $dir = self::getCacheDir();
+        $files = glob($dir . '/' . $component . '-*.zip');
+        if ($files === false || $files === []) {
+            return [];
+        }
+
+        $deleted = [];
+        $valid = [];
+        foreach ($files as $file) {
+            if (self::isValidZip($file)) {
+                $valid[] = $file;
+                continue;
+            }
+            if (@unlink($file)) {
+                $deleted[] = $file;
+            }
+        }
+
+        if ($keep <= 0) {
+            return $deleted;
+        }
+
+        usort($valid, static function (string $a, string $b): int {
+            return filemtime($b) <=> filemtime($a);
+        });
+
+        foreach (array_slice($valid, $keep) as $stale) {
+            if (@unlink($stale)) {
+                $deleted[] = $stale;
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Confirm a downloaded (or cached) plugin zip's own version.php
      * actually declares $expectedComponent, before any other step -
      * pinning a checksum, populating the shared cache, extracting it into
