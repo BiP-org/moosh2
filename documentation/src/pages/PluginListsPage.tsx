@@ -753,10 +753,11 @@ php moosh2.phar plugin:list-apply --moodle-path=/var/www/moodle --directory=plug
           </li>
         </ul>
         <p className="text-muted-foreground">
-          Patches are applied right after <InlineCode>install_requested_version.sh</InlineCode> returns. Such a script
-          usually runs Moodle&apos;s upgrade itself, i.e. <em>before</em> the patches are there; the plugin caches are
-          reset once the patches are in, like for an ordinary plugin, but a patch that changes what an upgrade step
-          does is too late for this run&apos;s upgrade.
+          Patches are applied right after <InlineCode>install_requested_version.sh</InlineCode> returns, and
+          only PHP&apos;s and Moodle&apos;s code caches are reset afterwards. <InlineCode>plugin:list-apply</InlineCode>{' '}
+          never runs Moodle&apos;s upgrade for a package &mdash; that stays the install script&apos;s business (or a later{' '}
+          <InlineCode>admin/cli/upgrade.php</InlineCode> step). A script that runs the upgrade itself does so{' '}
+          <em>before</em> the patches are there, so a patch that changes what an upgrade step does is too late for that run.
         </p>
 
         <p className="text-muted-foreground">

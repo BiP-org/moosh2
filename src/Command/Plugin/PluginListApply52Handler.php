@@ -1580,11 +1580,14 @@ class PluginListApply52Handler extends BaseHandler
                 // Also drops a stale fingerprint when the patches are gone.
                 $this->applyPatches($component, $componentdir, $componentpath, $output);
                 if ($hasPatches) {
-                    // The install script usually ran Moodle's upgrade
-                    // already - before the patches were there. Same reset
-                    // a plain plugin gets at the end of its install, so
-                    // Moodle sees what the patches changed.
-                    $this->resetPluginCaches();
+                    // Caches only, no upgrade_noncore(): whether and when
+                    // Moodle's upgrade runs for a package is the install
+                    // script's business (a script may run it itself, or
+                    // leave it to a later admin/cli/upgrade.php, as the
+                    // Kaltura one does), and patching must not change
+                    // that. Just make sure the patched code is what Moodle
+                    // and PHP see from here on.
+                    $this->resetComponentCaches();
                 }
                 try {
                     $this->touchDownloadedMarker($componentpath);
@@ -2624,6 +2627,19 @@ class PluginListApply52Handler extends BaseHandler
         require_once $CFG->libdir . '/upgradelib.php';
         raise_memory_limit(MEMORY_EXTRA);
 
+        $this->resetComponentCaches();
+        upgrade_noncore(true);
+    }
+
+    /**
+     * resetPluginCaches() without the upgrade_noncore() at its end: only
+     * forgets what Moodle and PHP cached about the plugin code on disk
+     * (opcache, the component/class map, the plugin manager).
+     */
+    private function resetComponentCaches(): void
+    {
+        global $CFG;
+
         if (function_exists('opcache_reset')) {
             opcache_reset();
         }
@@ -2633,7 +2649,6 @@ class PluginListApply52Handler extends BaseHandler
         }
         \core_component::reset(true);
         \core_plugin_manager::reset_caches();
-        upgrade_noncore(true);
     }
 
     /**
