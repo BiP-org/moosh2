@@ -39,9 +39,11 @@ class PluginPhpmuslescan52Handler extends BaseHandler
                 'whitelist',
                 'w',
                 InputOption::VALUE_REQUIRED,
-                'Path to an extra whitelist file (same format as ' . PhpMusselRunner::WHITELIST_FILENAME . '), '
-                . 'used in addition to that file if it exists in the plugin root. '
-                . 'One glob pattern per line (relative to the plugin root), "#" for comments.',
+                'Path to an extra whitelist file, on top of the built-in, global '
+                . '(~/.moosh2/phpmuslescan-whitelist) and per-plugin ('
+                . PhpMusselRunner::WHITELIST_FILENAME . ' in the plugin root) whitelists. '
+                . 'One entry per line: "pattern" skips the whole file, or "pattern | reason" '
+                . 'only suppresses a detection whose message contains that reason. "#" for comments.',
             );
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
@@ -51,6 +53,10 @@ class PluginPhpmuslescan52Handler extends BaseHandler
             $command->addExampleUsage(
                 'Suppress a false positive without a whitelist file in the plugin root',
                 '--whitelist=/path/to/extra-whitelist.txt',
+            );
+            $command->addExampleUsage(
+                'Scope a whitelist entry to one detection instead of the whole file',
+                "(in a whitelist file) lib/thirdparty/foo.js | phpMussel-Suspect.DoubleExtension-00",
             );
         }
     }

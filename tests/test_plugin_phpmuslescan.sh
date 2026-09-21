@@ -5,6 +5,9 @@
 
 source "$(dirname "$0")/common.sh"
 
+# Name of the per-plugin whitelist file (PhpMusselRunner::WHITELIST_FILENAME).
+WHITELIST_FILENAME=".moosh-phpmuslescan-whitelist"
+
 echo "=== moosh2 plugin:phpmuslescan integration tests ==="
 echo ""
 
@@ -201,7 +204,7 @@ echo ".htaccess" > "$FPDIR/.moosh-phpmuslescan-whitelist"
 OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
 assert_exit_code "Exit code 0 once .htaccess is whitelisted" 0 "$EC"
-assert_output_contains "Reports the whitelisted file" "Whitelisted (skipped" "$OUT"
+assert_output_contains "Reports the whitelisted file" "Whitelisted ($WHITELIST_FILENAME)" "$OUT"
 assert_output_contains "Names .htaccess as whitelisted" ".htaccess" "$OUT"
 assert_output_not_contains "No filename-manipulation hit once whitelisted" "Filename manipulation" "$OUT"
 if echo "$OUT" | grep -q "Infected files: 0"; then
@@ -244,7 +247,7 @@ echo ".htaccess" >> "$EXTWL"
 OUT=$(cd "$EXTWLDIR" && $PHP $MOOSH plugin:phpmuslescan --whitelist="$EXTWL" 2>&1)
 EC=$?
 assert_exit_code "Exit code 0 using --whitelist alone" 0 "$EC"
-assert_output_contains "Reports the file whitelisted via --whitelist" "Whitelisted (skipped" "$OUT"
+assert_output_contains "Reports the file whitelisted via --whitelist" "Whitelisted (--whitelist)" "$OUT"
 rm -rf "$EXTWLDIR"
 echo ""
 
@@ -258,6 +261,85 @@ assert_exit_code "Exit code 1: unwhitelisted dotfile still flagged" 1 "$EC"
 assert_output_contains "Reports the unwhitelisted dotfile" ".another" "$OUT"
 rm -f "$FPDIR/.another"
 rm -rf "$FPDIR"
+echo ""
+
+echo "--- Test: Built-in whitelist suppresses moosh2's own marker file ---"
+# .downloaded-non-core-plugin is a marker file moosh2 itself touches in
+# every plugin it manages via plugin:list-apply (see MARKER_FILENAME in
+# PluginListApply52Handler). It's a dotfile, so it trips the same
+# filename-manipulation heuristic as .htaccess above -- but this one is
+# whitelisted BUILT IN, with no whitelist file needed at all.
+MARKDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$MARKDIR/version.php"
+touch "$MARKDIR/.downloaded-non-core-plugin"
+
+OUT=$(cd "$MARKDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: built-in whitelist needs no config" 0 "$EC"
+assert_output_contains "Reports the built-in whitelist source" "Whitelisted (built-in)" "$OUT"
+assert_output_contains "Names the marker file" ".downloaded-non-core-plugin" "$OUT"
+rm -rf "$MARKDIR"
+echo ""
+
+echo "--- Test: Global whitelist (~/.moosh2/phpmuslescan-whitelist) applies across plugins ---"
+# Unlike the per-plugin file, the global whitelist lives outside any
+# plugin and is picked up automatically for every scan -- no --whitelist
+# flag, no per-plugin file.
+GLOBALWL="${HOME}/.moosh2/phpmuslescan-whitelist"
+GLOBALWL_BACKUP=$(mktemp -d)
+if [ -f "$GLOBALWL" ]; then
+    mv "$GLOBALWL" "$GLOBALWL_BACKUP/phpmuslescan-whitelist"
+fi
+mkdir -p "$(dirname "$GLOBALWL")"
+echo ".htaccess" > "$GLOBALWL"
+
+GWLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$GWLDIR/version.php"
+echo 'deny from all' > "$GWLDIR/.htaccess"
+
+OUT=$(cd "$GWLDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: global whitelist applies with no per-plugin config" 0 "$EC"
+assert_output_contains "Reports the global whitelist source" "Whitelisted (global)" "$OUT"
+rm -rf "$GWLDIR"
+rm -f "$GLOBALWL"
+if [ -f "$GLOBALWL_BACKUP/phpmuslescan-whitelist" ]; then
+    mv "$GLOBALWL_BACKUP/phpmuslescan-whitelist" "$GLOBALWL"
+fi
+rm -rf "$GLOBALWL_BACKUP"
+echo ""
+
+echo "--- Test: Scoped whitelist (pattern | reason) suppresses only that detection ---"
+# "pattern | reason" whitelists a specific detection on matching files,
+# not the whole file -- unlike a bare pattern. Proven here with the same
+# reliable chameleon_from_php trigger as the earlier chameleon test
+# (a file whose extension doesn't suggest PHP but whose content does),
+# using the exact scoped entry from the command's own docs:
+#   tests/behat/*.feature | PHP chameleon attack
+SCOPEDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$SCOPEDIR/version.php"
+mkdir -p "$SCOPEDIR/tests/behat"
+printf '<?php echo "not really gherkin"; ?>' > "$SCOPEDIR/tests/behat/scenario.feature"
+echo 'tests/behat/*.feature | PHP chameleon attack' > "$SCOPEDIR/$WHITELIST_FILENAME"
+
+OUT=$(cd "$SCOPEDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: scoped whitelist suppresses the chameleon hit" 0 "$EC"
+assert_output_contains "Reports it as WHITELISTED, not INFECTED" "WHITELISTED: tests/behat/scenario.feature" "$OUT"
+assert_output_not_contains "No plain INFECTED line for the scoped file" "INFECTED: tests/behat/scenario.feature" "$OUT"
+echo ""
+
+echo "--- Test: Scoped whitelist reason must actually match, or the file still fires ---"
+# Same file, same path pattern, but the whitelist entry's reason text
+# doesn't occur in phpMussel's message -- so this must NOT be suppressed.
+# Confirms scoping isn't secretly a blanket per-path whitelist.
+echo 'tests/behat/*.feature | some unrelated signature that will never match' > "$SCOPEDIR/$WHITELIST_FILENAME"
+
+OUT=$(cd "$SCOPEDIR" && $PHP $MOOSH plugin:phpmuslescan -i 2>&1)
+EC=$?
+assert_exit_code "Exit code 1: non-matching reason does not suppress the hit" 1 "$EC"
+assert_output_contains "Still reports the file as infected" "scenario.feature" "$OUT"
+rm -rf "$SCOPEDIR"
 echo ""
 
 echo "--- Test: No plugin name, no version.php -> exit 2 ---"

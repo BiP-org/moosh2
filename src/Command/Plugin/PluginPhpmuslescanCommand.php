@@ -38,11 +38,19 @@ class PluginPhpmuslescanCommand extends BaseCommand
                 'Uses phpMussel\'s native signature formats via the Composer-installed phpmussel/core ' .
                 'package. Signatures must be downloaded first with plugin:phpmuslescan:update-signatures. ' .
                 'Exit codes mirror plugin:clamscan: 0 clean, 1 malware found, 2 error. ' .
-                'False positives (e.g. "Filename manipulation detected" on a dotfile) can be ' .
-                'suppressed per plugin: put a .moosh-phpmuslescan-whitelist file in the plugin\'s ' .
-                'own root, one glob pattern per line (relative to the plugin root), "#" for ' .
-                'comments — see --whitelist for an alternative when you can\'t add a file to the ' .
-                'plugin\'s root.',
+                "\n\n" .
+                'False positives can be whitelisted at three levels, all active at once: ' .
+                'built-in (fixed, ships with moosh2 — known structural false positives such as ' .
+                'moosh2\'s own .downloaded-non-core-plugin marker file), global ' .
+                '(~/.moosh2/phpmuslescan-whitelist, applies to every scan), and per-plugin ' .
+                '(.moosh-phpmuslescan-whitelist in the plugin\'s own root). --whitelist adds one more ' .
+                'file on top, e.g. for a downloaded plugin you can\'t add a file into. ' .
+                'Each is one entry per line, "#" for comments: "pattern" (a glob, relative to the ' .
+                'plugin root) skips the whole file; "pattern | reason" only suppresses a detection ' .
+                'whose message contains that reason as a substring, so anything else found on a ' .
+                'matching file still fires — e.g. "site/js/*.js | phpMussel-Suspect.DoubleExtension-00" ' .
+                'for minified JS like jquery-3.6.0.min.js, or "tests/behat/*.feature | PHP chameleon ' .
+                'attack" for Gherkin scenarios.',
             );
         $this->handler->configureCommand($this);
     }
