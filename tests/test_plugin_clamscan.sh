@@ -8,6 +8,9 @@
 
 source "$(dirname "$0")/common.sh"
 
+# Name of the per-plugin whitelist file (ClamscanRunner::WHITELIST_FILENAME).
+CLAMSCAN_WHITELIST_FILENAME="clamscan-whitelist"
+
 # A valid ClamAV extended signature that won't match anything in a real
 # plugin's source - used everywhere below that a scan needs a database
 # that's real (won't itself error out) but guaranteed not to hit, since we
@@ -30,6 +33,7 @@ assert_output_contains "Help description" "Scan a plugin for malware" "$OUT"
 assert_output_contains "Help shows --database" "--database" "$OUT"
 assert_output_contains "Help shows --infected" "--infected" "$OUT"
 assert_output_contains "Help shows --log" "--log" "$OUT"
+assert_output_contains "Help shows --whitelist" "--whitelist" "$OUT"
 echo ""
 
 echo "--- Test: plugin:clamscan:update-signatures downloads signatures ---"
@@ -248,6 +252,116 @@ OUT=$(cd "$CLEANDIR" && $PHP $MOOSH plugin:clamscan -d "$RULEDIR2" 2>&1)
 EC=$?
 assert_exit_code "Exit code 0 when the signature is absent" 0 "$EC"
 rm -rf "$CLEANDIR" "$RULEDIR2"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Whitelisting. Reuses the same "plant a custom .ndb signature, plant a file
+# that matches it" technique as the tests above -- unlike phpMussel's
+# content/filename heuristics, a ClamAV .ndb rule is a byte-pattern WE
+# define, so these are fully deterministic: no guessing about what a real
+# scanner heuristic will or won't flag.
+# ---------------------------------------------------------------------------
+WL_MARKER_HEX=$(printf 'MOOSH2_TEST_WHITELIST_MARKER' | od -An -tx1 | tr -d ' \n')
+WLRULEDIR=$(mktemp -d)
+echo "Test.Moosh2.WhitelistMarker:0:*:${WL_MARKER_HEX}" > "$WLRULEDIR/whitelist-test.ndb"
+
+echo "--- Test: Per-plugin whitelist (whole-file) suppresses a matched signature ---"
+WLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$WLDIR/version.php"
+cat > "$WLDIR/vendor-lib.php" << 'EOF'
+<?php
+// MOOSH2_TEST_WHITELIST_MARKER
+echo "vendored, expected to trip the planted rule";
+EOF
+echo 'vendor-lib.php' > "$WLDIR/$CLAMSCAN_WHITELIST_FILENAME"
+
+OUT=$(cd "$WLDIR" && $PHP $MOOSH plugin:clamscan -d "$WLRULEDIR" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: whole-file whitelist suppresses the match" 0 "$EC"
+assert_output_contains "Reports it as WHITELISTED" "WHITELISTED: vendor-lib.php" "$OUT"
+assert_output_contains "Names the per-plugin whitelist source" "via $CLAMSCAN_WHITELIST_FILENAME" "$OUT"
+assert_output_contains "Rewrites the summary count" "Infected files: 0 (whitelisted: 1)" "$OUT"
+rm -rf "$WLDIR"
+echo ""
+
+echo "--- Test: Scoped whitelist (pattern | reason) suppresses only that signature ---"
+SCOPEWLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$SCOPEWLDIR/version.php"
+cat > "$SCOPEWLDIR/vendor-lib.php" << 'EOF'
+<?php
+// MOOSH2_TEST_WHITELIST_MARKER
+echo "vendored, expected to trip the planted rule";
+EOF
+echo 'vendor-lib.php | Test.Moosh2.WhitelistMarker' > "$SCOPEWLDIR/$CLAMSCAN_WHITELIST_FILENAME"
+
+OUT=$(cd "$SCOPEWLDIR" && $PHP $MOOSH plugin:clamscan -d "$WLRULEDIR" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: scoped whitelist suppresses the matching signature" 0 "$EC"
+assert_output_contains "Reports it as WHITELISTED" "WHITELISTED: vendor-lib.php" "$OUT"
+echo ""
+
+echo "--- Test: Scoped whitelist reason must actually match, or the file still fires ---"
+# Same file, same path pattern, but the whitelist entry's reason text
+# doesn't occur in the matched signature name -- so this must NOT be
+# suppressed. Confirms scoping isn't secretly a blanket per-path whitelist.
+echo 'vendor-lib.php | some unrelated signature that will never match' > "$SCOPEWLDIR/$CLAMSCAN_WHITELIST_FILENAME"
+
+OUT=$(cd "$SCOPEWLDIR" && $PHP $MOOSH plugin:clamscan -d "$WLRULEDIR" -i 2>&1)
+EC=$?
+assert_exit_code "Exit code 1: non-matching reason does not suppress the hit" 1 "$EC"
+assert_output_contains "Still reports the file as infected" "vendor-lib.php" "$OUT"
+assert_output_contains "Still reports the signature name" "Test.Moosh2.WhitelistMarker" "$OUT"
+rm -rf "$SCOPEWLDIR"
+echo ""
+
+echo "--- Test: --whitelist option works without a per-plugin file ---"
+EXTWLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$EXTWLDIR/version.php"
+cat > "$EXTWLDIR/vendor-lib.php" << 'EOF'
+<?php
+// MOOSH2_TEST_WHITELIST_MARKER
+echo "vendored, expected to trip the planted rule";
+EOF
+EXTWL=$(mktemp)
+echo "# external whitelist, not in the plugin root" > "$EXTWL"
+echo "vendor-lib.php" >> "$EXTWL"
+
+OUT=$(cd "$EXTWLDIR" && $PHP $MOOSH plugin:clamscan -d "$WLRULEDIR" --whitelist="$EXTWL" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0 using --whitelist alone" 0 "$EC"
+assert_output_contains "Reports the file whitelisted via --whitelist" "via --whitelist" "$OUT"
+rm -f "$EXTWL"
+rm -rf "$EXTWLDIR"
+echo ""
+
+echo "--- Test: Global whitelist (~/.moosh2/clamscan-whitelist) applies across plugins ---"
+CLAM_GLOBALWL="${HOME}/.moosh2/clamscan-whitelist"
+CLAM_GLOBALWL_BACKUP=$(mktemp -d)
+if [ -f "$CLAM_GLOBALWL" ]; then
+    mv "$CLAM_GLOBALWL" "$CLAM_GLOBALWL_BACKUP/clamscan-whitelist"
+fi
+mkdir -p "$(dirname "$CLAM_GLOBALWL")"
+echo 'vendor-lib.php' > "$CLAM_GLOBALWL"
+
+GWLDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$GWLDIR/version.php"
+cat > "$GWLDIR/vendor-lib.php" << 'EOF'
+<?php
+// MOOSH2_TEST_WHITELIST_MARKER
+echo "vendored, expected to trip the planted rule";
+EOF
+
+OUT=$(cd "$GWLDIR" && $PHP $MOOSH plugin:clamscan -d "$WLRULEDIR" 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: global whitelist applies with no per-plugin config" 0 "$EC"
+assert_output_contains "Reports the global whitelist source" "via global" "$OUT"
+rm -rf "$GWLDIR"
+rm -f "$CLAM_GLOBALWL"
+if [ -f "$CLAM_GLOBALWL_BACKUP/clamscan-whitelist" ]; then
+    mv "$CLAM_GLOBALWL_BACKUP/clamscan-whitelist" "$CLAM_GLOBALWL"
+fi
+rm -rf "$CLAM_GLOBALWL_BACKUP"
+rm -rf "$WLRULEDIR"
 echo ""
 
 print_summary

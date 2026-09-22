@@ -52,12 +52,29 @@ class PluginClamscan52Handler extends BaseHandler
             ->addOption('proxy', null, InputOption::VALUE_REQUIRED, 'Proxy URI (e.g. tcp://user:pass@host:port). You may also use env var http_proxy.')
             ->addOption('database', 'd', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'ClamAV/YARA database or directory to load (clamscan -d/--database). May be given multiple times.')
             ->addOption('infected', 'i', InputOption::VALUE_NONE, 'Only print filenames that ARE infected (clamscan -i/--infected).')
-            ->addOption('log', null, InputOption::VALUE_REQUIRED, 'Save scan report to a file (clamscan --log=).');
+            ->addOption('log', null, InputOption::VALUE_REQUIRED, 'Save scan report to a file (clamscan --log=).')
+            ->addOption(
+                'whitelist',
+                'w',
+                InputOption::VALUE_REQUIRED,
+                'Path to an extra whitelist file, on top of the built-in, global '
+                . '(~/.moosh2/clamscan-whitelist) and per-plugin ('
+                . ClamscanRunner::WHITELIST_FILENAME . ' in the plugin root) whitelists. '
+                . 'One entry per line: "pattern" suppresses every detection on a matching '
+                . 'file, or "pattern | reason" only suppresses a detection whose signature '
+                . 'name contains that reason. Patterns are globs by default ("*" within one '
+                . 'path segment, "**" across any number, including zero), or prefix with '
+                . '"regex:" for a raw PCRE. "#" for comments.',
+            );
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
             $command->addExampleUsage('Scan the plugin in the current directory', '');
             $command->addExampleUsage('Download and scan a specific plugin/version', 'mod_board --release=2024010700');
             $command->addExampleUsage('Scan with a custom YARA ruleset, only reporting infected files', 'mod_board -d /path/to/yara-rules -i');
+            $command->addExampleUsage(
+                'Suppress a false positive without a whitelist file in the plugin root',
+                '--whitelist=/path/to/extra-whitelist.txt',
+            );
         }
     }
 
@@ -80,10 +97,24 @@ class PluginClamscan52Handler extends BaseHandler
                 $pluginRoot = $this->resolvePluginRootFromCwd(getcwd());
             }
 
+            $extraWhitelist = [];
+            if ($whitelistFile = $input->getOption('whitelist')) {
+                if (!is_readable($whitelistFile)) {
+                    throw new \RuntimeException("Whitelist file not readable: $whitelistFile");
+                }
+                foreach (file($whitelistFile, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+                    $line = trim($line);
+                    if ($line !== '' && !str_starts_with($line, '#')) {
+                        $extraWhitelist[] = $line;
+                    }
+                }
+            }
+
             $options = [
                 'database' => $input->getOption('database'),
                 'infected' => $input->getOption('infected'),
                 'log' => $input->getOption('log'),
+                'whitelist' => $extraWhitelist,
             ];
 
             $output->writeln("Starting malware scan at $pluginRoot");

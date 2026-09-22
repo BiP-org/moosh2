@@ -216,23 +216,33 @@ Always run the relevant test script after making changes to verify no regression
 
 `common.sh` also takes a lock inside the Moodle dataroot (`.moosh-tests.lock`) before running, released on exit — so two test runs (locally, or two CI jobs) can't race the same Moodle install/database. A stale lock (dead PID) is reclaimed automatically on the next run; you shouldn't normally need to touch it by hand.
 
-## phpMussel Whitelisting (per-plugin)
+## Malware Scan Whitelisting (phpMussel & ClamAV, per-plugin)
 
-`plugin:phpmuslescan` false-positives on things that are safe in a Moodle plugin's own source tree (dotfiles like `.htaccess`, minified JS, Behat `.feature` files, ...). Three whitelist tiers stack — built-in (fixed, ships with `PhpMusselRunner::BUILTIN_WHITELIST`, no config needed), global (`~/.moosh2/phpmuslescan-whitelist`, every scan), and per-plugin (`.moosh-phpmuslescan-whitelist` in the plugin's own root). To generate a **per-plugin** one:
+Both `plugin:phpmuslescan` and `plugin:clamscan` false-positive on things that are safe in a Moodle plugin's own source tree (dotfiles like `.htaccess`, minified JS, Behat `.feature` files, ...). They share one whitelist-matching implementation (`WhitelistMatcher` trait, used by both `PhpMusselRunner` and `ClamscanRunner`) and file format, just with separate filenames so a phpMussel exception and a ClamAV exception for the same plugin don't collide:
+
+| | phpMussel | ClamAV |
+|---|---|---|
+| Per-plugin file | `.moosh-phpmuslescan-whitelist` in the plugin root | `.moosh-clamscan-whitelist` in the plugin root |
+| Global file | `~/.moosh2/phpmuslescan-whitelist` | `~/.moosh2/clamscan-whitelist` |
+| Built-in entries | `PhpMusselRunner::BUILTIN_WHITELIST` | `ClamscanRunner::BUILTIN_WHITELIST` (empty so far — ClamAV's signature-based detections haven't needed one yet) |
+| `reason` matches against | phpMussel's detection message | the ClamAV/YARA signature name |
+| When whitelisting applies | before scanning, for a whole-file entry (phpMussel scans file-by-file in-process); after scanning for a scoped entry | always after scanning — clamscan is one external process scanning the whole tree, so every file is scanned regardless, and a match is filtered out of the results plus the exit code recomputed |
+
+Three tiers stack for either scanner — built-in (no config needed), global (every scan), and per-plugin. To generate a **per-plugin** one:
 
 1. Scan the plugin and read the report:
    ```bash
    cd /path/to/the/plugin
-   php /path/to/moosh.php plugin:phpmuslescan
+   php /path/to/moosh.php plugin:phpmuslescan   # or: plugin:clamscan
    ```
-   Each false positive prints as `INFECTED: <relative-path> — <phpMussel message>`.
+   Each false positive prints as `INFECTED: <relative-path> — <message>` (phpMussel) or `<absolute-path>: <signature> FOUND` (clamscan).
 
-2. For each false positive, add one line to `.moosh-phpmuslescan-whitelist` in the plugin root (create the file if it doesn't exist):
-   - `pattern` — skips the file entirely, any detection.
-   - `pattern | reason` — only suppresses a detection whose message contains `reason` (copy it verbatim, or a distinctive substring, from the `INFECTED:` line above) on files matching `pattern`; anything else found on that file still fires. Prefer this over a bare pattern whenever you can — it keeps the whitelist from silently swallowing an unrelated, genuine hit on the same file later.
+2. For each false positive, add one line to `.moosh-phpmuslescan-whitelist` or `.moosh-clamscan-whitelist` in the plugin root (create the file if it doesn't exist):
+   - `pattern` — suppresses every detection on a matching file.
+   - `pattern | reason` — only suppresses a detection whose message (phpMussel) or signature name (ClamAV) contains `reason` (copy it verbatim, or a distinctive substring, from the report above) on files matching `pattern`; anything else found on that file still fires. Prefer this over a bare pattern whenever you can — it keeps the whitelist from silently swallowing an unrelated, genuine hit on the same file later.
    - Patterns are globs by default, relative to the plugin root: `*` matches within one path segment (never crosses `/`), `**` matches across any number of segments *including zero* — so `**/*.min.js` also matches a root-level file, not only a nested one — and `?` matches one non-`/` character. Prefix with `regex:` instead for a raw PCRE (anchored to the whole relative path) when a glob can't express it, e.g. `regex:^jquery-\d+(\.\d+)*(\.min)?\.js$`.
    - Blank lines and lines starting with `#` are ignored — use `#` to note *why* each entry exists (ticket link, "known false positive because ...").
-   - A handful of `**` lines usually cover an entire vendor-library sprawl at once instead of one line per directory, e.g.:
+   - A handful of `**` lines usually cover an entire vendor-library sprawl at once instead of one line per directory, e.g. (phpMussel example, same idea for clamscan with a signature name instead):
      ```
      # minified/versioned vendor JS trips the double-extension heuristic, anywhere in the plugin
      **/*.min.js | phpMussel-Suspect.DoubleExtension-00
@@ -245,9 +255,9 @@ Always run the relevant test script after making changes to verify no regression
      .prettierrc | Filename manipulation detected
      ```
 
-3. Re-scan and confirm: exit code `0`, and the report's `WHITELISTED:`/`Whitelisted (...)` lines name exactly the files/detections you intended to suppress — not more.
+3. Re-scan and confirm: exit code `0`, and the report's `WHITELISTED:`/`Whitelisted (...)` lines (phpMussel) or `WHITELISTED:` lines and rewritten `Infected files:` summary count (clamscan) name exactly the files/detections you intended to suppress — not more.
 
-Only use the per-plugin file for exceptions specific to *this* plugin. Something that recurs across many plugins belongs in the global whitelist (`~/.moosh2/phpmuslescan-whitelist`, same format) instead; something structural about moosh2 itself or about phpMussel's heuristics in general belongs in `BUILTIN_WHITELIST` in `src/Service/PhpMusselRunner.php` as a code change, not a config file.
+Only use the per-plugin file for exceptions specific to *this* plugin. Something that recurs across many plugins belongs in the matching global whitelist instead; something structural about moosh2 itself or about a scanner's heuristics in general belongs in that scanner's `BUILTIN_WHITELIST` constant as a code change, not a config file. Note ClamAV's own signature downloads (`plugin:clamscan:update-signatures`) also include an InterServer `whitelist.fp` — that's ClamAV's native exact-hash ignore-list, a different mechanism from moosh2's pattern-based whitelist described here.
 
 ## Bash Command Style
 
