@@ -88,7 +88,7 @@ class PhpMusselRunner
         '.downloaded-non-core-plugin | Filename manipulation detected',
         // IDE Settings
         '.editorconfig | Filename manipulation detected',
-        '.eslintrc — Filename manipulation detected',
+        '.eslintrc | Filename manipulation detected',
         '.idea/** | Filename manipulation detected',
         '.jshintignore | Filename manipulation detected',
         '.jshintrc | Filename manipulation detected',
