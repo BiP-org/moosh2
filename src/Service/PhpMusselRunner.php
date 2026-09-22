@@ -84,6 +84,13 @@ class PhpMusselRunner
         // nothing before the first ".", which phpMussel's filename-
         // manipulation heuristic reads as an all-extension filename.
         '.downloaded-non-core-plugin | Filename manipulation detected',
+        // .editorconfig file helps maintain consistent coding styles for 
+        // multiple developers working on the same project across different 
+        // editors and IDEs. Most modern IDEs (like VS Code, IntelliJ, PyCharm) 
+        // support it natively or via a plugin.
+        '.editorconfig | Filename manipulation detected',
+        // Moodle Development Tools (MDT)
+        '.mdtconfig | Filename manipulation detected',
         // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
         // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
         // double-extension heuristic. Scoped to site/js/ and to that one
