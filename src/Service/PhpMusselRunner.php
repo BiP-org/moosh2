@@ -89,12 +89,13 @@ class PhpMusselRunner
         // IDE Settings
         '.editorconfig | Filename manipulation detected',
         '.eslintrc | Filename manipulation detected',
+        '.eslintignore | Filename manipulation detected',
         '.idea/** | Filename manipulation detected',
         '.jshintignore | Filename manipulation detected',
         '.jshintrc | Filename manipulation detected',
         '.mdtconfig | Filename manipulation detected',
         '.nojekyll | Filename manipulation detected',
-        '.php-cs-fixer.php — Filename manipulation detected',
+        '.php-cs-fixer.php | Filename manipulation detected',
         '.phpcs.xml | Filename manipulation detected',
         '.prettierrc | Filename manipulation detected',
         '.vscode/* | Filename manipulation detected',
@@ -109,6 +110,7 @@ class PhpMusselRunner
         'tests/behat/*.feature | PHP chameleon attack',
         // allow vendor/ directory
         'vendor/** | Detected phpMussel-FN.X-05',
+        'vendor/**/*.asc | phpMussel-Encrypted.PGP-1',
     ];
 
     public function getGlobalWhitelistPath(): string
