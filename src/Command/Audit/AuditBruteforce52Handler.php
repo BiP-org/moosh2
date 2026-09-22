@@ -160,7 +160,7 @@ class AuditBruteforce52Handler extends BaseHandler
                        MAX(timecreated) AS last_attempt
                 FROM {logstore_standard_log}
                 WHERE eventname = :eventname
-                      AND timecreated >= :timethreshold
+                      AND timecreated > :timethreshold
                       AND ip IS NOT NULL
                       AND ip != ''
                       $whereIp
@@ -185,7 +185,7 @@ class AuditBruteforce52Handler extends BaseHandler
              FROM {logstore_standard_log}
              WHERE eventname = :eventname
                    AND ip = :ip
-                   AND timecreated >= :timethreshold
+                   AND timecreated > :timethreshold
              ORDER BY timecreated DESC",
             [
                 'eventname' => '\\core\\event\\user_loggedin',
@@ -222,7 +222,7 @@ class AuditBruteforce52Handler extends BaseHandler
                 FROM {logstore_standard_log} l
                 LEFT JOIN {user} u ON u.id = l.userid AND l.userid != 0
                 WHERE l.eventname = :eventname
-                      AND l.timecreated >= :timethreshold
+                      AND l.timecreated > :timethreshold
                 GROUP BY l.userid, u.username
                 ORDER BY failed_count DESC";
 
