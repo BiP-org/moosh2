@@ -43,7 +43,10 @@ class PluginPhpmuslescan52Handler extends BaseHandler
                 . '(~/.moosh2/phpmuslescan-whitelist) and per-plugin ('
                 . PhpMusselRunner::WHITELIST_FILENAME . ' in the plugin root) whitelists. '
                 . 'One entry per line: "pattern" skips the whole file, or "pattern | reason" '
-                . 'only suppresses a detection whose message contains that reason. "#" for comments.',
+                . 'only suppresses a detection whose message contains that reason. Patterns are '
+                . 'globs by default ("*" within one path segment, "**" across any number, '
+                . 'including zero — "**/*.min.js" also matches a root-level file), or prefix '
+                . 'with "regex:" for a raw PCRE. "#" for comments.',
             );
 
         if ($command instanceof \Moosh2\Command\BaseCommand) {
@@ -57,6 +60,10 @@ class PluginPhpmuslescan52Handler extends BaseHandler
             $command->addExampleUsage(
                 'Scope a whitelist entry to one detection instead of the whole file',
                 "(in a whitelist file) lib/thirdparty/foo.js | phpMussel-Suspect.DoubleExtension-00",
+            );
+            $command->addExampleUsage(
+                'Whitelist every minified JS file, at any depth, for one detection',
+                '(in a whitelist file) **/*.min.js | phpMussel-Suspect.DoubleExtension-00',
             );
         }
     }

@@ -228,9 +228,22 @@ Always run the relevant test script after making changes to verify no regression
    Each false positive prints as `INFECTED: <relative-path> — <phpMussel message>`.
 
 2. For each false positive, add one line to `.moosh-phpmuslescan-whitelist` in the plugin root (create the file if it doesn't exist):
-   - `pattern` (a glob, relative to the plugin root, matched with `fnmatch()`/`FNM_PATHNAME` so `*` doesn't cross `/`) — skips the file entirely, any detection.
+   - `pattern` — skips the file entirely, any detection.
    - `pattern | reason` — only suppresses a detection whose message contains `reason` (copy it verbatim, or a distinctive substring, from the `INFECTED:` line above) on files matching `pattern`; anything else found on that file still fires. Prefer this over a bare pattern whenever you can — it keeps the whitelist from silently swallowing an unrelated, genuine hit on the same file later.
+   - Patterns are globs by default, relative to the plugin root: `*` matches within one path segment (never crosses `/`), `**` matches across any number of segments *including zero* — so `**/*.min.js` also matches a root-level file, not only a nested one — and `?` matches one non-`/` character. Prefix with `regex:` instead for a raw PCRE (anchored to the whole relative path) when a glob can't express it, e.g. `regex:^jquery-\d+(\.\d+)*(\.min)?\.js$`.
    - Blank lines and lines starting with `#` are ignored — use `#` to note *why* each entry exists (ticket link, "known false positive because ...").
+   - A handful of `**` lines usually cover an entire vendor-library sprawl at once instead of one line per directory, e.g.:
+     ```
+     # minified/versioned vendor JS trips the double-extension heuristic, anywhere in the plugin
+     **/*.min.js | phpMussel-Suspect.DoubleExtension-00
+     **/*.min.js.map | phpMussel-Suspect.DoubleExtension-00
+     **/jquery-*.js | phpMussel-Suspect.DoubleExtension-00
+
+     # IDE/tooling dotfiles trip the filename-manipulation heuristic
+     .idea/** | Filename manipulation detected
+     .phpcs.xml | Filename manipulation detected
+     .prettierrc | Filename manipulation detected
+     ```
 
 3. Re-scan and confirm: exit code `0`, and the report's `WHITELISTED:`/`Whitelisted (...)` lines name exactly the files/detections you intended to suppress — not more.
 

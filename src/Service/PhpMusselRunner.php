@@ -61,7 +61,7 @@ class PhpMusselRunner
      * travels with the plugin, and is scoped to it automatically — no
      * global/shared config to keep in sync across plugins).
      */
-    public const WHITELIST_FILENAME = '.moosh-phpmuslescan-whitelist';
+    public const WHITELIST_FILENAME = 'phpmuslescan-whitelist';
 
     /**
      * Fixed, built-in whitelist entries shipped with moosh2 itself.
@@ -84,19 +84,23 @@ class PhpMusselRunner
         // nothing before the first ".", which phpMussel's filename-
         // manipulation heuristic reads as an all-extension filename.
         '.downloaded-non-core-plugin | Filename manipulation detected',
-        // .editorconfig file helps maintain consistent coding styles for 
-        // multiple developers working on the same project across different 
-        // editors and IDEs. Most modern IDEs (like VS Code, IntelliJ, PyCharm) 
-        // support it natively or via a plugin.
+        // IDE Settings
         '.editorconfig | Filename manipulation detected',
-        // Moodle Development Tools (MDT)
+        '.eslintrc — Filename manipulation detected',
+        '.idea/** | Filename manipulation detected',
+        '.jshintignore — Filename manipulation detected',
+        '.jshintrc — Filename manipulation detected',
         '.mdtconfig | Filename manipulation detected',
+        '.nojekyll — Filename manipulation detected',
+        '.php-cs-fixer.php — Filename manipulation detected',
+        '.phpcs.xml | Filename manipulation detected',
+        '.prettierrc | Filename manipulation detected',
+        '.vscode/* — Filename manipulation detected',
         // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
         // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
-        // double-extension heuristic. Scoped to site/js/ and to that one
-        // signature, so a genuine double-extension trick elsewhere (or a
-        // different detection on a file under site/js/) still fires.
-        'site/js/*.js | phpMussel-Suspect.DoubleExtension-00',
+        // double-extension heuristic.
+        '*.js | phpMussel-Suspect.DoubleExtension-00',
+        '*.js.map | phpMussel-Suspect.DoubleExtension-00',
         // Behat .feature files are Gherkin scenarios; their prose can read
         // enough like PHP to trip the chameleon heuristic. Scoped to
         // tests/behat/ and to that one detection.
@@ -324,12 +328,28 @@ class PhpMusselRunner
      *   pattern
      *   pattern | reason
      *
-     * "pattern" is a glob matched against the file's path relative to the
-     * plugin root (forward slashes, no leading slash), e.g.:
+     * "pattern" is either a glob or a regular expression, matched against
+     * the file's path relative to the plugin root (forward slashes, no
+     * leading slash). (Examples below write "**\/" with a backslash only
+     * because "*" immediately followed by "/" would end this comment —
+     * the actual pattern has no backslash, just "**" then "/".)
      *
-     *   lib/thirdparty/foo.php
-     *   lib/thirdparty/*
-     *   tests/fixtures/*.php
+     *   - Glob (the default): "*" matches within one path segment (never
+     *     crosses "/"), "**" matches across any number of segments —
+     *     including zero, so "**\/*.min.js" also matches a file directly
+     *     in the plugin root, not only a nested one — and "?" matches one
+     *     non-"/" character. Examples:
+     *
+     *       lib/thirdparty/foo.php
+     *       lib/thirdparty/*
+     *       **\/*.min.js
+     *       **\/jquery-*.js
+     *       .idea/**
+     *
+     *   - Regex: prefix the pattern with "regex:" for full PCRE control
+     *     when a glob can't express it, e.g. "regex:^jquery-\d+(\.\d+)*
+     *     (\.min)?\.js$". Matched case-sensitively, anchored to the whole
+     *     relative path (no need to add your own ^/$ or delimiters).
      *
      * With no reason, the whole file is skipped before scanning — any
      * detection on it is suppressed. With a reason, the file is still
@@ -337,7 +357,7 @@ class PhpMusselRunner
      * a case-insensitive substring is suppressed; anything else found on
      * that file still fires normally, e.g.:
      *
-     *   site/js/*.js | phpMussel-Suspect.DoubleExtension-00
+     *   **\/*.min.js | phpMussel-Suspect.DoubleExtension-00
      *   tests/behat/*.feature | PHP chameleon attack
      *
      * @param array<string> $lines
@@ -373,10 +393,7 @@ class PhpMusselRunner
     private function matchEntries(string $relativePath, ?string $message, array $entries): ?array
     {
         foreach ($entries as $entry) {
-            // FNM_PATHNAME so "*" doesn't accidentally cross a "/" —
-            // "lib/thirdparty/*" matches files directly in that dir, not
-            // arbitrarily deep ones.
-            if (!fnmatch($entry['pattern'], $relativePath, FNM_PATHNAME)) {
+            if (!$this->patternMatches($entry['pattern'], $relativePath)) {
                 continue;
             }
             if ($entry['reason'] === null) {
@@ -387,6 +404,53 @@ class PhpMusselRunner
             }
         }
         return null;
+    }
+
+    /**
+     * @see parseWhitelistLines() for the supported pattern syntax.
+     */
+    private function patternMatches(string $pattern, string $relativePath): bool
+    {
+        if (str_starts_with($pattern, 'regex:')) {
+            $regex = substr($pattern, strlen('regex:'));
+            return @preg_match('#' . $regex . '#', $relativePath) === 1;
+        }
+
+        return preg_match($this->globToRegex($pattern), $relativePath) === 1;
+    }
+
+    /**
+     * Translate a glob into an anchored regex. "*" matches within one path
+     * segment; "**" matches across any number of segments, including
+     * zero — "**\/foo" (no backslash in the real pattern; see the note on
+     * parseWhitelistLines()) also matches a top-level "foo"; "?" matches
+     * one non-"/" character. Everything else is matched literally.
+     */
+    private function globToRegex(string $pattern): string
+    {
+        $regex = '';
+        $len   = strlen($pattern);
+        for ($i = 0; $i < $len; $i++) {
+            $c = $pattern[$i];
+            if ($c === '*' && ($pattern[$i + 1] ?? '') === '*') {
+                if (($pattern[$i + 2] ?? '') === '/') {
+                    // "**/" also matches zero directories, so the
+                    // segment before the next literal becomes optional.
+                    $regex .= '(?:.*/)?';
+                    $i += 2;
+                } else {
+                    $regex .= '.*';
+                    $i += 1;
+                }
+            } elseif ($c === '*') {
+                $regex .= '[^/]*';
+            } elseif ($c === '?') {
+                $regex .= '[^/]';
+            } else {
+                $regex .= preg_quote($c, '#');
+            }
+        }
+        return '#^' . $regex . '$#';
     }
 
     /**
