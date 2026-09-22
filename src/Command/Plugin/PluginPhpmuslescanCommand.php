@@ -43,14 +43,17 @@ class PluginPhpmuslescanCommand extends BaseCommand
                 'built-in (fixed, ships with moosh2 — known structural false positives such as ' .
                 'moosh2\'s own .downloaded-non-core-plugin marker file), global ' .
                 '(~/.moosh2/phpmuslescan-whitelist, applies to every scan), and per-plugin ' .
-                '(.moosh-phpmuslescan-whitelist in the plugin\'s own root). --whitelist adds one more ' .
+                '(phpmuslescan-whitelist in the plugin\'s own root). --whitelist adds one more ' .
                 'file on top, e.g. for a downloaded plugin you can\'t add a file into. ' .
-                'Each is one entry per line, "#" for comments: "pattern" (a glob, relative to the ' .
+                'Each is one entry per line, "#" for comments: "pattern" (relative to the ' .
                 'plugin root) skips the whole file; "pattern | reason" only suppresses a detection ' .
                 'whose message contains that reason as a substring, so anything else found on a ' .
-                'matching file still fires — e.g. "site/js/*.js | phpMussel-Suspect.DoubleExtension-00" ' .
-                'for minified JS like jquery-3.6.0.min.js, or "tests/behat/*.feature | PHP chameleon ' .
-                'attack" for Gherkin scenarios.',
+                'matching file still fires. Patterns are globs by default ("*" within one path ' .
+                'segment, "**" across any number of segments including zero — so "**/*.min.js" ' .
+                'also matches a root-level file, not only a nested one), or prefix with "regex:" ' .
+                'for a raw PCRE anchored to the whole relative path — e.g. "**/*.min.js | ' .
+                'phpMussel-Suspect.DoubleExtension-00" for minified JS anywhere in the plugin, ' .
+                'or "tests/behat/*.feature | PHP chameleon attack" for Gherkin scenarios.',
             );
         $this->handler->configureCommand($this);
     }

@@ -7,6 +7,8 @@ use phpMussel\Core\Scanner;
 
 class PhpMusselRunner
 {
+    use WhitelistMatcher;
+
     public const EXIT_CLEAN         = 0;
     public const EXIT_MALWARE_FOUND = 1;
     public const EXIT_ERROR         = 2;
@@ -61,7 +63,7 @@ class PhpMusselRunner
      * travels with the plugin, and is scoped to it automatically — no
      * global/shared config to keep in sync across plugins).
      */
-    public const WHITELIST_FILENAME = '.moosh-phpmuslescan-whitelist';
+    public const WHITELIST_FILENAME = 'phpmuslescan-whitelist';
 
     /**
      * Fixed, built-in whitelist entries shipped with moosh2 itself.
@@ -84,12 +86,23 @@ class PhpMusselRunner
         // nothing before the first ".", which phpMussel's filename-
         // manipulation heuristic reads as an all-extension filename.
         '.downloaded-non-core-plugin | Filename manipulation detected',
+        // IDE Settings
+        '.editorconfig | Filename manipulation detected',
+        '.eslintrc — Filename manipulation detected',
+        '.idea/** | Filename manipulation detected',
+        '.jshintignore — Filename manipulation detected',
+        '.jshintrc — Filename manipulation detected',
+        '.mdtconfig | Filename manipulation detected',
+        '.nojekyll — Filename manipulation detected',
+        '.php-cs-fixer.php — Filename manipulation detected',
+        '.phpcs.xml | Filename manipulation detected',
+        '.prettierrc | Filename manipulation detected',
+        '.vscode/* — Filename manipulation detected',
         // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
         // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
-        // double-extension heuristic. Scoped to site/js/ and to that one
-        // signature, so a genuine double-extension trick elsewhere (or a
-        // different detection on a file under site/js/) still fires.
-        'site/js/*.js | phpMussel-Suspect.DoubleExtension-00',
+        // double-extension heuristic.
+        '*.js | phpMussel-Suspect.DoubleExtension-00',
+        '*.js.map | phpMussel-Suspect.DoubleExtension-00',
         // Behat .feature files are Gherkin scenarios; their prose can read
         // enough like PHP to trip the chameleon heuristic. Scoped to
         // tests/behat/ and to that one detection.
@@ -147,15 +160,13 @@ class PhpMusselRunner
         // Assemble whitelist entries from every tier, each tagged with
         // where it came from (for report output). Later tiers don't
         // override earlier ones — a match anywhere whitelists it.
-        $entries = [
-            ...$this->parseWhitelistLines(self::BUILTIN_WHITELIST, 'built-in'),
-            ...$this->parseWhitelistLines($this->loadWhitelistLines($this->globalWhitelistPath), 'global'),
-            ...$this->parseWhitelistLines(
-                $this->loadWhitelistLines($pluginRoot . '/' . self::WHITELIST_FILENAME),
-                self::WHITELIST_FILENAME,
-            ),
-            ...$this->parseWhitelistLines($extraWhitelist, '--whitelist'),
-        ];
+        $entries = self::assembleWhitelistEntries(
+            self::BUILTIN_WHITELIST,
+            $this->globalWhitelistPath,
+            $pluginRoot . '/' . self::WHITELIST_FILENAME,
+            self::WHITELIST_FILENAME,
+            $extraWhitelist,
+        );
         // Whole-file entries (no reason) are excluded before scanning at
         // all — cheaper, and matches the pre-existing behaviour. Scoped
         // entries (pattern + reason) need the actual detection message,
@@ -173,7 +184,7 @@ class PhpMusselRunner
                 ? substr($absolute, strlen($rootPrefix))
                 : $absolute;
 
-            $match = $this->matchEntries($relative, null, $wholeFileEntries);
+            $match = self::matchEntries($relative, null, $wholeFileEntries);
             if ($match !== null) {
                 $whitelistedBySource[$match['source']][] = $relative;
                 continue;
@@ -246,7 +257,7 @@ class PhpMusselRunner
 
             if ($result === 2) {
                 $msg = $strResults[$key] ?? null;
-                $scopedMatch = $this->matchEntries($filename, $msg, $scopedEntries);
+                $scopedMatch = self::matchEntries($filename, $msg, $scopedEntries);
                 if ($scopedMatch !== null) {
                     $lines[] = 'WHITELISTED: ' . $filename . ' — ' . ($msg ?? '(no detail)')
                         . ' [reason "' . $scopedMatch['reason'] . '" via ' . $scopedMatch['source'] . ']';

@@ -6,7 +6,7 @@
 source "$(dirname "$0")/common.sh"
 
 # Name of the per-plugin whitelist file (PhpMusselRunner::WHITELIST_FILENAME).
-WHITELIST_FILENAME=".moosh-phpmuslescan-whitelist"
+WHITELIST_FILENAME="phpmuslescan-whitelist"
 
 echo "=== moosh2 plugin:phpmuslescan integration tests ==="
 echo ""
@@ -17,7 +17,7 @@ assert_output_contains "Help description" "Scan a plugin for malware using phpMu
 assert_output_contains "Help shows --infected" "--infected" "$OUT"
 assert_output_contains "Help shows --log" "--log" "$OUT"
 assert_output_contains "Help shows --whitelist" "--whitelist" "$OUT"
-assert_output_contains "Help mentions the whitelist filename" ".moosh-phpmuslescan-whitelist" "$OUT"
+assert_output_contains "Help mentions the whitelist filename" "phpmuslescan-whitelist" "$OUT"
 echo ""
 
 echo "--- Test: update-signatures downloads signatures ---"
@@ -196,10 +196,10 @@ fi
 echo ""
 
 echo "--- Test: Per-plugin whitelist file suppresses the false positive ---"
-# A .moosh-phpmuslescan-whitelist in the plugin root, matching the
+# A phpmuslescan-whitelist in the plugin root, matching the
 # offending file by exact relative path, should skip it entirely: exit 0,
 # zero infections, and the file listed as whitelisted rather than scanned.
-echo ".htaccess" > "$FPDIR/.moosh-phpmuslescan-whitelist"
+echo ".htaccess" > "$FPDIR/phpmuslescan-whitelist"
 
 OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
@@ -224,7 +224,7 @@ GLOBDIR=$(mktemp -d)
 echo '<?php $plugin->version = 1;' > "$GLOBDIR/version.php"
 mkdir "$GLOBDIR/thirdparty"
 echo 'deny from all' > "$GLOBDIR/thirdparty/.htaccess"
-echo "thirdparty/*" > "$GLOBDIR/.moosh-phpmuslescan-whitelist"
+echo "thirdparty/*" > "$GLOBDIR/phpmuslescan-whitelist"
 
 OUT=$(cd "$GLOBDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
@@ -361,6 +361,65 @@ EC=$?
 assert_exit_code "Exit code 1: non-matching reason does not suppress the hit" 1 "$EC"
 assert_output_contains "Still reports the file as infected" "scenario.feature" "$OUT"
 rm -rf "$SCOPEDIR"
+echo ""
+
+echo "--- Test: ** glob matches across directories, including zero (root-level) ---"
+# A "**/pattern" entry should catch a matching file at any depth,
+# including one directly in the plugin root -- not just nested ones like
+# a single "*" would. Same reliable chameleon trigger, three depths.
+DEEPDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$DEEPDIR/version.php"
+printf '<?php echo "root"; ?>' > "$DEEPDIR/root.feature"
+mkdir -p "$DEEPDIR/one"
+printf '<?php echo "one deep"; ?>' > "$DEEPDIR/one/nested.feature"
+mkdir -p "$DEEPDIR/one/two/three"
+printf '<?php echo "three deep"; ?>' > "$DEEPDIR/one/two/three/deep.feature"
+echo '**/*.feature | PHP chameleon attack' > "$DEEPDIR/$WHITELIST_FILENAME"
+
+OUT=$(cd "$DEEPDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: ** whitelists every depth at once" 0 "$EC"
+assert_output_contains "Whitelists the root-level file" "WHITELISTED: root.feature" "$OUT"
+assert_output_contains "Whitelists the one-level-deep file" "WHITELISTED: one/nested.feature" "$OUT"
+assert_output_contains "Whitelists the three-levels-deep file" "WHITELISTED: one/two/three/deep.feature" "$OUT"
+rm -rf "$DEEPDIR"
+echo ""
+
+echo "--- Test: A single * still does not cross directories ---"
+# Contrast with the ** test above: "one/*.feature" must NOT reach into
+# one/two/three/ -- confirms single "*" semantics are unchanged.
+STARDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$STARDIR/version.php"
+mkdir -p "$STARDIR/one/two"
+printf '<?php echo "shallow"; ?>' > "$STARDIR/one/shallow.feature"
+printf '<?php echo "deep"; ?>' > "$STARDIR/one/two/deep.feature"
+echo 'one/*.feature | PHP chameleon attack' > "$STARDIR/$WHITELIST_FILENAME"
+
+OUT=$(cd "$STARDIR" && $PHP $MOOSH plugin:phpmuslescan -i 2>&1)
+EC=$?
+assert_exit_code "Exit code 1: the deeper file isn't reached by a single *" 1 "$EC"
+assert_output_contains "Whitelists the shallow file" "one/shallow.feature" "$OUT"
+assert_output_contains "Still flags the deeper file" "one/two/deep.feature" "$OUT"
+rm -rf "$STARDIR"
+echo ""
+
+echo "--- Test: regex: prefix supports a raw PCRE pattern ---"
+# "regex:" lets a pattern express things a glob can't, e.g. matching a
+# versioned filename precisely (the DoubleExtension use case from real
+# vendor JS, proven here with the reliable chameleon trigger instead,
+# since we can't independently verify phpMussel's exact signature name
+# for double extensions in this environment).
+REGEXDIR=$(mktemp -d)
+echo '<?php $plugin->version = 1;' > "$REGEXDIR/version.php"
+mkdir -p "$REGEXDIR/vendor"
+printf '<?php echo "versioned"; ?>' > "$REGEXDIR/vendor/lib-3.2.1.feature"
+echo 'regex:^vendor/lib-\d+(\.\d+)*\.feature$ | PHP chameleon attack' > "$REGEXDIR/$WHITELIST_FILENAME"
+
+OUT=$(cd "$REGEXDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
+EC=$?
+assert_exit_code "Exit code 0: regex: pattern matches and suppresses" 0 "$EC"
+assert_output_contains "Reports it as WHITELISTED" "WHITELISTED: vendor/lib-3.2.1.feature" "$OUT"
+rm -rf "$REGEXDIR"
 echo ""
 
 echo "--- Test: No plugin name, no version.php -> exit 2 ---"
