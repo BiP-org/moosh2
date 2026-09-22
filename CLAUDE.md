@@ -222,7 +222,7 @@ Both `plugin:phpmuslescan` and `plugin:clamscan` false-positive on things that a
 
 | | phpMussel | ClamAV |
 |---|---|---|
-| Per-plugin file | `.moosh-phpmuslescan-whitelist` in the plugin root | `.moosh-clamscan-whitelist` in the plugin root |
+| Per-plugin file | `phpmuslescan-whitelist` in the plugin root | `clamscan-whitelist` in the plugin root |
 | Global file | `~/.moosh2/phpmuslescan-whitelist` | `~/.moosh2/clamscan-whitelist` |
 | Built-in entries | `PhpMusselRunner::BUILTIN_WHITELIST` | `ClamscanRunner::BUILTIN_WHITELIST` (empty so far — ClamAV's signature-based detections haven't needed one yet) |
 | `reason` matches against | phpMussel's detection message | the ClamAV/YARA signature name |
@@ -237,7 +237,7 @@ Three tiers stack for either scanner — built-in (no config needed), global (ev
    ```
    Each false positive prints as `INFECTED: <relative-path> — <message>` (phpMussel) or `<absolute-path>: <signature> FOUND` (clamscan).
 
-2. For each false positive, add one line to `.moosh-phpmuslescan-whitelist` or `.moosh-clamscan-whitelist` in the plugin root (create the file if it doesn't exist):
+2. For each false positive, add one line to `phpmuslescan-whitelist` or `clamscan-whitelist` in the plugin root (create the file if it doesn't exist):
    - `pattern` — suppresses every detection on a matching file.
    - `pattern | reason` — only suppresses a detection whose message (phpMussel) or signature name (ClamAV) contains `reason` (copy it verbatim, or a distinctive substring, from the report above) on files matching `pattern`; anything else found on that file still fires. Prefer this over a bare pattern whenever you can — it keeps the whitelist from silently swallowing an unrelated, genuine hit on the same file later.
    - Patterns are globs by default, relative to the plugin root: `*` matches within one path segment (never crosses `/`), `**` matches across any number of segments *including zero* — so `**/*.min.js` also matches a root-level file, not only a nested one — and `?` matches one non-`/` character. Prefix with `regex:` instead for a raw PCRE (anchored to the whole relative path) when a glob can't express it, e.g. `regex:^jquery-\d+(\.\d+)*(\.min)?\.js$`.

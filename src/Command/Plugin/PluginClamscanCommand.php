@@ -39,7 +39,7 @@ class PluginClamscanCommand extends BaseCommand
                 "\n\n" .
                 'False positives can be whitelisted at three levels, all active at once: ' .
                 'built-in (fixed, ships with moosh2), global (~/.moosh2/clamscan-whitelist, ' .
-                'applies to every scan), and per-plugin (.moosh-clamscan-whitelist in the ' .
+                'applies to every scan), and per-plugin (clamscan-whitelist in the ' .
                 'plugin\'s own root). --whitelist adds one more file on top. Every file is ' .
                 'still scanned by clamscan itself; a matching detection is filtered out of the ' .
                 'results afterward (unlike plugin:phpmuslescan, which can skip a whole-file ' .

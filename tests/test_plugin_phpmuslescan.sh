@@ -6,7 +6,7 @@
 source "$(dirname "$0")/common.sh"
 
 # Name of the per-plugin whitelist file (PhpMusselRunner::WHITELIST_FILENAME).
-WHITELIST_FILENAME=".moosh-phpmuslescan-whitelist"
+WHITELIST_FILENAME="phpmuslescan-whitelist"
 
 echo "=== moosh2 plugin:phpmuslescan integration tests ==="
 echo ""
@@ -17,7 +17,7 @@ assert_output_contains "Help description" "Scan a plugin for malware using phpMu
 assert_output_contains "Help shows --infected" "--infected" "$OUT"
 assert_output_contains "Help shows --log" "--log" "$OUT"
 assert_output_contains "Help shows --whitelist" "--whitelist" "$OUT"
-assert_output_contains "Help mentions the whitelist filename" ".moosh-phpmuslescan-whitelist" "$OUT"
+assert_output_contains "Help mentions the whitelist filename" "phpmuslescan-whitelist" "$OUT"
 echo ""
 
 echo "--- Test: update-signatures downloads signatures ---"
@@ -196,10 +196,10 @@ fi
 echo ""
 
 echo "--- Test: Per-plugin whitelist file suppresses the false positive ---"
-# A .moosh-phpmuslescan-whitelist in the plugin root, matching the
+# A phpmuslescan-whitelist in the plugin root, matching the
 # offending file by exact relative path, should skip it entirely: exit 0,
 # zero infections, and the file listed as whitelisted rather than scanned.
-echo ".htaccess" > "$FPDIR/.moosh-phpmuslescan-whitelist"
+echo ".htaccess" > "$FPDIR/phpmuslescan-whitelist"
 
 OUT=$(cd "$FPDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?
@@ -224,7 +224,7 @@ GLOBDIR=$(mktemp -d)
 echo '<?php $plugin->version = 1;' > "$GLOBDIR/version.php"
 mkdir "$GLOBDIR/thirdparty"
 echo 'deny from all' > "$GLOBDIR/thirdparty/.htaccess"
-echo "thirdparty/*" > "$GLOBDIR/.moosh-phpmuslescan-whitelist"
+echo "thirdparty/*" > "$GLOBDIR/phpmuslescan-whitelist"
 
 OUT=$(cd "$GLOBDIR" && $PHP $MOOSH plugin:phpmuslescan 2>&1)
 EC=$?

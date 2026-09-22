@@ -43,7 +43,7 @@ class PluginPhpmuslescanCommand extends BaseCommand
                 'built-in (fixed, ships with moosh2 — known structural false positives such as ' .
                 'moosh2\'s own .downloaded-non-core-plugin marker file), global ' .
                 '(~/.moosh2/phpmuslescan-whitelist, applies to every scan), and per-plugin ' .
-                '(.moosh-phpmuslescan-whitelist in the plugin\'s own root). --whitelist adds one more ' .
+                '(phpmuslescan-whitelist in the plugin\'s own root). --whitelist adds one more ' .
                 'file on top, e.g. for a downloaded plugin you can\'t add a file into. ' .
                 'Each is one entry per line, "#" for comments: "pattern" (relative to the ' .
                 'plugin root) skips the whole file; "pattern | reason" only suppresses a detection ' .
