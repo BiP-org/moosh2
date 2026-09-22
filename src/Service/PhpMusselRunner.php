@@ -90,14 +90,14 @@ class PhpMusselRunner
         '.editorconfig | Filename manipulation detected',
         '.eslintrc — Filename manipulation detected',
         '.idea/** | Filename manipulation detected',
-        '.jshintignore — Filename manipulation detected',
-        '.jshintrc — Filename manipulation detected',
+        '.jshintignore | Filename manipulation detected',
+        '.jshintrc | Filename manipulation detected',
         '.mdtconfig | Filename manipulation detected',
-        '.nojekyll — Filename manipulation detected',
+        '.nojekyll | Filename manipulation detected',
         '.php-cs-fixer.php — Filename manipulation detected',
         '.phpcs.xml | Filename manipulation detected',
         '.prettierrc | Filename manipulation detected',
-        '.vscode/* — Filename manipulation detected',
+        '.vscode/* | Filename manipulation detected',
         // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
         // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
         // double-extension heuristic.
