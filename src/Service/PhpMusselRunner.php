@@ -101,8 +101,8 @@ class PhpMusselRunner
         // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
         // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
         // double-extension heuristic.
-        '*.js | phpMussel-Suspect.DoubleExtension-00',
-        '*.js.map | phpMussel-Suspect.DoubleExtension-00',
+        '**/*.js | phpMussel-Suspect.DoubleExtension-00',
+        '**/*.js.map | phpMussel-Suspect.DoubleExtension-00',
         // Behat .feature files are Gherkin scenarios; their prose can read
         // enough like PHP to trip the chameleon heuristic. Scoped to
         // tests/behat/ and to that one detection.
