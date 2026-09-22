@@ -58,10 +58,20 @@ class PhpMusselRunner
     }
 
     /**
-     * Name of the per-plugin whitelist file, read from the plugin's own
-     * root directory (i.e. lives alongside that plugin's version.php,
-     * travels with the plugin, and is scoped to it automatically — no
-     * global/shared config to keep in sync across plugins).
+     * Name of the per-plugin whitelist file. Read from the whitelist
+     * directory passed to scan() ($whitelistDir, defaulting to
+     * $pluginRoot) — scoped to one plugin automatically, no global/shared
+     * config to keep in sync across plugins.
+     *
+     * `plugin:phpmuslescan` (standalone) scans a bare plugin tree with no
+     * other directory available, so there $whitelistDir is always
+     * $pluginRoot and the file lives alongside that plugin's version.php.
+     * `plugin:list-apply` instead passes the declarative plugin list's
+     * component directory (the same directory as that component's
+     * `version`/`checksum`/`archive/`) — NOT the installed Moodle plugin
+     * directory ($pluginRoot there), because the installed directory is
+     * replaced wholesale by every (re)install and would silently drop the
+     * whitelist file on the next upgrade.
      */
     public const WHITELIST_FILENAME = 'phpmuslescan-whitelist';
 
@@ -123,10 +133,16 @@ class PhpMusselRunner
      * @param array<string> $extraWhitelist Additional whitelist lines (e.g. from --whitelist),
      *                                      same format as any whitelist file, merged in on top
      *                                      of the built-in, global and per-plugin whitelists.
+     * @param string|null   $whitelistDir   Directory the per-plugin WHITELIST_FILENAME is read
+     *                                      from. Defaults to $pluginRoot (the standalone
+     *                                      plugin:phpmuslescan behaviour). plugin:list-apply
+     *                                      passes the declarative plugin list's component
+     *                                      directory instead — see WHITELIST_FILENAME.
      * @return array{exitCode:int, output:string, infectedFiles:array<string>}
      */
-    public function scan(string $pluginRoot, array $extraWhitelist = []): array
+    public function scan(string $pluginRoot, array $extraWhitelist = [], ?string $whitelistDir = null): array
     {
+        $whitelistDir ??= $pluginRoot;
         $configPath = $this->signatureManager->getConfigPath();
         if (!is_file($configPath) || !is_readable($configPath)) {
             return [
@@ -167,7 +183,7 @@ class PhpMusselRunner
         $entries = self::assembleWhitelistEntries(
             self::BUILTIN_WHITELIST,
             $this->globalWhitelistPath,
-            $pluginRoot . '/' . self::WHITELIST_FILENAME,
+            rtrim($whitelistDir, '/') . '/' . self::WHITELIST_FILENAME,
             self::WHITELIST_FILENAME,
             $extraWhitelist,
         );

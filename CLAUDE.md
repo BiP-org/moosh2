@@ -73,7 +73,61 @@ list" is a directory with one subdirectory per Frankenstyle component, each hold
 file (plus optional `checksum`, `requires`, `archive/`, and `bin/` for `package_*` pseudo-
 components). `plugin:list-update` resolves the latest compatible version from moodle.org and
 writes `version`/`checksum`; `plugin:list-apply` reconciles a real Moodle install to match. Full
-user-facing docs: `documentation/src/pages/PluginListsPage.tsx`. Key implementation pieces:
+user-facing docs: `documentation/src/pages/PluginListsPage.tsx`, whose §3 "Directory structure
+reference" this tree mirrors:
+
+```
+plugins/                              <- --directory (defaults to "plugins"
+                                          under the Moodle root for list-apply,
+                                          "." for list-update)
+  <type>_<n>/                      <- one directory per Frankenstyle component
+    version                           <- required (or a bin/ script, see package_*)
+    checksum                          <- optional, md5 of the pinned zip (auto-pinned
+                                          by list-update --archive or list-update
+                                          itself; verified by list-apply before
+                                          every install/upgrade)
+    archive/                           <- optional, written only by list-update
+                                          --archive, read by list-apply
+                                          --archive-fallback
+      <component>-<version>.zip      pluglist.json
+      pluglist-entry.json
+      pluglist.source
+    requires                          <- optional, one Frankenstyle component name
+                                          per line; installed first, recursively
+    support_status                    <- auto-written by list-update when no version
+                                          supports the target Moodle release;
+                                          auto-removed once one does again
+    phpmuslescan-whitelist             <- optional, per-plugin phpMussel whitelist for
+    clamscan-whitelist                    list-apply's post-install scan - see
+                                          "Malware Scan Whitelisting" below for why
+                                          these live HERE and not in the installed
+                                          Moodle plugin directory
+    bin/                              <- only for package_* pseudo-components, or any
+                                          other component that wants full manual
+                                          control over how it's resolved/installed
+      get_requested_version.sh
+      get_installed_version.sh
+      get_component_path.sh
+      get_component_ignore_path.sh
+      install_requested_version.sh
+      uninstall_requested_version.sh
+      install_requested_always_run.sh
+      get_latest_plugin_version.sh    <- used by list-update only
+    <component>.php                   <- alternative to get_latest_plugin_version.sh,
+                                          used by list-update only
+  .clamav/                            <- auto-created by list-apply's malware scan
+    report/clamav.log
+    rules/
+    exceptions/
+  .phpmussel/
+    report/phpmussel.log
+```
+
+Directories starting with `.` are never treated as plugin components by either command (skipped
+when auto-discovering components from `--directory`), which is why the scanner report/rule
+directories above are safe to keep alongside the plugin subdirectories.
+
+Key implementation pieces:
 - `PluginApiClient` — talks to `download.moodle.org/api/1.3/pluglist.php`, with a gist-mirror
   fallback, and a 24h-TTL cache at `~/.moosh/plugins.json`. `findBestVersion()`'s two "genuinely not
   on moodle.org" error strings (vs. its third, "not compatible with this Moodle release") are what
@@ -222,8 +276,12 @@ Both `plugin:phpmuslescan` and `plugin:clamscan` false-positive on things that a
 
 | | phpMussel | ClamAV |
 |---|---|---|
-| Per-plugin file | `phpmuslescan-whitelist` in the plugin root | `clamscan-whitelist` in the plugin root |
+| Per-plugin file | `phpmuslescan-whitelist` | `clamscan-whitelist` |
 | Global file | `~/.moosh2/phpmuslescan-whitelist` | `~/.moosh2/clamscan-whitelist` |
+
+**Where the per-plugin file lives depends on which command is scanning** (`ClamscanRunner`/`PhpMusselRunner`'s `scan()` take an explicit whitelist directory, defaulting to the scanned root):
+- `plugin:phpmuslescan` / `plugin:clamscan` (standalone) scan a bare plugin tree with nowhere else to put it, so the file lives in that plugin's own root, alongside its `version.php`.
+- `plugin:list-apply` instead reads it from the declarative plugin list's **component directory** (`<--directory>/<component>/`) — the same directory as that component's `version`/`checksum`/`archive/`, see the directory tree above. It deliberately does NOT read it from the installed Moodle plugin directory: that directory is replaced wholesale by every (re)install (a downloaded zip is extracted over it, and a `package_*` component's `bin/install_requested_version.sh` is contractually required to do the same), so a whitelist file kept there would silently vanish on the very next reinstall. The declarative list directory is the user's own git-managed checkout and is never touched by an install, so that's where it survives.
 | Built-in entries | `PhpMusselRunner::BUILTIN_WHITELIST` | `ClamscanRunner::BUILTIN_WHITELIST` (empty so far — ClamAV's signature-based detections haven't needed one yet) |
 | `reason` matches against | phpMussel's detection message | the ClamAV/YARA signature name |
 | When whitelisting applies | before scanning, for a whole-file entry (phpMussel scans file-by-file in-process); after scanning for a scoped entry | always after scanning — clamscan is one external process scanning the whole tree, so every file is scanned regardless, and a match is filtered out of the results plus the exit code recomputed |
