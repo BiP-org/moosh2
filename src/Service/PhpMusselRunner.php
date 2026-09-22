@@ -107,6 +107,8 @@ class PhpMusselRunner
         // enough like PHP to trip the chameleon heuristic. Scoped to
         // tests/behat/ and to that one detection.
         'tests/behat/*.feature | PHP chameleon attack',
+        // allow vendor/ directory
+        'vendor/** | Detected phpMussel-FN.X-05',
     ];
 
     public function getGlobalWhitelistPath(): string
