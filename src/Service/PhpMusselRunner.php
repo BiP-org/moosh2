@@ -46,16 +46,69 @@ class PhpMusselRunner
     ];
 
     private PhpMusselSignatureManager $signatureManager;
+    private string $globalWhitelistPath;
 
-    public function __construct(?PhpMusselSignatureManager $signatureManager = null)
+    public function __construct(?PhpMusselSignatureManager $signatureManager = null, ?string $globalWhitelistPath = null)
     {
         $this->signatureManager = $signatureManager ?? new PhpMusselSignatureManager();
+        $this->globalWhitelistPath = $globalWhitelistPath
+            ?? (getenv('HOME') ?: sys_get_temp_dir()) . '/.moosh2/phpmuslescan-whitelist';
     }
 
     /**
+     * Name of the per-plugin whitelist file, read from the plugin's own
+     * root directory (i.e. lives alongside that plugin's version.php,
+     * travels with the plugin, and is scoped to it automatically — no
+     * global/shared config to keep in sync across plugins).
+     */
+    public const WHITELIST_FILENAME = '.moosh-phpmuslescan-whitelist';
+
+    /**
+     * Fixed, built-in whitelist entries shipped with moosh2 itself.
+     * Always active on every scan — not read from any file, not
+     * user-editable. These are known, structural false positives caused
+     * by moosh2's own conventions or by heuristics that are inherently
+     * noisy on certain file types, not project-specific exceptions.
+     *
+     * Format is the same as any whitelist line: "pattern" (whitelists the
+     * whole file, any detection) or "pattern | reason" (only suppresses a
+     * detection whose message contains that substring, case-insensitive
+     * — anything else found on a matching file still fires normally).
+     *
+     * @var array<string>
+     */
+    private const BUILTIN_WHITELIST = [
+        // moosh2 (plugin:list-apply) itself touches this marker file in
+        // every downloaded-plugin directory it manages — see
+        // PluginListApply52Handler::MARKER_FILENAME. Its name has
+        // nothing before the first ".", which phpMussel's filename-
+        // manipulation heuristic reads as an all-extension filename.
+        '.downloaded-non-core-plugin | Filename manipulation detected',
+        // Minified/versioned JS filenames (jquery-3.6.0.min.js) have two
+        // "extension-like" suffixes (.6.0.min.js), which trips phpMussel's
+        // double-extension heuristic. Scoped to site/js/ and to that one
+        // signature, so a genuine double-extension trick elsewhere (or a
+        // different detection on a file under site/js/) still fires.
+        'site/js/*.js | phpMussel-Suspect.DoubleExtension-00',
+        // Behat .feature files are Gherkin scenarios; their prose can read
+        // enough like PHP to trip the chameleon heuristic. Scoped to
+        // tests/behat/ and to that one detection.
+        'tests/behat/*.feature | PHP chameleon attack',
+    ];
+
+    public function getGlobalWhitelistPath(): string
+    {
+        return $this->globalWhitelistPath;
+    }
+
+    /**
+     * @param string        $pluginRoot     Root directory of the plugin to scan.
+     * @param array<string> $extraWhitelist Additional whitelist lines (e.g. from --whitelist),
+     *                                      same format as any whitelist file, merged in on top
+     *                                      of the built-in, global and per-plugin whitelists.
      * @return array{exitCode:int, output:string, infectedFiles:array<string>}
      */
-    public function scan(string $pluginRoot): array
+    public function scan(string $pluginRoot, array $extraWhitelist = []): array
     {
         $configPath = $this->signatureManager->getConfigPath();
         if (!is_file($configPath) || !is_readable($configPath)) {
@@ -91,13 +144,41 @@ class PhpMusselRunner
             }
         }
 
-        // Collect files (relative-path keys → absolute paths).
+        // Assemble whitelist entries from every tier, each tagged with
+        // where it came from (for report output). Later tiers don't
+        // override earlier ones — a match anywhere whitelists it.
+        $entries = [
+            ...$this->parseWhitelistLines(self::BUILTIN_WHITELIST, 'built-in'),
+            ...$this->parseWhitelistLines($this->loadWhitelistLines($this->globalWhitelistPath), 'global'),
+            ...$this->parseWhitelistLines(
+                $this->loadWhitelistLines($pluginRoot . '/' . self::WHITELIST_FILENAME),
+                self::WHITELIST_FILENAME,
+            ),
+            ...$this->parseWhitelistLines($extraWhitelist, '--whitelist'),
+        ];
+        // Whole-file entries (no reason) are excluded before scanning at
+        // all — cheaper, and matches the pre-existing behaviour. Scoped
+        // entries (pattern + reason) need the actual detection message,
+        // so those can only be applied after scanning.
+        $wholeFileEntries = array_filter($entries, static fn (array $e) => $e['reason'] === null);
+        $scopedEntries    = array_filter($entries, static fn (array $e) => $e['reason'] !== null);
+
+        // Collect files (relative-path keys → absolute paths), skipping
+        // anything matched by a whole-file whitelist entry.
         $rootPrefix = rtrim($pluginRoot, '/') . '/';
         $files = [];
+        $whitelistedBySource = [];
         foreach ($this->iterateFiles($pluginRoot) as $absolute) {
             $relative = str_starts_with($absolute, $rootPrefix)
                 ? substr($absolute, strlen($rootPrefix))
                 : $absolute;
+
+            $match = $this->matchEntries($relative, null, $wholeFileEntries);
+            if ($match !== null) {
+                $whitelistedBySource[$match['source']][] = $relative;
+                continue;
+            }
+
             $files[$relative] = $absolute;
         }
 
@@ -144,6 +225,12 @@ class PhpMusselRunner
         $lines    = [];
         $lines[]  = "Scanning $pluginRoot with phpMussel";
         $lines[]  = "Signatures: $signatureDir";
+        foreach ($whitelistedBySource as $source => $items) {
+            $lines[] = "Whitelisted ($source): " . count($items) . ' file(s)';
+            foreach ($items as $w) {
+                $lines[] = "  - $w";
+            }
+        }
         $lines[]  = '';
 
         foreach ($intResults as $key => $result) {
@@ -158,8 +245,14 @@ class PhpMusselRunner
             $filename = $this->filenameFromKey((string) $key);
 
             if ($result === 2) {
-                $infected[] = $filename;
                 $msg = $strResults[$key] ?? null;
+                $scopedMatch = $this->matchEntries($filename, $msg, $scopedEntries);
+                if ($scopedMatch !== null) {
+                    $lines[] = 'WHITELISTED: ' . $filename . ' — ' . ($msg ?? '(no detail)')
+                        . ' [reason "' . $scopedMatch['reason'] . '" via ' . $scopedMatch['source'] . ']';
+                    continue;
+                }
+                $infected[] = $filename;
                 $lines[] = 'INFECTED: ' . $filename
                     . ($msg !== null ? ' — ' . $msg : '');
             } elseif ($result < 0) {
@@ -194,6 +287,102 @@ class PhpMusselRunner
     }
 
     /**
+     * Read raw, non-comment, non-blank lines from a whitelist file.
+     * Missing file simply means no entries from this source — not an error.
+     *
+     * @return array<string>
+     */
+    private function loadWhitelistLines(string $whitelistFile): array
+    {
+        if (!is_file($whitelistFile) || !is_readable($whitelistFile)) {
+            return [];
+        }
+
+        $lines = [];
+        foreach (file($whitelistFile, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Parse raw whitelist lines into entries.
+     *
+     * Each line is either:
+     *   pattern
+     *   pattern | reason
+     *
+     * "pattern" is a glob matched against the file's path relative to the
+     * plugin root (forward slashes, no leading slash), e.g.:
+     *
+     *   lib/thirdparty/foo.php
+     *   lib/thirdparty/*
+     *   tests/fixtures/*.php
+     *
+     * With no reason, the whole file is skipped before scanning — any
+     * detection on it is suppressed. With a reason, the file is still
+     * scanned, and only a detection whose message contains that reason as
+     * a case-insensitive substring is suppressed; anything else found on
+     * that file still fires normally, e.g.:
+     *
+     *   site/js/*.js | phpMussel-Suspect.DoubleExtension-00
+     *   tests/behat/*.feature | PHP chameleon attack
+     *
+     * @param array<string> $lines
+     * @return array<array{pattern:string, reason:?string, source:string}>
+     */
+    private function parseWhitelistLines(array $lines, string $source): array
+    {
+        $entries = [];
+        foreach ($lines as $line) {
+            $parts   = explode('|', $line, 2);
+            $pattern = trim($parts[0]);
+            if ($pattern === '') {
+                continue;
+            }
+            $reason = isset($parts[1]) ? trim($parts[1]) : '';
+            $entries[] = [
+                'pattern' => $pattern,
+                'reason'  => $reason !== '' ? $reason : null,
+                'source'  => $source,
+            ];
+        }
+        return $entries;
+    }
+
+    /**
+     * Find the first entry whose pattern matches $relativePath and, if
+     * the entry has a reason, whose reason is a case-insensitive
+     * substring of $message.
+     *
+     * @param array<array{pattern:string, reason:?string, source:string}> $entries
+     * @return array{pattern:string, reason:?string, source:string}|null
+     */
+    private function matchEntries(string $relativePath, ?string $message, array $entries): ?array
+    {
+        foreach ($entries as $entry) {
+            // FNM_PATHNAME so "*" doesn't accidentally cross a "/" —
+            // "lib/thirdparty/*" matches files directly in that dir, not
+            // arbitrarily deep ones.
+            if (!fnmatch($entry['pattern'], $relativePath, FNM_PATHNAME)) {
+                continue;
+            }
+            if ($entry['reason'] === null) {
+                return $entry;
+            }
+            if ($message !== null && stripos($message, $entry['reason']) !== false) {
+                return $entry;
+            }
+        }
+        return null;
+    }
+
+    /**
      * @return \Generator<string>
      */
     private function iterateFiles(string $root): \Generator
@@ -211,7 +400,11 @@ class PhpMusselRunner
                 if ($current->isDir()) {
                     return !in_array($name, self::EXCLUDED_DIRS, true);
                 }
-                return !in_array($name, self::EXCLUDED_FILES, true);
+                // The whitelist file is moosh2's own tooling config, not
+                // plugin payload — and being a dotfile itself, scanning
+                // it would trip the exact "filename manipulation"
+                // heuristic it's meant to help suppress.
+                return !in_array($name, self::EXCLUDED_FILES, true) && $name !== self::WHITELIST_FILENAME;
             },
         );
         $it = new \RecursiveIteratorIterator($filter);
