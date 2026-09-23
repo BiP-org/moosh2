@@ -970,7 +970,7 @@ class PluginListApply52Handler extends BaseHandler
         // The same check applyComponent() makes after every install: this
         // code is about to run (db/uninstall.php), so it is scanned like
         // any other install.
-        $scan = $this->runScanners($component, $componentpath, $output);
+        $scan = $this->runScanners($component, $componentdir, $componentpath, $output);
         if ($scan['exitCode'] !== ClamscanRunner::EXIT_CLEAN) {
             $relativeLog = self::SCANNER_REPORT_PATHS[$scan['failedScanner']] ?? '';
             $logPath = $relativeLog !== ''
@@ -1182,7 +1182,7 @@ class PluginListApply52Handler extends BaseHandler
             throw new \RuntimeException("requested: $displayRequested could not be upgraded, $displayCurrent is still deployed, exiting");
         }
 
-        $scan = $this->runScanners($component, $componentpath, $output);
+        $scan = $this->runScanners($component, $componentdir, $componentpath, $output);
         if ($scan['exitCode'] !== ClamscanRunner::EXIT_CLEAN) {
             // Point only at the log the failing scanner actually wrote,
             // not at every scanner's log regardless of which ran.
@@ -2124,9 +2124,17 @@ class PluginListApply52Handler extends BaseHandler
      * the install has already failed, there's no value in running the
      * second scanner on top.
      *
+     * $componentdir (the declarative plugin list's component directory —
+     * same directory as that component's version/checksum/archive/) is
+     * where the per-plugin phpmuslescan-whitelist/clamscan-whitelist is
+     * read from, NOT $componentpath (the installed Moodle plugin
+     * directory), which is replaced wholesale by every (re)install and
+     * would silently drop a whitelist file kept there on the next
+     * upgrade. See PhpMusselRunner::WHITELIST_FILENAME.
+     *
      * @return array{exitCode:int, failedScanner:?string}
      */
-    private function runScanners(string $component, string $componentpath, OutputInterface $output): array
+    private function runScanners(string $component, string $componentdir, string $componentpath, OutputInterface $output): array
     {
         if ($this->scanners === []) {
             return ['exitCode' => ClamscanRunner::EXIT_CLEAN, 'failedScanner' => null];
@@ -2136,8 +2144,8 @@ class PluginListApply52Handler extends BaseHandler
         $failedScanner = null;
         foreach ($this->scanners as $scanner) {
             $result = match ($scanner) {
-                'clamscan'  => $this->scanWithClamav($component, $componentpath, $output),
-                'phpmussel' => $this->scanWithPhpMussel($component, $componentpath, $output),
+                'clamscan'  => $this->scanWithClamav($component, $componentdir, $componentpath, $output),
+                'phpmussel' => $this->scanWithPhpMussel($component, $componentdir, $componentpath, $output),
                 default     => throw new \RuntimeException("Unknown scanner '$scanner'"),
             };
             if ($result > $worst) {
@@ -2154,7 +2162,7 @@ class PluginListApply52Handler extends BaseHandler
     /**
      * @return int one of ClamscanRunner::EXIT_CLEAN / EXIT_MALWARE_FOUND / EXIT_ERROR
      */
-    private function scanWithClamav(string $component, string $componentpath, OutputInterface $output): int
+    private function scanWithClamav(string $component, string $componentdir, string $componentpath, OutputInterface $output): int
     {
         $binary = ClamscanRunner::findBinary();
         if ($binary === null) {
@@ -2190,7 +2198,12 @@ class PluginListApply52Handler extends BaseHandler
         }
 
         $output->writeln("Starting malware scan for $component at $componentpath");
-        $options = ['database' => $databases, 'infected' => true, 'log' => $reportdir . '/clamav.log'];
+        $options = [
+            'database'     => $databases,
+            'infected'     => true,
+            'log'          => $reportdir . '/clamav.log',
+            'whitelistDir' => $componentdir,
+        ];
         [$exitcode, $lines] = ClamscanRunner::scan($binary, $componentpath, $options);
         foreach ($lines as $line) {
             $output->writeln($line);
@@ -2201,7 +2214,7 @@ class PluginListApply52Handler extends BaseHandler
     /**
      * @return int one of ClamscanRunner::EXIT_CLEAN / EXIT_MALWARE_FOUND / EXIT_ERROR
      */
-    private function scanWithPhpMussel(string $component, string $componentpath, OutputInterface $output): int
+    private function scanWithPhpMussel(string $component, string $componentdir, string $componentpath, OutputInterface $output): int
     {
         $signatureManager = new PhpMusselSignatureManager();
         $signatureDir = $signatureManager->getSignatureDir();
@@ -2234,7 +2247,7 @@ class PluginListApply52Handler extends BaseHandler
 
         $output->writeln("Starting phpMussel scan for $component at $componentpath");
         $runner = new PhpMusselRunner($signatureManager);
-        $result = $runner->scan($componentpath);
+        $result = $runner->scan($componentpath, [], $componentdir);
 
         foreach (explode("\n", $result['output']) as $line) {
             $output->writeln($line);
