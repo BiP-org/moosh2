@@ -26,11 +26,11 @@ final class ClamscanRunner
     public const EXIT_ERROR = 2;
 
     /**
-     * Name of the per-plugin whitelist file, read from the plugin's own
-     * root directory. Same format/semantics as
-     * PhpMusselRunner::WHITELIST_FILENAME, just a separate file so a
-     * phpMussel exception and a ClamAV exception for the same plugin
-     * don't have to share one file.
+     * Name of the per-plugin whitelist file. Same format/semantics/
+     * lookup-directory rules as PhpMusselRunner::WHITELIST_FILENAME —
+     * see that constant's docblock — just a separate file so a phpMussel
+     * exception and a ClamAV exception for the same plugin don't have to
+     * share one file.
      */
     public const WHITELIST_FILENAME = 'clamscan-whitelist';
 
@@ -127,11 +127,16 @@ final class ClamscanRunner
      *                                        'whitelist' => array<string> — extra
      *                                        whitelist lines (e.g. from --whitelist),
      *                                        on top of the built-in, global and
-     *                                        per-plugin whitelists.
+     *                                        per-plugin whitelists; 'whitelistDir'
+     *                                        => string — directory the per-plugin
+     *                                        WHITELIST_FILENAME is read from,
+     *                                        defaulting to $pluginRoot (see
+     *                                        WHITELIST_FILENAME's docblock).
      * @return array{0: int, 1: string[]} [exitcode, output lines]
      */
     public static function scan(string $binary, string $pluginRoot, array $options = []): array
     {
+        $whitelistDir = is_string($options['whitelistDir'] ?? null) ? $options['whitelistDir'] : $pluginRoot;
         $args = self::buildArgs($binary, $pluginRoot, $options);
         $command = implode(' ', $args) . ' 2>&1';
 
@@ -145,7 +150,7 @@ final class ClamscanRunner
         $entries = self::assembleWhitelistEntries(
             self::BUILTIN_WHITELIST,
             self::getGlobalWhitelistPath(),
-            rtrim($pluginRoot, '/') . '/' . self::WHITELIST_FILENAME,
+            rtrim($whitelistDir, '/') . '/' . self::WHITELIST_FILENAME,
             self::WHITELIST_FILENAME,
             $extraWhitelist,
         );

@@ -117,8 +117,9 @@ plugins/                              <- --directory (defaults to "plugins"
                                           used by list-update only
   .clamav/                            <- auto-created by list-apply's malware scan
     report/clamav.log
-    rules/
-    exceptions/
+    rules/                             <- custom databases, .yar/.yara (YARA) ONLY
+    exceptions/                        <- custom databases too, despite the name:
+                                          .ndb/.hdb/.fp/.ign2/.yar/.yara
   .phpmussel/
     report/phpmussel.log
 ```

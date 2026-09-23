@@ -204,6 +204,8 @@ export function PluginListsPage() {
     support_status                    <- auto-written by list-update when no version
                                           supports the target Moodle release;
                                           auto-removed once one does again
+    phpmuslescan-whitelist             <- optional, per-plugin malware-scan whitelist for
+    clamscan-whitelist                    list-apply's post-install scan; see below
     bin/                              <- only for package_* pseudo-components, or any
                                           other component that wants full manual
                                           control over how it's resolved/installed
@@ -219,14 +221,26 @@ export function PluginListsPage() {
                                           used by list-update only, see §5.2
   .clamav/                            <- auto-created by list-apply's malware scan
     report/clamav.log
-    rules/
-    exceptions/
+    rules/                             <- custom databases, .yar/.yara (YARA) ONLY
+    exceptions/                        <- custom databases too, despite the name:
+                                          .ndb/.hdb/.fp/.ign2/.yar/.yara
   .phpmussel/
     report/phpmussel.log`}</CodeBlock>
         <p className="text-muted-foreground">
           Directories starting with <InlineCode>.</InlineCode> are never treated as plugin components by either
           command (skipped when auto-discovering components from <InlineCode>--directory</InlineCode>), which is
           why the scanner report/rule directories above are safe to keep alongside the plugin subdirectories.
+        </p>
+        <p className="text-muted-foreground">
+          <InlineCode>phpmuslescan-whitelist</InlineCode> and <InlineCode>clamscan-whitelist</InlineCode> hold
+          per-plugin false-positive exceptions for <InlineCode>list-apply</InlineCode>&apos;s post-install malware
+          scan (built-in and global tiers also apply — see <InlineCode>plugin:phpmuslescan</InlineCode> /{' '}
+          <InlineCode>plugin:clamscan</InlineCode>&apos;s own <InlineCode>--help</InlineCode> for the whitelist file
+          format). They live here, next to <InlineCode>version</InlineCode> and <InlineCode>checksum</InlineCode>,
+          rather than inside the installed Moodle plugin directory — that directory is replaced wholesale by every
+          (re)install, so a whitelist file kept there would be silently lost on the very next upgrade. This
+          directory is the user&apos;s own git-managed checkout and is never touched by an install, so it&apos;s
+          where the whitelist has to live to survive.
         </p>
       </section>
 

@@ -107,11 +107,13 @@ chmod +x "$PK"/bin/*.sh
 # Custom ClamAV rule matching a marker WE define - deterministic, no
 # guessing about real-world signatures (same technique as
 # test_plugin_clamscan.sh). Lives under the declarative list's own
-# .clamav/rules/, exactly where PluginListApply52Handler::scanWithClamav()
-# looks for extra databases (configPluginDirectory/.clamav/rules).
+# .clamav/exceptions/, which is where PluginListApply52Handler::
+# scanWithClamav() looks for extra .ndb/.hdb databases (despite the
+# directory's name, it's -d-loaded alongside .clamav/rules, which is
+# YARA-only: .yar/.yara).
 MARKER_HEX=$(printf 'MOOSH2_TEST_WLDIR_MARKER' | od -An -tx1 | tr -d ' \n')
-mkdir -p "$PKGDIR/.clamav/rules"
-echo "Test.Moosh2.WlDirMarker:0:*:${MARKER_HEX}" > "$PKGDIR/.clamav/rules/custom.ndb"
+mkdir -p "$PKGDIR/.clamav/exceptions"
+echo "Test.Moosh2.WlDirMarker:0:*:${MARKER_HEX}" > "$PKGDIR/.clamav/exceptions/custom.ndb"
 
 apply_pkg() { run_moosh plugin:list-apply -p "$MOODLE_PATH" --directory="$PKGDIR" "$@" package_mooshwl; }
 
