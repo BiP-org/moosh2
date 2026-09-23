@@ -2140,6 +2140,11 @@ class PluginListApply52Handler extends BaseHandler
             return ['exitCode' => ClamscanRunner::EXIT_CLEAN, 'failedScanner' => null];
         }
 
+        $this->debugLog(
+            $output,
+            "runScanners $component: componentdir=$componentdir componentpath=$componentpath scanners=" . implode(',', $this->scanners),
+        );
+
         $worst = ClamscanRunner::EXIT_CLEAN;
         $failedScanner = null;
         foreach ($this->scanners as $scanner) {
@@ -2197,6 +2202,15 @@ class PluginListApply52Handler extends BaseHandler
             return ClamscanRunner::EXIT_CLEAN;
         }
 
+        $whitelistPath = rtrim($componentdir, '/') . '/' . ClamscanRunner::WHITELIST_FILENAME;
+        $this->debugLog(
+            $output,
+            "scanWithClamav $component: databases=[" . implode(', ', $databases) . '] '
+            . "whitelistDir=$componentdir whitelistFile=$whitelistPath "
+            . 'exists=' . (is_file($whitelistPath) ? 'yes' : 'no')
+            . ' readable=' . (is_readable($whitelistPath) ? 'yes' : 'no'),
+        );
+
         $output->writeln("Starting malware scan for $component at $componentpath");
         $options = [
             'database'     => $databases,
@@ -2245,6 +2259,15 @@ class PluginListApply52Handler extends BaseHandler
         $reportdir = $this->configPluginDirectory . '/.phpmussel/report';
         @mkdir($reportdir, 0755, true);
 
+        $whitelistPath = rtrim($componentdir, '/') . '/' . PhpMusselRunner::WHITELIST_FILENAME;
+        $this->debugLog(
+            $output,
+            "scanWithPhpMussel $component: signatureDir=$signatureDir configPath=$configPath "
+            . "whitelistDir=$componentdir whitelistFile=$whitelistPath "
+            . 'exists=' . (is_file($whitelistPath) ? 'yes' : 'no')
+            . ' readable=' . (is_readable($whitelistPath) ? 'yes' : 'no'),
+        );
+
         $output->writeln("Starting phpMussel scan for $component at $componentpath");
         $runner = new PhpMusselRunner($signatureManager);
         $result = $runner->scan($componentpath, [], $componentdir);
@@ -2255,6 +2278,22 @@ class PluginListApply52Handler extends BaseHandler
         file_put_contents($reportdir . '/phpmussel.log', $result['output']);
 
         return $result['exitCode'];
+    }
+
+    /**
+     * Prints only when GitHub Actions step-debug logging is on (the
+     * runner sets RUNNER_DEBUG=1 whenever the ACTIONS_STEP_DEBUG secret/
+     * variable is true — see
+     * https://docs.github.com/en/actions/how-tos/monitor-workflows/enable-debug-logging).
+     * A no-op (checked once per call, cheap) everywhere else, including
+     * local runs and the test suite, so this is safe to sprinkle liberally
+     * without adding noise to normal output.
+     */
+    private function debugLog(OutputInterface $output, string $message): void
+    {
+        if (getenv('RUNNER_DEBUG') === '1') {
+            $output->writeln("::debug::$message");
+        }
     }
 
     private function dirHasFilesMatching(string $dir, array $extensions): bool
