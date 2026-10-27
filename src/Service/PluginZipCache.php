@@ -77,16 +77,50 @@ final class PluginZipCache
         if (class_exists(\ZipArchive::class)) {
             $zip = new \ZipArchive();
             $result = $zip->open($path, \ZipArchive::CHECKCONS);
-            if ($result !== true) {
+            if ($result === true) {
+                $zip->close();
+                return true;
+            }
+
+            // CHECKCONS is libzip's strictest mode: it rejects archives
+            // that unzip/7z/Moodle's own extractor read without complaint
+            // (e.g. local header vs. central directory differences written
+            // by some zip tools, as seen with marketplace.moodle.com
+            // downloads such as mod_geogebra). Before declaring the file
+            // invalid, retry leniently and confirm with the unzip binary's
+            // own integrity test when it is installed.
+            $zip = new \ZipArchive();
+            $lenient = $zip->open($path);
+            if ($lenient !== true) {
                 return false;
             }
+            $entries = $zip->numFiles;
             $zip->close();
-            return true;
+            if ($entries <= 0) {
+                return false;
+            }
+
+            return self::unzipTestPasses($path) ?? true;
         }
 
         // Fall back to the unzip binary's own integrity test when the zip
         // extension isn't available.
-        exec('unzip -tqq ' . escapeshellarg($path), $output, $returnvar);
+        return self::unzipTestPasses($path) ?? false;
+    }
+
+    /**
+     * Run `unzip -tqq` on $path.
+     *
+     * @return bool|null true/false for pass/fail, null if unzip isn't available
+     */
+    private static function unzipTestPasses(string $path): ?bool
+    {
+        $which = [];
+        exec('command -v unzip 2>/dev/null', $which, $found);
+        if ($found !== 0) {
+            return null;
+        }
+        exec('unzip -tqq ' . escapeshellarg($path) . ' >/dev/null 2>&1', $output, $returnvar);
         return $returnvar === 0;
     }
 
